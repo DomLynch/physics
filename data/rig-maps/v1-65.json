@@ -1,0 +1,11 @@
+{
+  "schema": "rig-map/1",
+  "about": "Role joint -> node name on V1's 65-joint UE-style rig (Frankendom V3 bodies: warrior, Centurion, Psyche, Minotaur). Map given by Frankendom v3 Dev 2026-10-26. Used by tools/glb-measure.mjs only; the package itself never sees bone names.",
+  "joints": {
+    "Hips": "pelvis", "Spine": "spine_01", "Spine1": "spine_02", "Spine2": "spine_03", "Neck": "neck_01", "Head": "Head",
+    "LeftArm": "upperarm_l", "LeftForeArm": "lowerarm_l", "LeftHand": "hand_l",
+    "RightArm": "upperarm_r", "RightForeArm": "lowerarm_r", "RightHand": "hand_r",
+    "LeftUpLeg": "thigh_l", "LeftLeg": "calf_l", "LeftFoot": "foot_l", "LeftToeBase": "ball_l",
+    "RightUpLeg": "thigh_r", "RightLeg": "calf_r", "RightFoot": "foot_r", "RightToeBase": "ball_r"
+  }
+}
