@@ -4,6 +4,10 @@
 // caller-supplied `rand()`. State is plain JSON (server and phone can both hold it); evaluateHit mutates the
 // state it is given (that is what "state" is for) and returns the same object in `result.state`.
 // Every number is read from the rows; a missing row throws. The only literals here are unit conversions (percent).
+// Speed in: `hit.handSpeed` (m/s of the attacker's hand end; the evaluator multiplies it by the weapon lever
+// (lever.arm_reach_m + weapons.<id>.length_m) / lever.arm_reach_m) OR `hit.tipSpeed` (a weapon tip speed that already carries the lever); never both.
+// `hit.armReachM` overrides lever.arm_reach_m for a body with its own arm. Then strength = tip x sharpness x (swing.heavy_mult if
+// hit.swing === "heavy") x (swing.counter_hit_mult if hit.counterHit) x the speed-gate ramp; the gate and the bone gate read the physical tip speed.
 import { loadRules, assertRules } from "./rules.mjs";
 
 const fail = (msg) => { throw new Error("rules-eval: " + msg); };
@@ -102,6 +106,9 @@ export function createEvaluator(rules = loadRules()) {
   const rungHit = num(scale.rung_hit, "strength_scale.rung_hit");
   const rungStick = num(scale.rung_stick, "strength_scale.rung_stick");
   const rungCut = num(scale.rung_cut, "strength_scale.rung_cut");
+  const heavyMult = num(need(rules, "swing.heavy_mult"), "swing.heavy_mult");
+  const counterMult = num(need(rules, "swing.counter_hit_mult"), "swing.counter_hit_mult");
+  const armReachRow = num(need(rules, "lever.arm_reach_m"), "lever.arm_reach_m");
   const gate = need(rules, "melee_speed_gate");
   const gateMin = num(gate.min_speed_m_s, "melee_speed_gate.min_speed_m_s");
   const gateMargin = num(gate.full_strength_margin_m_s, "melee_speed_gate.full_strength_margin_m_s");
@@ -153,12 +160,26 @@ export function createEvaluator(rules = loadRules()) {
     if (!hit || typeof hit !== "object") fail("hit must be an object");
     if (!state || state.schema !== "fighter-state/1") fail("state must come from createFighterState");
     const t = num(hit.t, "hit.t (sim seconds)");
-    const tip = num(hit.tipSpeed, "hit.tipSpeed");
     const w = rules.weapons[hit.weapon] || fail(`unknown weapon ${hit.weapon}`);
+    // speed in: a measured hand speed (x the weapon's lever) OR a weapon tip speed that already carries the lever; never both
+    if (hit.handSpeed !== undefined && hit.tipSpeed !== undefined) fail("give hit.handSpeed or hit.tipSpeed, not both");
+    let tip, lever = null;
+    if (hit.handSpeed !== undefined) {
+      const reach = hit.armReachM === undefined ? armReachRow : num(hit.armReachM, "hit.armReachM");
+      if (!(reach > 0)) fail("hit.armReachM must be above 0");
+      const len = typeof w.length_m === "number" ? w.length_m : fail(`weapon ${hit.weapon} has no length_m (${w.todo || "row is null"})`);
+      lever = (reach + len) / reach;
+      tip = num(hit.handSpeed, "hit.handSpeed") * lever;
+    } else tip = num(hit.tipSpeed, "hit.tipSpeed (or hit.handSpeed)");
+    const swingType = hit.swing === undefined ? "light" : hit.swing;
+    if (swingType !== "light" && swingType !== "heavy") fail(`hit.swing must be "light" or "heavy", got ${swingType}`);
+    if (hit.counterHit !== undefined && typeof hit.counterHit !== "boolean") fail("hit.counterHit must be a boolean");
+    const counterHit = hit.counterHit === true;
+    const swingMult = (swingType === "heavy" ? heavyMult : 1) * (counterHit ? counterMult : 1);
     const kind = kinds[hit.kind] || fail(`unknown hit kind ${hit.kind}`);
     const zoneRow = rules.zones[hit.zone] || fail(`unknown zone ${hit.zone}`);
     const events = [];
-    const result = { outcome: "miss", strength: 0, damage: 0, part: null, partHpAfter: null, knockdown: null, cut: null, bleed: false, finisher: null, events, state };
+    const result = { outcome: "miss", strength: 0, damage: 0, part: null, partHpAfter: null, knockdown: null, cut: null, bleed: false, finisher: null, tipSpeed: tip, lever, swing: swingType, counterHit, swingMult, sharpness: null, events, state };
 
     // bleed timer that ran out before this hit
     if (state.alive && state.bleed && t >= state.bleed.until) {
@@ -177,12 +198,13 @@ export function createEvaluator(rules = loadRules()) {
     if (tip < gateMin) { events.push({ type: "below_speed_gate", tipSpeed: tip, min: gateMin }); return result; }
     const ramp = gateMargin > 0 ? clamp((tip - gateMin) / gateMargin, 0, 1) : 1;
 
-    // one strength number: tip speed x sharpness (x speed-gate ramp)
+    // one strength number: tip speed x sharpness x swing multipliers (x speed-gate ramp)
     const sharp = kind.sharpness_column === null ? num(kind.sharpness, `evaluator.kinds.${hit.kind}.sharpness`)
       : w[kind.sharpness_column] === null || w[kind.sharpness_column] === undefined
         ? fail(`weapon ${hit.weapon} has no ${kind.sharpness_column} (${w.todo || "row is null"})`) : num(w[kind.sharpness_column], `weapons.${hit.weapon}.${kind.sharpness_column}`);
-    const strength = tip * sharp * ramp;
+    const strength = tip * sharp * swingMult * ramp;
     result.strength = strength;
+    result.sharpness = sharp;
     if (strength < rungHit) { events.push({ type: "below_hit_rung", strength, rung: rungHit }); return result; }
     if (ps.gone) { events.push({ type: "part_gone", part }); return result; }
 

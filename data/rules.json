@@ -6,18 +6,34 @@
     "source": "TABG PlayerDeath.globalDmgMultiplier 0.65 (opentrident-steam docs/parts-lab/combat-physics-comparison-five-games.md section 2.2; COMBAT-101 B5). One row to tune all damage."
   },
   "strength_scale": {
-    "formula": "strength = tip_speed_m_s * sharpness",
-    "rung_hit": 4.0,
-    "rung_stick": 8.3,
-    "rung_cut": 12.2,
+    "formula": "tip_speed = hand_speed * lever (or a tip speed given directly); strength = tip_speed * sharpness * (heavy_mult if a heavy swing) * (counter_hit_mult if a counter-hit)",
+    "rung_hit": 8.0,
+    "rung_stick": 16.5,
+    "rung_cut": 24.3,
+    "baseline_weapon": "gm_gladius",
     "status": "measured",
-    "measure_note": "M4 tip-speed measurement (docs/M4-MEASURE.md, tools/tip-speed.mjs). Rungs are in tip-speed m/s at sharpness 1.0 (reference edge): the old 20/50/100 were Gladio and Glory units with no sharpness column to convert, so the scale is re-based, not scaled. Peaks of 12 swings of ONE clip set (V3 Minotaur, 65 rig, hand end). Not yet measured: Mixamo and Hellish Quart library clips (not readable from the Mac), the special swing class (no labels in the dump), a weapon tip (no weapon axis in the dump). 12 swings is a small sample: re-run on more clips and move the rungs to the new percentiles.",
-    "source": "V3 recorded fight dump docs/ragdoll-fight-poses.json (902 ticks, 60 Hz, Minotaur on the 65 rig, branch docs/ragdoll-poses), hand-end peak tip speed per swing, 12 swings with pose snaps excluded: rung_hit 4.0 = p10 (4.01 m/s), rung_stick 8.3 = p50 (8.27 m/s), rung_cut 12.2 = p90 (12.18 m/s). Replaces the Gladio and Glory start values 20/50/100 (COMBAT-101 A1 and item 17)."
+    "measure_note": "Rungs are WEAPON TIP speed in m/s at sharpness 1.0 (the baseline blade, baseline_weapon), re-based from the hand-end percentiles of docs/M4-MEASURE.md by the baseline weapon's lever (lever.arm_reach_m and weapons.gm_gladius.length_m: lever 1.992): hand p10 4.01 x 1.992 = 8.0, hand p50 8.27 x 1.992 = 16.5, hand p90 12.18 x 1.992 = 24.3 (docs/M4-CALIBRATION.md). MEASURED: hand speeds (12 swings, one clip set, one body) and arm reach. ASSUMED: the weapon continues the arm axis and the chain turns about the shoulder (lever formula); the weapon length is a donor number (Gladio Mori weapons-physics.csv), not ours. Not measured: Mixamo and Hellish Quart library clips (not readable from the Mac), the special swing class, a real weapon tip (the dump has no weapon axis). 12 swings is a small sample: re-run on more clips and move the rungs to the new percentiles.",
+    "source": "V3 recorded fight dump docs/ragdoll-fight-poses.json (902 ticks, 60 Hz, Minotaur on the 65 rig, branch docs/ragdoll-poses), hand-end peak speed per swing, 12 swings with pose snaps excluded: hand p10 4.01 / p50 8.27 / p90 12.18 m/s, times the gladius lever 1.992 (arm reach 0.5634 m, length 0.559 m) = 8.0 / 16.5 / 24.3. Replaces the Gladio and Glory start values 20/50/100 (COMBAT-101 A1 and item 17) and the hand-speed rungs 4.0 / 8.3 / 12.2 of the first M4 measurement."
+  },
+  "lever": {
+    "arm_reach_m": 0.5634,
+    "formula": "lever = (arm_reach_m + weapon.length_m) / arm_reach_m; tip_speed = hand_speed * lever",
+    "status": "measured",
+    "source": "Arm reach = shoulder pivot to hand end at rest, 0.5634 m, from the V3 Minotaur body (data/bodies/minotaur.measure.json through generateRow and buildDefinition; printed by tools/tip-speed.mjs). Default for a body without its own arm reach: pass hit.armReachM to override per attacker. Lever formula is an ASSUMPTION (the weapon continues the arm and rotates with it about the shoulder; COMBAT-101 A2: tip speed is arm length times angular speed)."
+  },
+  "swing": {
+    "heavy_mult": 1.92,
+    "heavy_status": "measured",
+    "counter_hit_mult": 1.75,
+    "counter_hit_status": "own",
+    "hand_speed_ref_m_s": { "light_p50": 6.25, "light_p90": 9.74, "heavy_p50": 12.01, "heavy_p90": 12.74 },
+    "todo": "counter_hit_mult is an OWN start value (picked so heavy x counter-hit clears the top plate threshold with margin, docs/M4-CALIBRATION.md); measure it on counter-hit clips. heavy_mult is the heavy / light MEDIAN peak hand speed ratio (12.01 / 6.25 = 1.92) of 5 long and 7 short swings, split by run duration, not by a clip label, so re-measure on labelled charged clips; the p90 ratio is only 1.31. heavy_mult stands for the charge; do not also feed the faster hand speed of a heavy animation (counts the heavy twice).",
+    "source": "heavy_mult: V3 Minotaur fight dump (tools/tip-speed.mjs light and heavy classes, run duration at the 0.2 s median): heavy p50 12.01 m/s over light p50 6.25 m/s. hand_speed_ref_m_s: the same table (docs/M4-MEASURE.md); light_p90 = the full-speed light swing every calibration row uses. counter_hit_mult: own start value (COMBAT-101 core doc: only a heavy or a counter-hit cuts mail and plate)."
   },
   "melee_speed_gate": {
-    "min_speed_m_s": 4.0,
+    "min_speed_m_s": 8.0,
     "full_strength_margin_m_s": 0.5,
-    "source": "min_speed_m_s 4.0 = p10 of the swing peaks (4.01 m/s) in the V3 Minotaur fight dump, hand end, 12 swings (docs/M4-MEASURE.md): 90 percent of our swings pass; TABG's 5 m/s (relativeVelocity >= 5 m/s then num = clamp(v x 2, 0, 1); five-games doc section 2.2; COMBAT-101 B5) sits at about p17 of them. full_strength_margin_m_s 0.5 is still the TABG start value (not measurable from a pose dump)."
+    "source": "min_speed_m_s 8.0 = p10 of the swing peaks (4.01 m/s hand) x the baseline lever 1.992, in tip speed (same number as rung_hit): 90 percent of our swings pass; TABG's 5 m/s (relativeVelocity >= 5 m/s then num = clamp(v x 2, 0, 1); five-games doc section 2.2; COMBAT-101 B5) is a contact speed with no lever, so it sits near the hand p17. full_strength_margin_m_s 0.5 is still the TABG start value (not measurable from a pose dump)."
   },
   "zones": {
     "head": { "body_part_mult": 2.0, "source": "TABG Damagable head multiplier 2.0 (five-games doc 2.2; COMBAT-101 B5)" },
@@ -33,7 +49,7 @@
     "bone_mult_min": 0.5,
     "bone_mult_max": 5,
     "armour_effect": "armour multiplies the gate by its dismember_threshold_modifier (raises it, finite, never a wall)",
-    "source": "Gladio Mori Blade.CheckBoneBreak: speed^2 x boneMultiplier > 9, so gate = 3 / sqrt(boneMult) m/s; bone multipliers 0.5 to 5 (five-games doc 2.1 and 5). Start shape, UNCHANGED by M4: at numerator 3 the gate (2.7 to 3.0 m/s for bone_mult 1.0 to 1.2) is under 11 to 12 of the 12 measured swing peaks (min 2.95 m/s), so on our clips the cut rung (12.2 m/s at sharpness 1) is what binds, not this gate (docs/M4-MEASURE.md). Left for Dom: raise the numerator only if the bone gate should bind."
+    "source": "Gladio Mori Blade.CheckBoneBreak: speed^2 x boneMultiplier > 9, so gate = 3 / sqrt(boneMult) m/s; bone multipliers 0.5 to 5 (five-games doc 2.1 and 5). Start shape, UNCHANGED by M4: at numerator 3 the gate (2.7 to 3.0 m/s for bone_mult 1.0 to 1.2) is under 11 to 12 of the 12 measured HAND peaks (min 2.95 m/s) and far under any weapon TIP speed (hand x lever, at least 1.6), so on our clips the cut rung (24.3 m/s of tip speed at sharpness 1) is what binds, not this gate (docs/M4-MEASURE.md, docs/M4-CALIBRATION.md). The gate compares the physical tip speed (not multiplied by heavy or counter-hit). Left for Dom: raise the numerator only if the bone gate should bind."
   },
   "armour_tiers": {
     "none":     { "dismember_threshold_modifier": 1.0,  "damage_taken_mult": { "cut": 1.0,  "stab": 1.0, "blunt": 1.0 }, "source": "role table armour_tiers (own start values, HS rating ladder shape; Dom 2026-10-25 armour never blocks)" },
@@ -41,7 +57,7 @@
     "leather":  { "dismember_threshold_modifier": 1.15, "damage_taken_mult": { "cut": 0.85, "stab": 0.9,  "blunt": 0.8 },  "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
     "mail":     { "dismember_threshold_modifier": 1.5,  "damage_taken_mult": { "cut": 0.65, "stab": 0.8,  "blunt": 0.85 }, "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
     "plate_t2": { "dismember_threshold_modifier": 2.0,  "damage_taken_mult": { "cut": 0.45, "stab": 0.6,  "blunt": 0.75 }, "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
-    "plate_t3": { "dismember_threshold_modifier": 2.5,  "damage_taken_mult": { "cut": 0.35, "stab": 0.5,  "blunt": 0.7 },  "source": "role table armour_tiers (own start values; top plate cut 0.35, threshold 2.5). Design check: every dismember-capable weapon must be able to exceed 2.5x the base, or top armour is a block in practice. MEASURED vs ASSUMED (2026-10-26, docs/M4-MEASURE.md, 12 swings of one clip set): cut rung 12.2 m/s x 2.5 = 30.5 m/s needed at sharpness 1; the fastest measured swing is 13.09 m/s, so top plate is UNREACHABLE at sharpness 1 (a block in practice) until weapons carry a sharpness value of at least 2.3 to 2.5; no sharpness values are measured or defined yet (all assumed 1.0). Same for plate_t2 (24.4 m/s needed, sharpness at least 1.9) and mail (18.3 m/s, sharpness at least 1.4). Do not treat an unreachable tier as a design decision: define weapon sharpness first." }
+    "plate_t3": { "dismember_threshold_modifier": 2.5,  "damage_taken_mult": { "cut": 0.35, "stab": 0.5,  "blunt": 0.7 },  "source": "role table armour_tiers (own start values; top plate cut 0.35, threshold 2.5). Design check (docs/M4-CALIBRATION.md): the strongest allowed hit must clear 2.5x the cut rung, or top armour is a block in practice. Threshold 2.5 x 24.3 = 60.75 m/s of strength. Baseline blade, full-speed light hand speed 9.74 m/s: tip 19.4, x heavy_mult 1.92 = 37.3, x counter_hit_mult 1.75 = 65.2 > 60.75 (reachable only with a heavy AND a counter-hit; heavy alone 37.3 cuts up to mail 36.5; light + counter-hit 33.9 does not cut mail). The earlier hand-speed scale had top plate unreachable (30.5 needed vs 13.09 fastest swing); the lever, the heavy swing and per-weapon sharpness (best slash ratio 1.0, so the gain is in the lever and the swing type) fix that. MEASURED: hand speeds. ASSUMED: lever formula, weapon length. OWN: counter_hit_mult 1.75." }
   },
   "knockdown": {
     "counter_fall_at": 60,
@@ -87,46 +103,53 @@
       "reach_min_m": 0.7, "reach_max_m": 1.15, "mass_kg": 2.0,
       "slash_mult": 2.92, "stab_mult": 2.8, "slash_bone_mult": 1.2, "stab_bone_mult": 1.1,
       "bone_break_speed_slash": 2.74, "bone_break_speed_stab": 2.86, "bone_break_speed": 2.74,
-      "source": "Gladio Mori docs/parts-lab/gladio-mori/data/weapons.csv row Gladius"
+      "length_m": 0.559, "slash_sharpness": 1.0, "stab_sharpness": 1.0,
+      "source": "Gladio Mori docs/parts-lab/gladio-mori/data/weapons.csv row Gladius. BASELINE blade (strength_scale.baseline_weapon): sharpness 1.0 by definition. length_m = grip to blade tip along the weapon axis = bladeTip.z - holdPoint.z from weapons-physics.csv row Gladius (0.2 - -0.359; donor number, weapon axis assumed z, cross-check: arm 0.563 + 0.559 = 1.12 vs reach_max_m 1.15)"
     },
     "gm_katana": {
       "reach_min_m": 0.5, "reach_max_m": 1.55, "mass_kg": 3.0,
       "slash_mult": 2.92, "stab_mult": 2.92, "slash_bone_mult": 1.1, "stab_bone_mult": 1.1,
       "bone_break_speed_slash": 2.86, "bone_break_speed_stab": 2.86, "bone_break_speed": 2.86,
       "tabg_damage_on_hit": 120, "tabg_cooldown_s": 0.9, "tabg_force_on_hit": 50000,
-      "source": "Gladio Mori weapons.csv row Katana; TABG tabg/data/weapons.csv row Katana (damageOnHit 120, cooldown 0.9 s, forceOnHit 50000)"
+      "length_m": 0.969, "slash_sharpness": 1.0, "stab_sharpness": 1.043,
+      "source": "Gladio Mori weapons.csv row Katana (sharpness = mult / baseline gladius mult: slash 2.92/2.92, stab 2.92/2.8); length_m = bladeTip.z - holdPoint.z in weapons-physics.csv (0.666 - -0.303); TABG tabg/data/weapons.csv row Katana (damageOnHit 120, cooldown 0.9 s, forceOnHit 50000)"
     },
     "gm_claymore": {
       "reach_min_m": 0.7, "reach_max_m": 1.8, "mass_kg": 4.0,
       "slash_mult": 2.92, "stab_mult": 2.92, "slash_bone_mult": 1.1, "stab_bone_mult": 1.1,
       "bone_break_speed_slash": 2.86, "bone_break_speed_stab": 2.86, "bone_break_speed": 2.86,
-      "source": "Gladio Mori weapons.csv row Claymore"
+      "length_m": 1.164, "slash_sharpness": 1.0, "stab_sharpness": 1.043,
+      "source": "Gladio Mori weapons.csv row Claymore (sharpness = mult / baseline gladius mult: slash 2.92/2.92, stab 2.92/2.8); length_m = bladeTip.z - holdPoint.z in weapons-physics.csv (0.748 - -0.416)"
     },
     "gm_dagger": {
       "reach_min_m": 0.6, "reach_max_m": 1.0, "mass_kg": 1.0,
       "slash_mult": 1.0, "stab_mult": 3.0, "slash_bone_mult": 1.0, "stab_bone_mult": 2.0,
       "bone_break_speed_slash": 3.0, "bone_break_speed_stab": 2.12, "bone_break_speed": 2.12,
-      "source": "Gladio Mori weapons.csv row Dagger"
+      "length_m": 0.331, "slash_sharpness": 0.342, "stab_sharpness": 1.071,
+      "source": "Gladio Mori weapons.csv row Dagger (sharpness = mult / baseline gladius mult: slash 1.0/2.92, stab 3.0/2.8); length_m = bladeTip.z - holdPoint.z in weapons-physics.csv (0.255 - -0.076)"
     },
     "gm_rapier": {
       "reach_min_m": 0.8, "reach_max_m": 1.83, "mass_kg": 2.0,
       "slash_mult": 1.0, "stab_mult": 3.2, "slash_bone_mult": 1.0, "stab_bone_mult": 2.0,
       "bone_break_speed_slash": 3.0, "bone_break_speed_stab": 2.12, "bone_break_speed": 2.12,
       "tabg_damage_on_hit": 25, "tabg_cooldown_s": 0.15, "tabg_force_on_hit": 50000,
-      "source": "Gladio Mori weapons.csv row Rapier; TABG weapons.csv row Rapier (damageOnHit 25, cooldown 0.15 s, forceOnHit 50000)"
+      "length_m": 1.15, "slash_sharpness": 0.342, "stab_sharpness": 1.143,
+      "source": "Gladio Mori weapons.csv row Rapier (sharpness = mult / baseline gladius mult: slash 1.0/2.92, stab 3.2/2.8); length_m = bladeTip.z - holdPoint.z in weapons-physics.csv (1.074 - -0.076); TABG weapons.csv row Rapier (damageOnHit 25, cooldown 0.15 s, forceOnHit 50000)"
     },
     "gm_battleaxe": {
       "reach_min_m": 0.9, "reach_max_m": 1.5, "mass_kg": 3.0,
       "slash_mult": 2.91, "stab_mult": 2.8, "slash_bone_mult": 1.2, "stab_bone_mult": 1.0,
       "bone_break_speed_slash": 2.74, "bone_break_speed_stab": 3.0, "bone_break_speed": 2.74,
-      "source": "Gladio Mori weapons.csv row BattleAxe; mass from weapons-physics.csv"
+      "length_m": 1.04, "slash_sharpness": 0.997, "stab_sharpness": 1.0,
+      "source": "Gladio Mori weapons.csv row BattleAxe (sharpness = mult / baseline gladius mult: slash 2.91/2.92, stab 2.8/2.8); mass from weapons-physics.csv; length_m = bladeTip.z - holdPoint.z in weapons-physics.csv (0.253 - -0.787)"
     },
     "tabg_viking_axe": {
       "reach_min_m": null, "reach_max_m": null, "mass_kg": null,
       "slash_mult": null, "stab_mult": null, "slash_bone_mult": null, "stab_bone_mult": null,
       "bone_break_speed_slash": null, "bone_break_speed_stab": null, "bone_break_speed": null,
       "tabg_damage_on_hit": 57.59, "tabg_cooldown_s": 0.6, "tabg_force_on_hit": 100000,
-      "todo": "TABG has no blade multipliers, reach or mass for this weapon; measure or map to a Gladio Mori axe row",
+      "length_m": null, "slash_sharpness": null, "stab_sharpness": null,
+      "todo": "TABG has no blade multipliers, reach, mass or length for this weapon (weapons.csv has none); measure or map to a Gladio Mori axe row (gm_battleaxe: length 1.04 m, sharpness 0.997 / 1.0)",
       "source": "TABG tabg/data/weapons.csv row Viking Axe (damageOnHit 57.59, cooldown 0.6 s, forceOnHit 100000)"
     },
     "tabg_shovel": {
@@ -134,15 +157,16 @@
       "slash_mult": null, "stab_mult": null, "slash_bone_mult": null, "stab_bone_mult": null,
       "bone_break_speed_slash": null, "bone_break_speed_stab": null, "bone_break_speed": null,
       "tabg_damage_on_hit": 56, "tabg_cooldown_s": 0.75, "tabg_force_on_hit": 50000,
-      "todo": "TABG has no blade multipliers, reach or mass for this weapon; blunt-class row to measure",
+      "length_m": null, "slash_sharpness": null, "stab_sharpness": null,
+      "todo": "TABG has no blade multipliers, reach, mass or length for this weapon (weapons.csv has none); blunt-class row to measure",
       "source": "TABG tabg/data/weapons.csv row Shovel (damageOnHit 56, cooldown 0.75 s, forceOnHit 50000)"
     }
   },
   "evaluator": {
     "source": "src/rules-eval.mjs table rows: how a hit maps onto the rows above. Own start values where marked; shapes from COMBAT-101 items 7, 8, 16, 17, A1 to A5, B2 to B5 and the finisher trigger (25 percent base, 1 point per 1 percent overkill, cap 60, pity after 3 kills). stun_window_s 18 = AzerothCore diminishing-returns reset (item 16), start value.",
     "kinds": {
-      "slash": { "sharpness_column": "slash_mult", "sharpness": null, "bone_column": "slash_bone_mult", "armour_column": "cut", "can_sever": true, "knockdown_mult": 1.0, "todo": "sharpness comes from the weapon column, so the fixed sharpness is null" },
-      "stab": { "sharpness_column": "stab_mult", "sharpness": null, "bone_column": "stab_bone_mult", "armour_column": "stab", "can_sever": false, "knockdown_mult": 1.0, "todo": "sharpness comes from the weapon column; a stab sticks and bleeds over the cut rung but never severs (own start rule)" },
+      "slash": { "sharpness_column": "slash_sharpness", "sharpness": null, "bone_column": "slash_bone_mult", "armour_column": "cut", "can_sever": true, "knockdown_mult": 1.0, "todo": "sharpness comes from the weapon column, so the fixed sharpness is null" },
+      "stab": { "sharpness_column": "stab_sharpness", "sharpness": null, "bone_column": "stab_bone_mult", "armour_column": "stab", "can_sever": false, "knockdown_mult": 1.0, "todo": "sharpness comes from the weapon column; a stab sticks and bleeds over the cut rung but never severs (own start rule)" },
       "blunt": { "sharpness_column": null, "sharpness": 1.0, "bone_column": null, "armour_column": "blunt", "can_sever": false, "knockdown_mult": 2.0, "todo": "own start values: the weapon rows have no blunt column, so fixed sharpness 1.0 and a 2x knockdown weight (A5: blunt forces the fall); measure" }
     },
     "zone_part": { "head": "head", "torso": "torso", "legs": "leg_{side}", "feet": "leg_{side}", "arm_sword": "arm_{sword}", "arm_off": "arm_{off}" },

@@ -47,10 +47,13 @@
     "weaponRow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reach_min_m", "reach_max_m", "mass_kg", "slash_mult", "stab_mult", "slash_bone_mult", "stab_bone_mult", "bone_break_speed_slash", "bone_break_speed_stab", "bone_break_speed", "source"],
+      "required": ["length_m", "slash_sharpness", "stab_sharpness", "reach_min_m", "reach_max_m", "mass_kg", "slash_mult", "stab_mult", "slash_bone_mult", "stab_bone_mult", "bone_break_speed_slash", "bone_break_speed_stab", "bone_break_speed", "source"],
       "properties": {
         "reach_min_m": { "type": ["number", "null"], "minimum": 0 },
         "reach_max_m": { "type": ["number", "null"], "minimum": 0 },
+        "length_m": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "slash_sharpness": { "type": ["number", "null"], "minimum": 0 },
+        "stab_sharpness": { "type": ["number", "null"], "minimum": 0 },
         "mass_kg": { "type": ["number", "null"], "exclusiveMinimum": 0 },
         "slash_mult": { "type": ["number", "null"], "minimum": 0 },
         "stab_mult": { "type": ["number", "null"], "minimum": 0 },
@@ -69,7 +72,7 @@
   },
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "about", "global", "strength_scale", "melee_speed_gate", "zones", "bone_gate", "armour_tiers", "knockdown", "part_hp", "locational", "bleed_out", "stiffness_by_state", "weapons", "evaluator"],
+  "required": ["schema", "about", "global", "strength_scale", "lever", "swing", "melee_speed_gate", "zones", "bone_gate", "armour_tiers", "knockdown", "part_hp", "locational", "bleed_out", "stiffness_by_state", "weapons", "evaluator"],
   "properties": {
     "schema": { "const": "physics-rules/1" },
     "about": { "type": "string" },
@@ -79,14 +82,43 @@
     },
     "strength_scale": {
       "type": "object", "additionalProperties": false,
-      "required": ["formula", "rung_hit", "rung_stick", "rung_cut", "status", "measure_note", "source"],
+      "required": ["formula", "rung_hit", "rung_stick", "rung_cut", "baseline_weapon", "status", "measure_note", "source"],
       "properties": {
         "formula": { "type": "string" },
         "rung_hit": { "type": "number", "exclusiveMinimum": 0 },
         "rung_stick": { "type": "number", "exclusiveMinimum": 0 },
         "rung_cut": { "type": "number", "exclusiveMinimum": 0 },
-        "status": { "enum": ["start", "measured"] },
+        "baseline_weapon": { "type": "string" },
+        "status": { "enum": ["start", "measured", "assumed", "own"] },
         "measure_note": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    },
+    "lever": {
+      "type": "object", "additionalProperties": false, "required": ["arm_reach_m", "formula", "status", "source"],
+      "properties": {
+        "arm_reach_m": { "type": "number", "exclusiveMinimum": 0 },
+        "formula": { "type": "string" },
+        "status": { "enum": ["measured", "assumed", "own"] },
+        "source": { "type": "string" }
+      }
+    },
+    "swing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["heavy_mult", "heavy_status", "counter_hit_mult", "counter_hit_status", "hand_speed_ref_m_s", "todo", "source"],
+      "properties": {
+        "heavy_mult": { "type": "number", "minimum": 1 },
+        "heavy_status": { "enum": ["measured", "assumed", "own"] },
+        "counter_hit_mult": { "type": "number", "minimum": 1 },
+        "counter_hit_status": { "enum": ["measured", "assumed", "own"] },
+        "hand_speed_ref_m_s": {
+          "type": "object", "additionalProperties": false, "required": ["light_p50", "light_p90", "heavy_p50", "heavy_p90"],
+          "properties": {
+            "light_p50": { "type": "number", "exclusiveMinimum": 0 }, "light_p90": { "type": "number", "exclusiveMinimum": 0 },
+            "heavy_p50": { "type": "number", "exclusiveMinimum": 0 }, "heavy_p90": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "todo": { "type": "string" },
         "source": { "type": "string" }
       }
     },

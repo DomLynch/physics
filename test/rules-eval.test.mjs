@@ -10,7 +10,7 @@ const clone = () => JSON.parse(JSON.stringify(rules));
 const S = rules.strength_scale;
 const GATE = rules.melee_speed_gate;
 const W = "gm_gladius";
-const sharp = (kind, weapon = W) => (kind === "slash" ? rules.weapons[weapon].slash_mult : kind === "stab" ? rules.weapons[weapon].stab_mult : rules.evaluator.kinds.blunt.sharpness);
+const sharp = (kind, weapon = W) => (kind === "slash" ? rules.weapons[weapon].slash_sharpness : kind === "stab" ? rules.weapons[weapon].stab_sharpness : rules.evaluator.kinds.blunt.sharpness);
 // tip speed that gives exactly `strength` (clamped above the full-strength end of the speed gate)
 const tipFor = (strength, kind = "slash", weapon = W) => Math.max(strength / sharp(kind, weapon), GATE.min_speed_m_s + GATE.full_strength_margin_m_s);
 const fresh = (r = rules, opts) => createFighterState(r, undefined, opts);
@@ -39,7 +39,7 @@ test("strength is tip speed x sharpness; damage adds zone x global x armour colu
   const ev = createEvaluator(rules);
   const tip = 10;
   const r = ev.evaluateHit(hit({ tipSpeed: tip, zone: "torso", armour: "mail", kind: "stab" }), fresh());
-  assert.ok(Math.abs(r.strength - tip * rules.weapons[W].stab_mult) < 1e-9);
+  assert.ok(Math.abs(r.strength - tip * rules.weapons[W].stab_sharpness) < 1e-9);
   const want = r.strength * rules.zones.torso.body_part_mult * rules.global.damage_scale * rules.armour_tiers.mail.damage_taken_mult.stab;
   assert.ok(Math.abs(r.damage - want) < 1e-9);
   assert.equal(r.partHpAfter, rules.part_hp.torso - r.damage);
@@ -48,16 +48,61 @@ test("strength is tip speed x sharpness; damage adds zone x global x armour colu
   assert.equal(createEvaluator(hot).evaluateHit(hit({ tipSpeed: tip, zone: "torso", kind: "stab" }), fresh(hot)).outcome, "miss");
 });
 
+test("hand speed x lever = tip speed; heavy and counter-hit multiply strength; all from the rows", () => {
+  const ev = createEvaluator(rules);
+  const reach = rules.lever.arm_reach_m;
+  for (const wid of ["gm_gladius", "gm_claymore", "gm_dagger"]) {
+    const lever = (reach + rules.weapons[wid].length_m) / reach;
+    const hand = 9;
+    const viaHand = ev.evaluateHit(hit({ weapon: wid, handSpeed: hand, zone: "arm_off" }), fresh());
+    const viaTip = ev.evaluateHit(hit({ weapon: wid, tipSpeed: hand * lever, zone: "arm_off" }), fresh());
+    assert.ok(Math.abs(viaHand.tipSpeed - hand * lever) < 1e-9);
+    assert.ok(Math.abs(viaHand.lever - lever) < 1e-9);
+    assert.ok(Math.abs(viaHand.strength - viaTip.strength) < 1e-9);
+  }
+  // a longer reach on the body (armReachM) lowers the lever; tipSpeed and handSpeed are exclusive
+  const a = ev.evaluateHit(hit({ handSpeed: 9, armReachM: reach * 2, zone: "arm_off" }), fresh());
+  assert.ok(Math.abs(a.lever - (reach * 2 + rules.weapons[W].length_m) / (reach * 2)) < 1e-9);
+  assert.throws(() => ev.evaluateHit(hit({ handSpeed: 9, tipSpeed: 20 }), fresh()), /not both/);
+  assert.throws(() => ev.evaluateHit(hit({ weapon: "tabg_shovel", handSpeed: 9 }), fresh()), /length_m/);
+  // swing multipliers
+  const base = ev.evaluateHit(hit({ tipSpeed: 20, zone: "torso" }), fresh());
+  const heavy = ev.evaluateHit(hit({ tipSpeed: 20, zone: "torso", swing: "heavy" }), fresh());
+  const counter = ev.evaluateHit(hit({ tipSpeed: 20, zone: "torso", counterHit: true }), fresh());
+  const both = ev.evaluateHit(hit({ tipSpeed: 20, zone: "torso", swing: "heavy", counterHit: true }), fresh());
+  assert.equal(base.swing, "light"); assert.equal(base.counterHit, false);
+  assert.ok(Math.abs(heavy.strength / base.strength - rules.swing.heavy_mult) < 1e-9);
+  assert.ok(Math.abs(counter.strength / base.strength - rules.swing.counter_hit_mult) < 1e-9);
+  assert.ok(Math.abs(both.strength / base.strength - rules.swing.heavy_mult * rules.swing.counter_hit_mult) < 1e-9);
+  assert.equal(both.tipSpeed, 20, "the physical tip speed is not scaled");
+  assert.throws(() => ev.evaluateHit(hit({ tipSpeed: 20, swing: "special" }), fresh()), /swing/);
+  assert.throws(() => ev.evaluateHit(hit({ tipSpeed: 20, counterHit: "yes" }), fresh()), /counterHit/);
+  const rowed = clone(); rowed.swing.heavy_mult = 3;
+  assert.ok(Math.abs(createEvaluator(rowed).evaluateHit(hit({ tipSpeed: 20, zone: "torso", swing: "heavy" }), fresh(rowed)).strength / base.strength - 3) < 1e-9);
+});
+
+test("sharpness rows: the baseline blade is 1.0 and every other weapon is the donor multiplier divided by the baseline's", () => {
+  const baseId = rules.strength_scale.baseline_weapon;
+  const b = rules.weapons[baseId];
+  assert.equal(b.slash_sharpness, 1); assert.equal(b.stab_sharpness, 1);
+  for (const [id, w] of Object.entries(rules.weapons)) {
+    if (w.slash_mult === null) { assert.equal(w.slash_sharpness, null, id); assert.equal(w.length_m, null, id); continue; }
+    assert.ok(Math.abs(w.slash_sharpness - w.slash_mult / b.slash_mult) < 0.001, id + " slash");
+    assert.ok(Math.abs(w.stab_sharpness - w.stab_mult / b.stab_mult) < 0.001, id + " stab");
+    assert.ok(w.length_m > 0, id + " has a length");
+  }
+});
+
 test("armour raises the cut threshold but never blocks: every weapon cuts through every tier", () => {
   const ev = createEvaluator(rules);
   for (const [tierId, tier] of Object.entries(rules.armour_tiers)) {
     const threshold = S.rung_cut * tier.dismember_threshold_modifier;
-    // the dagger slash row (sharpness 1.0) lets the test sit just under the threshold, clear of the speed-gate ramp
-    const below = ev.evaluateHit(hit({ weapon: "gm_dagger", tipSpeed: Math.max(threshold * 0.98, GATE.min_speed_m_s + GATE.full_strength_margin_m_s), zone: "arm_off", armour: tierId }), fresh());
+    // the baseline blade (slash sharpness 1.0) lets the test sit just under the threshold, clear of the speed-gate ramp
+    const below = ev.evaluateHit(hit({ weapon: W, tipSpeed: Math.max(threshold * 0.98, GATE.min_speed_m_s + GATE.full_strength_margin_m_s), zone: "arm_off", armour: tierId }), fresh());
     assert.notEqual(below.outcome, "cut", `${tierId}: just under the threshold does not cut`);
     assert.ok(Math.abs(below.cutThreshold - threshold) < 1e-9);
     for (const [wid, w] of Object.entries(rules.weapons)) {
-      if (w.slash_mult === null || w.slash_bone_mult === null) continue; // todo rows: see the fail-loud test
+      if (w.slash_sharpness === null || w.slash_bone_mult === null) continue; // todo rows: see the fail-loud test
       const r = ev.evaluateHit(hit({ weapon: wid, tipSpeed: tipFor(threshold * 1.02, "slash", wid), zone: "arm_off", armour: tierId }), fresh());
       assert.equal(r.outcome, "cut", `${wid} through ${tierId}`);
       assert.equal(r.cut.unit, "arm_left");
@@ -217,7 +262,7 @@ test("finisher roll: caller rand, base + overkill capped, sure on match win, bos
 
 test("fails loudly on a missing or null row", () => {
   const ev = createEvaluator(rules);
-  assert.throws(() => ev.evaluateHit(hit({ weapon: "tabg_viking_axe", tipSpeed: 20 }), fresh()), /slash_mult/);
+  assert.throws(() => ev.evaluateHit(hit({ weapon: "tabg_viking_axe", tipSpeed: 20 }), fresh()), /slash_sharpness/);
   assert.throws(() => ev.evaluateHit(hit({ weapon: "nope", tipSpeed: 20 }), fresh()), /unknown weapon/);
   assert.throws(() => ev.evaluateHit(hit({ zone: "legs", tipSpeed: 20 }), fresh()), /side/);
   assert.throws(() => ev.evaluateHit({ weapon: W, kind: "slash", zone: "torso", tipSpeed: 20 }, fresh()), /hit\.t/);
