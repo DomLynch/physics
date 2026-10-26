@@ -537,7 +537,10 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     for (const [j, w] of V.skin[v]) {
       if (!(w > 0)) continue;
       let t = j;
-      if (owner[j] !== region) { t = nearOwned(j, region); weightsRebound++; }
+      if (owner[j] !== region) {
+        t = nearOwned(j, region); weightsRebound++;
+        if (opts.debug) { const k = `${region}: ${joints[j].getName().replace("mixamorig:", "")} -> ${joints[t].getName().replace("mixamorig:", "")}`; (report.rebinds ||= {})[k] = (report.rebinds[k] || 0) + 1; }
+      }
       acc.set(t, (acc.get(t) || 0) + w);
     }
     let list = [...acc.entries()].sort((x, y) => y[1] - x[1] || x[0] - y[0]);
