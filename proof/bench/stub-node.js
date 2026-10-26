@@ -8,6 +8,7 @@ export const resolve = no("path.resolve");
 export const normalize = (p) => p;
 export const dirname = (p) => p;
 export const join = (...a) => a.join("/");
+export const createHash = no("crypto.createHash (rulesHash is Node-side only; the bench never calls it)");
 export const createRequire = () => no("module.createRequire");
 export const fileURLToPath = (u) => u;
 export default { readFileSync, readFile, existsSync, resolve, normalize, dirname, join };

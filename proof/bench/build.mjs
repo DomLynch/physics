@@ -2,7 +2,7 @@
 //   node proof/bench/build.mjs        (npm run build:bench)
 import { build } from "esbuild";
 import { execSync } from "node:child_process";
-import { mkdirSync, writeFileSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -11,10 +11,29 @@ let sha = process.env.GIT_SHA || "unknown";
 if (sha === "unknown") { try { sha = execSync("git rev-parse --short HEAD", { cwd: here, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch {} }
 const stub = join(here, "stub-node.js");
 
+// src/rules.mjs reads data/rules*.json with node:fs at load. In the bundle, `fs` is a virtual module whose readFileSync serves the top-level data/*.json
+// files inlined here, matched by file name (the URL it is given ends in the name). Anything else throws.
+const dataDir = join(here, "..", "..", "data");
+const inlined = Object.fromEntries(readdirSync(dataDir).filter((f) => f.endsWith(".json")).map((f) => [f, readFileSync(join(dataDir, f), "utf8")]));
+const fsPlugin = {
+  name: "bench-fs",
+  setup(b) {
+    b.onResolve({ filter: /^(node:)?fs$/ }, () => ({ path: "bench-fs", namespace: "bench-fs" }));
+    b.onLoad({ filter: /.*/, namespace: "bench-fs" }, () => ({
+      loader: "js",
+      contents: `const FILES = ${JSON.stringify(inlined)};
+export const readFileSync = (p) => { const name = String(p && p.pathname || p).split("/").pop(); if (name in FILES) return FILES[name]; throw new Error("readFileSync: " + name + " is not inlined in the browser bench"); };
+export const existsSync = (p) => String(p && p.pathname || p).split("/").pop() in FILES;
+export default { readFileSync, existsSync };`,
+    }));
+  },
+};
+
 const res = await build({
   entryPoints: [join(here, "main.js")],
   bundle: true, write: false, format: "iife", platform: "browser", target: "es2022", minify: true, legalComments: "none",
-  alias: { fs: stub, path: stub, url: stub, module: stub, "node:fs": stub, "node:path": stub, "node:url": stub, "node:module": stub },
+  plugins: [fsPlugin],
+  alias: { path: stub, url: stub, module: stub, crypto: stub, "node:crypto": stub, "node:path": stub, "node:url": stub, "node:module": stub },
   banner: { js: "var __importMetaUrl=location.href;" },
   define: { "import.meta.url": "__importMetaUrl", __GIT_SHA__: JSON.stringify(sha), "process.env.NODE_ENV": '"production"' },
   logLevel: "warning",
