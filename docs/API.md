@@ -61,3 +61,31 @@ const rig = createThreeRig(THREE, rd, { hips: pelvisBone, spine: spine01, ..., t
 ## Not yet (M3 to M6)
 
 Death ramp and stagger runners from rows (M3), target pose / clip driving (M3), the weapon swept-edge cut and severed head with gear (M5), the strength-scale rule rows and the schema lint (M4, M6). Version bumps follow `0.x` until V3 wires against it.
+
+## Rules evaluator
+
+`src/rules-eval.mjs` (exported from the package root) turns the M4 rows in `data/rules.json` into one decision per hit. Pure and deterministic: no clock, no global random source; sim time comes in on the hit (`t`, seconds) and the finisher roll takes your seeded `rand()`. State is plain JSON, so the server and the phone hold the same object. `evaluateHit` mutates the state it is given (and returns it in `result.state`). A missing or null row it needs throws, naming the row.
+
+```js
+import { createEvaluator, createFighterState, loadRules, mulberry32 } from "@frankendom/physics";
+const ev = createEvaluator(loadRules());                    // validates the rows, reads every number from them
+const target = createFighterState(ev.rules, bodyMeasureRow, { sword_side: "right", leg_hp: 60 }); // or an array of part ids
+const r = ev.evaluateHit(
+  { weapon: "gm_gladius", kind: "slash", zone: "arm_off", armour: "leather", tipSpeed: 40, t: 12.5 },
+  target,
+  { rand: mulberry32(seed), finisher: { killsSinceFinisher, matchWinning, boss } }, // opts only needed for the finisher roll
+);
+// r = { outcome: "cut", strength: 116.8, damage: 48.4, part: "arm_left", partHpAfter: 0,
+//       cut: { unit: "arm_left" }, bleed: true, knockdown: null, finisher: null,
+//       cutThreshold: 115, boneGateSpeed: 3.15, events: [...], state }
+if (r.cut) rd.cut(r.cut.unit);                              // head, arm_left, arm_right, leg_left, leg_right, torso_waist
+```
+
+- **hit**: `weapon` (id in `rules.weapons`), `kind` (`slash` | `stab` | `blunt`), `zone` (`head`, `torso`, `legs`, `feet`, `arm_sword`, `arm_off`), `tipSpeed` m/s, `t` sim seconds, `armour` (tier id, or `{ zone: tierId }`, default `none`); `side` (`left` | `right`) for `legs` and `feet`; optional `force` (push force, over `knockdown.push_force_over` forces the fall) and `attacker` (the attacker's state, scales damage by his `outgoing_damage_mult`).
+- **result**: `outcome` (`miss` | `hit` | `stick` | `cut` | `knockdown` | `kill`, highest wins: kill > cut > knockdown > stick > hit), `strength`, `damage`, `part`, `partHpAfter`, `knockdown` (`{ fallSeconds, downSeconds, cause, graceUntil, stunPct }` or null), `cut` (`{ unit }` or null), `bleed`, `finisher` (the roll, only on a kill when `opts.rand` is given), `events` (`part_down`, `cut`, `weapon_drop`, `off_arm_gone`, `leg_gone`, `bleed_start`, `bleed_out`, `kill`, `knockdown`, `knockdown_ignored`, `stun_diminished_out`, `bone_gate_not_met`, `below_speed_gate`, `below_hit_rung`, `part_gone`, `dead_target`).
+- **The rules, in order:** melee speed gate (below `melee_speed_gate.min_speed_m_s` is a miss; strength ramps in over `full_strength_margin_m_s`), `strength = tipSpeed x sharpness` (weapon `slash_mult` / `stab_mult`; blunt uses the fixed row in `evaluator.kinds`), below `rung_hit` is a miss, `damage = strength x zone body_part_mult x global.damage_scale x armour damage_taken_mult[cut|stab|blunt]`. A cut needs a slash, `strength >= rung_cut x armour dismember_threshold_modifier` and the bone gate `tipSpeed >= bone_gate.numerator / sqrt(weapon bone mult x unit bone mult) x armour modifier`. Armour only raises those two numbers; any weapon cuts through any tier with a fast enough blow. A stab over the cut rung sticks and bleeds, it does not sever. A cut removes the whole part budget. Zone to budget and zone to severable unit are rows (`evaluator.zone_part`, `evaluator.zone_cut_unit`), so `torso` cuts `torso_waist`, which is a kill.
+- **Two counters:** per-part budgets (`part_hp`; head 20, torso 60, sword arm 45, off arm 70, legs 50 to 70) decide kill and limp; the knockdown counter (damage since last fall, falls at `counter_fall_at`, resets on fall, capped at `counter_cap`, blunt weighted by `evaluator.kinds.blunt.knockdown_mult`) decides the fall. A fall opens a window of fall + downed + `getup_grace_s` in which further knockdowns are ignored (damage still lands). Repeated falls inside `evaluator.stun_window_s` shorten by `knockdown.stun_duration_pct` (100, 50, 25, then no fall).
+- **Kill rules** are rows (`evaluator.kill`): head budget gone, torso budget gone, or both legs gone. Sword arm gone sets `weapon_dropped` and `outgoing_damage_mult = locational.arm_gone_damage_mult`; one leg gone sets `limp` (event carries `leg_crawl_to_stand_s`).
+- **Bleed:** a cut starts one timer of `bleed_out.seconds_max` down to `seconds_min` by how far the blow cleared the cut threshold; the next hit at or after `bleed.until` finds the target dead (`cause_of_death: "bleed_out"`). A corpse is cut by any hit that clears the cut rules (damage 0).
+- **Finisher roll:** `rollFinisher(rules, { overkillPct, matchWinning, boss, killsSinceFinisher }, rand)`: `base_pct` + `per_overkill_pct` per 1 percent of the part budget the strength cleared the cut rung by, capped at `cap_pct`; always on a match-winning or boss kill and after `pity_after_kills`. `rand()` is only called when the chance is not a sure thing. The killer holds `killsSinceFinisher` (the roll returns the next value).
+- **Hash:** `rulesHash(state)` over the fighter state gives a replay check (test: same hits twice, same hash).

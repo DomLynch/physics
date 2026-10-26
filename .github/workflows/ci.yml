@@ -25,3 +25,5 @@ jobs:
         run: node --test test/states.test.mjs test/bodies.test.mjs test/pose.test.mjs test/three-rig.test.mjs test/api2.test.mjs test/hinge.test.mjs
       - name: rules (M4 rows validate, bad probes rejected, round-trip hash)
         run: node --test test/rules.test.mjs
+      - name: rules evaluator (every outcome, armour never blocks, counters, determinism)
+        run: node --test test/rules-eval.test.mjs
