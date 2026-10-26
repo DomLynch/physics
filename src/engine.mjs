@@ -205,6 +205,13 @@ export async function createWorld(opts = {}) {
       row,
       partIds: D.def.map((b) => b.id),
       get cuts() { return [...cut]; },
+      // speed (m/s) of a part's capsule centre from the physics (the ragdoll tracks the animation, so for a hand this is close to the animated hand speed but lags a
+      // fast swing: measure before relying on it for thresholds); max over a list of parts if you pass an array. For the evaluator's handSpeed.
+      partSpeed(part) {
+        const pose = api.readPose();
+        const speed = (id) => { const i = D.idx[id]; if (i === undefined) throw new Error("unknown part " + id); const o = i * 10; return Math.hypot(pose[o + 7], pose[o + 8], pose[o + 9]); };
+        return Array.isArray(part) ? Math.max(...part.map(speed)) : speed(part);
+      },
       // true while any of this ragdoll's bodies is awake (a frozen corpse is asleep; a cut piece wakes on its own): step the world only while this is true
       get awake() { return bodies.some((b) => bi.IsActive(b.GetID())); },
       // rows: a number (all joints) or { all, <role>: s, <partId>: s }; later keys win (all < role < partId). 1 = full, 0.01 = limp.

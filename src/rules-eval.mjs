@@ -63,7 +63,11 @@ export function createFighterState(rules, bodyMeasureRowOrPartIds = PART_IDS, op
   };
   const ids = partIdsOf(bodyMeasureRowOrPartIds);
   const parts = {};
-  for (const id of PART_IDS) if (ids.includes(id)) parts[id] = { hp: budgetOf(id), max: budgetOf(id), gone: false };
+  // opts.hp_scale multiplies every budget (map the part rows onto a game's own health pools); opts.budgets sets single parts absolutely ({ head: 60, torso: 400 })
+  const scale = opts.hp_scale ?? 1;
+  if (!(scale > 0)) fail("hp_scale must be a positive number");
+  const budget = (id) => { const o = opts.budgets && opts.budgets[id]; if (o !== undefined && !(o > 0)) fail(`budgets.${id} must be a positive number`); return o !== undefined ? o : budgetOf(id) * scale; };
+  for (const id of PART_IDS) if (ids.includes(id)) parts[id] = { hp: budget(id), max: budget(id), gone: false };
   for (const id of ["head", "torso"]) if (!parts[id]) fail(`body has no ${id} part (needs at least head and torso)`);
   return {
     schema: "fighter-state/1",
