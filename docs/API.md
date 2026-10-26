@@ -48,6 +48,13 @@ const rig = createThreeRig(THREE, rd, { hips: pelvisBone, spine: spine01, ..., t
 - `createPhysics({ states: { stagger: { ... } } })`: game data rows override `data/states.json` key by key (death, stagger, knockdown).
 - `createThreeRig(THREE, rd, bones, root, { bind: { bones, root } })`: read the bind pose from an untouched copy of the model when the live rig is already animated at build time.
 
+## Cuts (M5)
+
+- `rd.cut(unit, { helmet, impulse })` detaches `head`, `arm_left`, `arm_right`, `leg_left`, `leg_right` or `torso_waist` and returns `{ unit, mass_kg, carries_roles, gear_slots, cap: { part, position }, props }`. `gear_slots` is the six-unit contract (the gear on the severed unit goes with it); `cap` is where the stump is now (attach your cap mesh to the parent part and follow it); `helmet: true` (head only) spawns the helmet as a rigid prop (`data/states.json` `cut.helmet`) with the head's velocity plus a pop. `impulse` pushes the severed piece. Works on a frozen corpse (the corpse cut on tap): the severed piece wakes, the rest stays asleep. After a cut the world steps at 120 Hz for `cut_high_rate_ticks`.
+- `physics.createProp({ radius, mass, position, velocity, spin, id })` returns `{ id, readPose(), destroy() }` (10 floats like a part); props are in `physics.hash()`.
+- `rd.sweepEdge(base0, tip0, base1, tip1)`: the blade segment at the start and the end of the tick; returns `[{ part, dist, radius, through }]` nearest first; `through` = the blade passed within 0.6 x radius of the part's axis (`data/states.json` `cut.edge`). The threshold that turns a crossing into a cut is the rules evaluator's, not this call's. A dead or limp body giving the blade less drag is not modelled yet.
+- Proof: `proof/m5/` (clip `docs/clips/m5-head-cut-375.mp4`). The skinned mesh is one piece, so the head bone flies off with the stretched neck skin until cut-piece meshes exist (V3 has its own severed-head mesh for finishers).
+
 ## State runners (M3)
 
 `rd.kill({ part, impulse })` (strength 1 to 0.01 over 1 s, limp damper, limits and self-collision on, impulse the same tick, hips released, sleeps when still), `rd.stagger({ part, impulse })` (arm 0.9 / torso 0.6 / hand 0.12, hold 0.5 s, back over 0.35 s), `rd.knockdown("damage" | "push", hit)` (TABG values: 0.2 / 0.5 s fall, 2 s down, recover 0.3 per s), `rd.state` (`alive`, `stagger`, `knockdown`, `dying`, `frozen`). Numbers: `data/states.json`.
