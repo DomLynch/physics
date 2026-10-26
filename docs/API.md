@@ -37,6 +37,14 @@ const rig = createThreeRig(THREE, rd, { hips: pelvisBone, spine: spine01, ..., t
 ```
 `bones` maps the 20 part ids (`rd.partIds`) to your Object3Ds (your role map); `root` is the Object3D whose local frame is the sim frame (the fighter's group with its position and yaw). Create the rig while the model is in its bind pose, before the first step. Alive: after the animation has posed the bones, call `rig.drive()` each frame (sends the hips via `setRoot` and the animated pose via `setTargetPose`). Dying or dead: after `physics.step()`, call `rig.applyPose()` and the bones follow the capsules. Also `rd.setTargetPose(Float32Array)` (4 floats per part, world quaternion of each capsule) if you drive the motors yourself.
 
+## Tracking a live clip, reset, snap, rows (asked for by V3 Dev)
+
+- `createRagdoll(row, { motorGain, motorDamping })` and `rd.setMotorGain(g, damping)`: stiffness multiplier and damping multiplier (default 1 and 1 = the M1 values). Measured on one arm swinging 2 Hz, +-50 degrees (VPS, Node 22, `test/api2.test.mjs`), mean orientation error: gain 1 = 20.9 deg, gain 2 = 12.6, gain 4 = 13.6, gain 8 = 20.4 (unstable-ish); with less damping: gain 2 / damping 0.25 = 7.6 deg, gain 4 / damping 0.25 = 8.6. Start with `{ motorGain: 2, motorDamping: 0.25 }` for a body that follows a fighting clip; retune on the real clip. One arm and one frequency only.
+- `rd.snapToTarget()`: puts every capsule on the last `setRoot` + `setTargetPose` pose at once, velocities zeroed (no motor lag at the killing frame). Returns false before both were called.
+- `rd.reset()`: back to the spawn pose, alive, full strength; returns false after a cut (a cut removes joints: destroy and recreate).
+- `createPhysics({ states: { stagger: { ... } } })`: game data rows override `data/states.json` key by key (death, stagger, knockdown).
+- `createThreeRig(THREE, rd, bones, root, { bind: { bones, root } })`: read the bind pose from an untouched copy of the model when the live rig is already animated at build time.
+
 ## State runners (M3)
 
 `rd.kill({ part, impulse })` (strength 1 to 0.01 over 1 s, limp damper, limits and self-collision on, impulse the same tick, hips released, sleeps when still), `rd.stagger({ part, impulse })` (arm 0.9 / torso 0.6 / hand 0.12, hold 0.5 s, back over 0.35 s), `rd.knockdown("damage" | "push", hit)` (TABG values: 0.2 / 0.5 s fall, 2 s down, recover 0.3 per s), `rd.state` (`alive`, `stagger`, `knockdown`, `dying`, `frozen`). Numbers: `data/states.json`.

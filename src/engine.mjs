@@ -5,6 +5,7 @@ import WORLD from "../data/world.json" with { type: "json" };
 import STATES from "../data/states.json" with { type: "json" };
 import { qmul, qconj, qrot, vadd, vsub, rad } from "./math.mjs";
 
+
 let joltPromise = null;
 const loadJolt = () => (joltPromise ||= initJolt());
 
@@ -50,6 +51,9 @@ export function buildDefinition(row, position = [0, 0, 0]) {
 export async function createWorld(opts = {}) {
   const Jolt = await loadJolt();
   const W = { ...WORLD, ...(opts.rows || {}) };
+  // game data rows override the package's state rows key by key (death, stagger, knockdown): createPhysics({ states: { stagger: { targets: {...} } } })
+  const S = { ...STATES };
+  for (const k of Object.keys(opts.states || {})) S[k] = { ...STATES[k], ...opts.states[k] };
   const tickDt = 1 / W.tick_hz;
   const settings = new Jolt.JoltSettings();
   const objFilter = new Jolt.ObjectLayerPairFilterTable(2);
@@ -81,7 +85,7 @@ export async function createWorld(opts = {}) {
   const rand = mulberry32(opts.seed ?? 1);
 
   function makeRagdoll(row, ropts = {}) {
-    const D = buildDefinition(row, ropts.position || [0, 0, 0]);
+    const D = buildDefinition(row, ropts.position || [0, 0, 0]), roles = row.roles;
     const n = D.def.length, body = W.body, groupId = nextGroup++;
     const gf = new Jolt.GroupFilterTable(n);
     D.def.forEach((b, i) => { if (b.parent >= 0) gf.DisableCollision(i, b.parent); });
@@ -142,8 +146,9 @@ export async function createWorld(opts = {}) {
     const base = new Float64Array(n).fill(1);       // what the game asked for with setMotorStrength
     const want = new Float64Array(n).fill(1);       // base after the state runner (death, stagger, knockdown)
     const motor = W.motor;
-    const S = STATES;
-    let state = "alive", st = null, frozen = false, calm = 0;
+    let dampScale = ropts.motorDamping ?? 1; // multiplier on the joint damping (less damping = less lag behind a fast clip, more wobble)
+    let gain = ropts.motorGain ?? 1; // tracking gain: scales every joint's stiffness (damping by sqrt) so the motors follow fast clips closer
+    let state = "alive", st = null, frozen = false, calm = 0, lastRoot = null, targetQ = null;
     const lerp = (a, b, u) => a + (b - a) * u;
     const shape = (t, g) => (t < g.ease_in_s ? t / g.ease_in_s : t < g.ease_in_s + g.hold_s ? 1 : Math.max(0, 1 - (t - g.ease_in_s - g.hold_s) / g.up_s));
     // advance the state runner one tick, then derive the motor strength of every joint (ticks, not clocks: replays reproduce it)
@@ -177,7 +182,7 @@ export async function createWorld(opts = {}) {
         if (s === strength[k.i]) continue;
         strength[k.i] = s;
         const limp = s <= motor.limp_strength_at_or_below;
-        const stiff = K[k.i] * s, damp = limp ? C[k.i] * motor.limp_damper_scale * motor.limp_damper_multiplier : C[k.i] * Math.sqrt(s);
+        const stiff = K[k.i] * gain * s, damp = limp ? C[k.i] * motor.limp_damper_scale * motor.limp_damper_multiplier : C[k.i] * dampScale * Math.sqrt(gain) * Math.sqrt(s);
         const sets = k.kind === "hinge" ? [k.c.GetMotorSettings()] : [k.c.GetSwingMotorSettings(), k.c.GetTwistMotorSettings()];
         for (const m of sets) { const sp = m.mSpringSettings; sp.mMode = Jolt.ESpringMode_StiffnessAndDamping; sp.mStiffness = stiff; sp.mDamping = damp; }
       }
@@ -208,8 +213,51 @@ export async function createWorld(opts = {}) {
       // pose the motors drive towards: world orientation of every part's capsule, 4 floats (x y z w) per part in partIds order (the game's animated pose,
       // retargeted onto the capsules by role). The hips' own orientation goes through setRoot. Ball joints take the child's orientation relative to the
       // parent; hinges the rotation about their axis relative to the spawn pose.
+      // tracking gain 1 = the M1 value (SK 40); higher follows fast clips closer (needs the x8 inertia; test before raising above about 4)
+      setMotorGain(g, damping = dampScale) { gain = g; dampScale = damping; strength.fill(NaN); },
+      // put every capsule on the last setTargetPose / setRoot pose now (no motor lag, velocities zeroed): hides the lag at the moment of death
+      snapToTarget() {
+        if (!targetQ || !lastRoot) return false;
+        const at = (i) => [targetQ[i * 4], targetQ[i * 4 + 1], targetQ[i * 4 + 2], targetQ[i * 4 + 3]];
+        const delta = D.def.map((_, i) => qmul(at(i), qconj(roles[i].rest.quat)));
+        const pivot = new Array(n), centre = new Array(n);
+        centre[0] = lastRoot[0];
+        pivot[0] = vsub(centre[0], qrot(delta[0], vsub(D.spawn[0].c, D.pivot[0])));
+        for (let i = 1; i < n; i++) {
+          const p = D.def[i].parent;
+          pivot[i] = vadd(pivot[p], qrot(delta[p], vsub(D.pivot[i], D.pivot[p])));
+          centre[i] = vadd(pivot[i], qrot(delta[i], vsub(D.spawn[i].c, D.pivot[i])));
+        }
+        const zero = new Jolt.Vec3(0, 0, 0);
+        for (let i = 0; i < n; i++) {
+          const pp = new Jolt.RVec3(...centre[i]), qq = new Jolt.Quat(...at(i));
+          bi.SetPositionAndRotation(bodies[i].GetID(), pp, qq, Jolt.EActivation_Activate);
+          bi.SetLinearVelocity(bodies[i].GetID(), zero); bi.SetAngularVelocity(bodies[i].GetID(), zero);
+          Jolt.destroy(pp); Jolt.destroy(qq);
+        }
+        Jolt.destroy(zero);
+        return true;
+      },
+      // back to the spawn pose, alive, full strength. Only before any cut (a cut removes joints): returns false then, destroy and recreate instead.
+      reset() {
+        if (cut.size) return false;
+        const zero = new Jolt.Vec3(0, 0, 0);
+        for (let i = 0; i < n; i++) {
+          const pp = new Jolt.RVec3(...D.spawn[i].c), qq = new Jolt.Quat(...D.spawn[i].q);
+          bi.SetPositionAndRotation(bodies[i].GetID(), pp, qq, Jolt.EActivation_Activate);
+          bi.SetLinearVelocity(bodies[i].GetID(), zero); bi.SetAngularVelocity(bodies[i].GetID(), zero);
+          Jolt.destroy(pp); Jolt.destroy(qq);
+        }
+        Jolt.destroy(zero);
+        const kin = ropts.rootKinematic !== false;
+        bi.SetMotionType(bodies[0].GetID(), kin ? Jolt.EMotionType_Kinematic : Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate);
+        state = "alive"; st = null; frozen = false; calm = 0; targetQ = null; lastRoot = null;
+        base.fill(1); want.fill(1); strength.fill(NaN);
+        return true;
+      },
       setTargetPose(q) {
-        const at = (i) => [q[i * 4], q[i * 4 + 1], q[i * 4 + 2], q[i * 4 + 3]];
+        targetQ = Float32Array.from(q);
+        const at =(i) => [q[i * 4], q[i * 4 + 1], q[i * 4 + 2], q[i * 4 + 3]];
         for (const k of cons) {
           const rel = qmul(qconj(at(D.def[k.i].parent)), at(k.i));
           if (k.kind === "hinge") { const d = qmul(qconj(k.rel), rel); k.c.SetTargetAngle(2 * Math.atan2(d[0], d[3])); }
@@ -241,7 +289,7 @@ export async function createWorld(opts = {}) {
         if (hit) api.applyImpulse(hit.part, hit.impulse);
       },
       // the hips follow the game's pose while kinematic; applied at the next step
-      setRoot(position, quaternion) { rootMove = [position, quaternion]; },
+      setRoot(position, quaternion) { rootMove = [position, quaternion]; lastRoot = [position, quaternion]; },
       release() { bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate); },
       applyImpulse(part, v) {
         const i = D.idx[part];
