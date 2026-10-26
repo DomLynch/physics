@@ -2,6 +2,7 @@
 // (docs/parts-lab/physics/m1-bakeoff/adapters.mjs) and rebuilt around data rows (data/world.json): no wall clock, no Math.random, no hard-coded numbers.
 import initJolt from "jolt-physics/wasm-compat";
 import WORLD from "../data/world.json" with { type: "json" };
+import STATES from "../data/states.json" with { type: "json" };
 import { qmul, qconj, qrot, vadd, vsub, rad } from "./math.mjs";
 
 let joltPromise = null;
@@ -138,9 +139,39 @@ export async function createWorld(opts = {}) {
     });
 
     const strength = new Float64Array(n).fill(NaN); // last value written per joint, so unchanged motors cost nothing
-    const want = new Float64Array(n).fill(1);
+    const base = new Float64Array(n).fill(1);       // what the game asked for with setMotorStrength
+    const want = new Float64Array(n).fill(1);       // base after the state runner (death, stagger, knockdown)
     const motor = W.motor;
+    const S = STATES;
+    let state = "alive", st = null, frozen = false, calm = 0;
+    const lerp = (a, b, u) => a + (b - a) * u;
+    const shape = (t, g) => (t < g.ease_in_s ? t / g.ease_in_s : t < g.ease_in_s + g.hold_s ? 1 : Math.max(0, 1 - (t - g.ease_in_s - g.hold_s) / g.up_s));
+    // advance the state runner one tick, then derive the motor strength of every joint (ticks, not clocks: replays reproduce it)
+    const runState = () => {
+      if (state === "frozen") return;
+      if (state === "alive") { for (let i = 1; i < n; i++) want[i] = base[i]; return; }
+      st.t += tickDt;
+      if (state === "dying") {
+        const u = Math.min(1, st.t / S.death.ramp.seconds);
+        for (let i = 1; i < n; i++) want[i] = lerp(st.from[i], S.death.ramp.to, u);
+        if (u >= 1) {
+          let sq = 0;
+          for (const b of bodies) { const v = b.GetLinearVelocity(); sq = Math.max(sq, v.GetX() ** 2 + v.GetY() ** 2 + v.GetZ() ** 2); }
+          calm = sq < S.death.freeze_speed_sq ? calm + 1 : 0;
+          if (calm >= S.death.freeze_ticks_below) { for (const b of bodies) bi.DeactivateBody(b.GetID()); frozen = true; state = "frozen"; }
+        }
+      } else if (state === "stagger") {
+        const g = S.stagger, k = shape(st.t, g);
+        for (let i = 1; i < n; i++) want[i] = Math.min(base[i], 1 - (1 - (g.targets[D.def[i].role] ?? 1)) * k);
+        if (st.t >= g.ease_in_s + g.hold_s + g.up_s) state = "alive";
+      } else if (state === "knockdown") {
+        const g = S.knockdown, down = st.fall_s + g.down_s, s = Math.min(1, g.fall_strength + Math.max(0, st.t - down) * g.recover_per_s);
+        for (let i = 1; i < n; i++) want[i] = Math.min(base[i], s);
+        if (s >= 1) state = "alive";
+      }
+    };
     const applyMotors = () => {
+      runState();
       for (const k of cons) {
         const s = want[k.i];
         if (s === strength[k.i]) continue;
@@ -166,12 +197,37 @@ export async function createWorld(opts = {}) {
       setMotorStrength(rows) {
         if (typeof rows === "number") rows = { all: rows };
         for (let i = 1; i < n; i++) {
-          let s = want[i];
+          let s = base[i];
           if (rows.all !== undefined) s = rows.all;
           if (rows[D.def[i].role] !== undefined) s = rows[D.def[i].role];
           if (rows[D.def[i].id] !== undefined) s = rows[D.def[i].id];
-          want[i] = Math.min(1, Math.max(0, s));
+          base[i] = Math.min(1, Math.max(0, s));
         }
+      },
+      get state() { return state; },
+      // M3 death: motor strength ramps to 0.01 over 1 s with the limp damper, limits and self-collision stay on, the hit impulse lands this same tick,
+      // the ragdoll freezes (sleeps) once every body is under the freeze speed. hit = { part, impulse: [x,y,z] } (optional). Hips are released.
+      kill(hit) {
+        if (state === "dying" || state === "frozen") return;
+        state = "dying"; st = { t: 0, from: Float64Array.from(want) };
+        calm = 0;
+        api.release();
+        if (hit) api.applyImpulse(hit.part, hit.impulse);
+      },
+      // M3 stagger: brief motor dip on the living body (arm 0.9 / torso 0.6 / hand 0.12, hold 0.5 s, back over 0.35 s). Ignored while dying or knocked down.
+      stagger(hit) {
+        if (state !== "alive" && state !== "stagger") return;
+        state = "stagger"; st = { t: 0 };
+        if (hit) api.applyImpulse(hit.part, hit.impulse);
+      },
+      // M3 knockdown (TABG start values): kind "damage" or "push" picks the fall time; hips are released, strength falls to fall_strength, stays down, then recovers
+      // at recover_per_s. The game re-pins the root (setRoot) when state returns to "alive".
+      knockdown(kind = "damage", hit) {
+        if (state !== "alive" && state !== "stagger") return;
+        const g = S.knockdown;
+        state = "knockdown"; st = { t: 0, fall_s: (kind === "push" ? g.push_over : g.damage_over).fall_s };
+        api.release();
+        if (hit) api.applyImpulse(hit.part, hit.impulse);
       },
       // the hips follow the game's pose while kinematic; applied at the next step
       setRoot(position, quaternion) { rootMove = [position, quaternion]; },
@@ -179,6 +235,7 @@ export async function createWorld(opts = {}) {
       applyImpulse(part, v) {
         const i = D.idx[part];
         if (i === undefined) throw new Error("unknown part " + part);
+        if (frozen) { for (const b of bodies) bi.ActivateBody(b.GetID()); frozen = false; if (state === "frozen") { state = "dying"; st = { t: S.death.ramp.seconds, from: Float64Array.from(want) }; calm = 0; } }
         const iv = new Jolt.Vec3(v[0], v[1], v[2]);
         bi.AddImpulse(bodies[i].GetID(), iv);
         Jolt.destroy(iv);

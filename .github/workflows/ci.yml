@@ -16,4 +16,5 @@ jobs:
         run: npm run test:determinism
       - name: budget (five fighters + one cut under 3 ms)
         run: npm run test:budget
-      - run: npm test
+      - name: state runners (death, stagger, knockdown)
+        run: node --test test/states.test.mjs

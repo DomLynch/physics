@@ -12,7 +12,7 @@
   "files": ["src", "data", "docs"],
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
     "test:determinism": "node --test test/determinism.test.mjs",
     "test:budget": "node --test test/budget.test.mjs"
   },
