@@ -205,6 +205,8 @@ export async function createWorld(opts = {}) {
       row,
       partIds: D.def.map((b) => b.id),
       get cuts() { return [...cut]; },
+      // true while any of this ragdoll's bodies is awake (a frozen corpse is asleep; a cut piece wakes on its own): step the world only while this is true
+      get awake() { return bodies.some((b) => bi.IsActive(b.GetID())); },
       // rows: a number (all joints) or { all, <role>: s, <partId>: s }; later keys win (all < role < partId). 1 = full, 0.01 = limp.
       setMotorStrength(rows) {
         if (typeof rows === "number") rows = { all: rows };
