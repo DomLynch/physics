@@ -25,6 +25,19 @@
         "source": { "type": "string" }
       }
     },
+    "kindRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sharpness_column", "sharpness", "bone_column", "armour_column", "can_sever", "knockdown_mult"],
+      "properties": {
+        "sharpness_column": { "type": ["string", "null"] },
+        "sharpness": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "bone_column": { "type": ["string", "null"] },
+        "armour_column": { "enum": ["cut", "stab", "blunt"] },
+        "can_sever": { "type": "boolean" },
+        "knockdown_mult": { "type": "number", "minimum": 0 },
+        "todo": { "type": "string" }
+      }
+    },
     "zoneRow": {
       "type": "object",
       "additionalProperties": false,
@@ -56,7 +69,7 @@
   },
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "about", "global", "strength_scale", "melee_speed_gate", "zones", "bone_gate", "armour_tiers", "knockdown", "part_hp", "locational", "bleed_out", "stiffness_by_state", "weapons"],
+  "required": ["schema", "about", "global", "strength_scale", "melee_speed_gate", "zones", "bone_gate", "armour_tiers", "knockdown", "part_hp", "locational", "bleed_out", "stiffness_by_state", "weapons", "evaluator"],
   "properties": {
     "schema": { "const": "physics-rules/1" },
     "about": { "type": "string" },
@@ -82,10 +95,11 @@
       "properties": { "min_speed_m_s": { "type": "number", "minimum": 0 }, "full_strength_margin_m_s": { "type": "number", "minimum": 0 }, "source": { "type": "string" } }
     },
     "zones": {
-      "type": "object", "additionalProperties": false, "required": ["head", "torso", "legs", "feet"],
+      "type": "object", "additionalProperties": false, "required": ["head", "torso", "legs", "feet", "arm_sword", "arm_off"],
       "properties": {
         "head": { "$ref": "#/$defs/zoneRow" }, "torso": { "$ref": "#/$defs/zoneRow" },
-        "legs": { "$ref": "#/$defs/zoneRow" }, "feet": { "$ref": "#/$defs/zoneRow" }
+        "legs": { "$ref": "#/$defs/zoneRow" }, "feet": { "$ref": "#/$defs/zoneRow" },
+        "arm_sword": { "$ref": "#/$defs/zoneRow" }, "arm_off": { "$ref": "#/$defs/zoneRow" }
       }
     },
     "bone_gate": {
@@ -170,6 +184,35 @@
     "weapons": {
       "type": "object", "minProperties": 1,
       "additionalProperties": { "$ref": "#/$defs/weaponRow" }
+    },
+    "evaluator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kinds", "zone_part", "zone_cut_unit", "unit_bone_mult", "kill", "stun_window_s", "finisher", "source"],
+      "properties": {
+        "kinds": {
+          "type": "object", "additionalProperties": false, "required": ["slash", "stab", "blunt"],
+          "properties": { "slash": { "$ref": "#/$defs/kindRow" }, "stab": { "$ref": "#/$defs/kindRow" }, "blunt": { "$ref": "#/$defs/kindRow" } }
+        },
+        "zone_part": { "type": "object", "additionalProperties": { "type": "string" }, "minProperties": 1 },
+        "zone_cut_unit": { "type": "object", "additionalProperties": { "type": ["string", "null"] }, "minProperties": 1 },
+        "unit_bone_mult": { "type": "object", "additionalProperties": { "type": "number", "exclusiveMinimum": 0 }, "minProperties": 1 },
+        "kill": {
+          "type": "object", "additionalProperties": false, "required": ["any_part_gone", "all_parts_gone"],
+          "properties": {
+            "any_part_gone": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "all_parts_gone": { "type": "array", "items": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
+          }
+        },
+        "stun_window_s": { "type": "number", "exclusiveMinimum": 0 },
+        "finisher": {
+          "type": "object", "additionalProperties": false, "required": ["base_pct", "per_overkill_pct", "cap_pct", "pity_after_kills"],
+          "properties": {
+            "base_pct": { "type": "number", "minimum": 0 }, "per_overkill_pct": { "type": "number", "minimum": 0 },
+            "cap_pct": { "type": "number", "minimum": 0 }, "pity_after_kills": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "source": { "type": "string" }
+      }
     }
   }
 }

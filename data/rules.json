@@ -23,7 +23,9 @@
     "head": { "body_part_mult": 2.0, "source": "TABG Damagable head multiplier 2.0 (five-games doc 2.2; COMBAT-101 B5)" },
     "torso": { "body_part_mult": 1.0, "source": "TABG torso and hip multiplier 1.0 (five-games doc 2.2)" },
     "legs": { "body_part_mult": 0.75, "source": "TABG leg multiplier 0.75 (five-games doc 2.2)" },
-    "feet": { "body_part_mult": 0.5, "source": "TABG foot multiplier 0.5 (five-games doc 2.2)" }
+    "feet": { "body_part_mult": 0.5, "source": "TABG foot multiplier 0.5 (five-games doc 2.2)" },
+    "arm_sword": { "body_part_mult": 0.75, "source": "own start value (set equal to legs; TABG has no arm row in the doc); todo: measure on our clips" },
+    "arm_off": { "body_part_mult": 0.75, "source": "own start value (same as arm_sword); todo: measure on our clips" }
   },
   "bone_gate": {
     "numerator_m_s": 3,
@@ -135,5 +137,22 @@
       "todo": "TABG has no blade multipliers, reach or mass for this weapon; blunt-class row to measure",
       "source": "TABG tabg/data/weapons.csv row Shovel (damageOnHit 56, cooldown 0.75 s, forceOnHit 50000)"
     }
+  },
+  "evaluator": {
+    "source": "src/rules-eval.mjs table rows: how a hit maps onto the rows above. Own start values where marked; shapes from COMBAT-101 items 7, 8, 16, 17, A1 to A5, B2 to B5 and the finisher trigger (25 percent base, 1 point per 1 percent overkill, cap 60, pity after 3 kills). stun_window_s 18 = AzerothCore diminishing-returns reset (item 16), start value.",
+    "kinds": {
+      "slash": { "sharpness_column": "slash_mult", "sharpness": null, "bone_column": "slash_bone_mult", "armour_column": "cut", "can_sever": true, "knockdown_mult": 1.0, "todo": "sharpness comes from the weapon column, so the fixed sharpness is null" },
+      "stab": { "sharpness_column": "stab_mult", "sharpness": null, "bone_column": "stab_bone_mult", "armour_column": "stab", "can_sever": false, "knockdown_mult": 1.0, "todo": "sharpness comes from the weapon column; a stab sticks and bleeds over the cut rung but never severs (own start rule)" },
+      "blunt": { "sharpness_column": null, "sharpness": 1.0, "bone_column": null, "armour_column": "blunt", "can_sever": false, "knockdown_mult": 2.0, "todo": "own start values: the weapon rows have no blunt column, so fixed sharpness 1.0 and a 2x knockdown weight (A5: blunt forces the fall); measure" }
+    },
+    "zone_part": { "head": "head", "torso": "torso", "legs": "leg_{side}", "feet": "leg_{side}", "arm_sword": "arm_{sword}", "arm_off": "arm_{off}" },
+    "zone_cut_unit": { "head": "head", "torso": "torso_waist", "legs": "leg_{side}", "feet": null, "todo": "feet have no severable unit (the six units are head, arm_left, arm_right, leg_left, leg_right, torso_waist); a foot hit damages the leg budget but never cuts", "arm_sword": "arm_{sword}", "arm_off": "arm_{off}" },
+    "unit_bone_mult": { "head": 1.0, "torso_waist": 1.0, "arm_left": 1.0, "arm_right": 1.0, "leg_left": 1.0, "leg_right": 1.0 },
+    "kill": {
+      "any_part_gone": ["head", "torso"],
+      "all_parts_gone": [["leg_left", "leg_right"]]
+    },
+    "stun_window_s": 18,
+    "finisher": { "base_pct": 25, "per_overkill_pct": 1, "cap_pct": 60, "pity_after_kills": 3 }
   }
 }
