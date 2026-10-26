@@ -1,0 +1,139 @@
+{
+  "schema": "physics-rules/1",
+  "about": "M4 rule rows. One game-neutral table of combat rules as data. Every row carries a source key naming the donor game or the measured clip. All numbers are START VALUES from donor games, to be measured on our Mixamo and Hellish Quart attack clips before any threshold is final (BRIEF: template layer only). A missing donor number is null with a todo key. Armour only ever raises a dismember threshold and cuts damage; no key in this file may block, prevent or make anything immune (the lint rejects it).",
+  "global": {
+    "damage_scale": 0.65,
+    "source": "TABG PlayerDeath.globalDmgMultiplier 0.65 (opentrident-steam docs/parts-lab/combat-physics-comparison-five-games.md section 2.2; COMBAT-101 B5). One row to tune all damage."
+  },
+  "strength_scale": {
+    "formula": "strength = tip_speed_m_s * sharpness",
+    "rung_hit": 20,
+    "rung_stick": 50,
+    "rung_cut": 100,
+    "status": "start",
+    "measure_note": "to be measured on our Mixamo and Hellish Quart attack clips (experiment 1: tip-speed histogram) before any threshold is written",
+    "source": "Gladio and Glory strength scale (hit over 20, stick over 50, kill or cut over 100); COMBAT-101 A1 and item 17. Start values, not measured."
+  },
+  "melee_speed_gate": {
+    "min_speed_m_s": 5,
+    "full_strength_margin_m_s": 0.5,
+    "source": "TABG melee: relativeVelocity >= 5 m/s and swinging forward, then num = clamp(v x 2, 0, 1) (five-games doc section 2.2 and 5 parameters sheet; COMBAT-101 B5). Start value, retune on our clips."
+  },
+  "zones": {
+    "head": { "body_part_mult": 2.0, "source": "TABG Damagable head multiplier 2.0 (five-games doc 2.2; COMBAT-101 B5)" },
+    "torso": { "body_part_mult": 1.0, "source": "TABG torso and hip multiplier 1.0 (five-games doc 2.2)" },
+    "legs": { "body_part_mult": 0.75, "source": "TABG leg multiplier 0.75 (five-games doc 2.2)" },
+    "feet": { "body_part_mult": 0.5, "source": "TABG foot multiplier 0.5 (five-games doc 2.2)" }
+  },
+  "bone_gate": {
+    "numerator_m_s": 3,
+    "formula": "bone_gate_speed_m_s = numerator_m_s / sqrt(bone_mult)",
+    "bone_mult_min": 0.5,
+    "bone_mult_max": 5,
+    "armour_effect": "armour multiplies the gate by its dismember_threshold_modifier (raises it, finite, never a wall)",
+    "source": "Gladio Mori Blade.CheckBoneBreak: speed^2 x boneMultiplier > 9, so gate = 3 / sqrt(boneMult) m/s; bone multipliers 0.5 to 5 (five-games doc 2.1 and 5). Start shape, compare with the strength scale cut rung on our clips."
+  },
+  "armour_tiers": {
+    "none":     { "dismember_threshold_modifier": 1.0,  "damage_taken_mult": { "cut": 1.0,  "stab": 1.0, "blunt": 1.0 }, "source": "role table armour_tiers (own start values, HS rating ladder shape; Dom 2026-10-25 armour never blocks)" },
+    "cloth":    { "dismember_threshold_modifier": 1.05, "damage_taken_mult": { "cut": 0.95, "stab": 0.97, "blunt": 0.95 }, "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
+    "leather":  { "dismember_threshold_modifier": 1.15, "damage_taken_mult": { "cut": 0.85, "stab": 0.9,  "blunt": 0.8 },  "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
+    "mail":     { "dismember_threshold_modifier": 1.5,  "damage_taken_mult": { "cut": 0.65, "stab": 0.8,  "blunt": 0.85 }, "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
+    "plate_t2": { "dismember_threshold_modifier": 2.0,  "damage_taken_mult": { "cut": 0.45, "stab": 0.6,  "blunt": 0.75 }, "source": "role table armour_tiers (own start values, HS rating ladder shape)" },
+    "plate_t3": { "dismember_threshold_modifier": 2.5,  "damage_taken_mult": { "cut": 0.35, "stab": 0.5,  "blunt": 0.7 },  "source": "role table armour_tiers (own start values; top plate cut 0.35, threshold 2.5). Design check: every dismember-capable weapon must be able to exceed 2.5x the base, or top armour is a block in practice." }
+  },
+  "knockdown": {
+    "counter_fall_at": 60,
+    "counter_cap": 120,
+    "counter_resets_on_fall": true,
+    "getup_grace_s": 1.5,
+    "fall_seconds": { "damage": 0.2, "push": 0.5, "down": 2.0, "source": "TABG RagdollHandler.Fall: damage over 60 falls 0.2 s, push force over 80 falls 0.5 s, downed 2 s (five-games doc 2.2; COMBAT-101 B5)" },
+    "push_force_over": 80,
+    "recover_per_s": 0.3,
+    "stun_duration_pct": [100, 50, 25, 0],
+    "stun_note": "diminishing stun: each stun inside the window lasts 100, 50, 25 percent, then 0 (stun-immune window for the stun only; it never touches cut or dismember)",
+    "source": "Separate from the kill budgets (COMBAT-101 A4 and item 16): Gladio cumulative-damage-since-last-fall counter, 60 of 120, resets on each fall; get-up grace 1.5 s and stun diminishing returns 100/50/25 from item 16 (Lost Ark, AzerothCore); recovery 0.3 per second from TABG. Start values."
+  },
+  "part_hp": {
+    "head": 20,
+    "torso": 60,
+    "arm_sword": 45,
+    "arm_off": 70,
+    "legs_min": 50,
+    "legs_max": 70,
+    "source": "Hellish Quart zone budgets, COMBAT-101 item 7 (head dies first, off arm lasts longest). Per-part budgets are the kill and limp counter, separate from the knockdown counter."
+  },
+  "locational": {
+    "arm_gone_damage_mult": 0.3,
+    "leg_crawl_to_stand_s": 6.4,
+    "source": "COMBAT-101 item 8 (arm gone = weapon drop and 0.3x damage; DF2 crawl 6.4 s to stand). Start values."
+  },
+  "bleed_out": {
+    "seconds_min": 20,
+    "seconds_max": 30,
+    "source": "Gladio Mori Bleedout death at about 30 s for one standard bleed (five-games doc 2.1, inferred) and 20 to 30 s in the M4 brief. One timer row."
+  },
+  "stiffness_by_state": {
+    "idle": 0.5,
+    "attack": [0.5, 0.7],
+    "roll": 0.4,
+    "fall": 0.1,
+    "dead": 0.01,
+    "source": "data/ragdoll-role-table.json stiffness_by_state (own start values); dead 0.01 = Hellish Quart deadMuscleWeight; fall 0.1 = Gladio and Glory knockdown pin (data/states.json)."
+  },
+  "weapons": {
+    "gm_gladius": {
+      "reach_min_m": 0.7, "reach_max_m": 1.15, "mass_kg": 2.0,
+      "slash_mult": 2.92, "stab_mult": 2.8, "slash_bone_mult": 1.2, "stab_bone_mult": 1.1,
+      "bone_break_speed_slash": 2.74, "bone_break_speed_stab": 2.86, "bone_break_speed": 2.74,
+      "source": "Gladio Mori docs/parts-lab/gladio-mori/data/weapons.csv row Gladius"
+    },
+    "gm_katana": {
+      "reach_min_m": 0.5, "reach_max_m": 1.55, "mass_kg": 3.0,
+      "slash_mult": 2.92, "stab_mult": 2.92, "slash_bone_mult": 1.1, "stab_bone_mult": 1.1,
+      "bone_break_speed_slash": 2.86, "bone_break_speed_stab": 2.86, "bone_break_speed": 2.86,
+      "tabg_damage_on_hit": 120, "tabg_cooldown_s": 0.9, "tabg_force_on_hit": 50000,
+      "source": "Gladio Mori weapons.csv row Katana; TABG tabg/data/weapons.csv row Katana (damageOnHit 120, cooldown 0.9 s, forceOnHit 50000)"
+    },
+    "gm_claymore": {
+      "reach_min_m": 0.7, "reach_max_m": 1.8, "mass_kg": 4.0,
+      "slash_mult": 2.92, "stab_mult": 2.92, "slash_bone_mult": 1.1, "stab_bone_mult": 1.1,
+      "bone_break_speed_slash": 2.86, "bone_break_speed_stab": 2.86, "bone_break_speed": 2.86,
+      "source": "Gladio Mori weapons.csv row Claymore"
+    },
+    "gm_dagger": {
+      "reach_min_m": 0.6, "reach_max_m": 1.0, "mass_kg": 1.0,
+      "slash_mult": 1.0, "stab_mult": 3.0, "slash_bone_mult": 1.0, "stab_bone_mult": 2.0,
+      "bone_break_speed_slash": 3.0, "bone_break_speed_stab": 2.12, "bone_break_speed": 2.12,
+      "source": "Gladio Mori weapons.csv row Dagger"
+    },
+    "gm_rapier": {
+      "reach_min_m": 0.8, "reach_max_m": 1.83, "mass_kg": 2.0,
+      "slash_mult": 1.0, "stab_mult": 3.2, "slash_bone_mult": 1.0, "stab_bone_mult": 2.0,
+      "bone_break_speed_slash": 3.0, "bone_break_speed_stab": 2.12, "bone_break_speed": 2.12,
+      "tabg_damage_on_hit": 25, "tabg_cooldown_s": 0.15, "tabg_force_on_hit": 50000,
+      "source": "Gladio Mori weapons.csv row Rapier; TABG weapons.csv row Rapier (damageOnHit 25, cooldown 0.15 s, forceOnHit 50000)"
+    },
+    "gm_battleaxe": {
+      "reach_min_m": 0.9, "reach_max_m": 1.5, "mass_kg": 3.0,
+      "slash_mult": 2.91, "stab_mult": 2.8, "slash_bone_mult": 1.2, "stab_bone_mult": 1.0,
+      "bone_break_speed_slash": 2.74, "bone_break_speed_stab": 3.0, "bone_break_speed": 2.74,
+      "source": "Gladio Mori weapons.csv row BattleAxe; mass from weapons-physics.csv"
+    },
+    "tabg_viking_axe": {
+      "reach_min_m": null, "reach_max_m": null, "mass_kg": null,
+      "slash_mult": null, "stab_mult": null, "slash_bone_mult": null, "stab_bone_mult": null,
+      "bone_break_speed_slash": null, "bone_break_speed_stab": null, "bone_break_speed": null,
+      "tabg_damage_on_hit": 57.59, "tabg_cooldown_s": 0.6, "tabg_force_on_hit": 100000,
+      "todo": "TABG has no blade multipliers, reach or mass for this weapon; measure or map to a Gladio Mori axe row",
+      "source": "TABG tabg/data/weapons.csv row Viking Axe (damageOnHit 57.59, cooldown 0.6 s, forceOnHit 100000)"
+    },
+    "tabg_shovel": {
+      "reach_min_m": null, "reach_max_m": null, "mass_kg": null,
+      "slash_mult": null, "stab_mult": null, "slash_bone_mult": null, "stab_bone_mult": null,
+      "bone_break_speed_slash": null, "bone_break_speed_stab": null, "bone_break_speed": null,
+      "tabg_damage_on_hit": 56, "tabg_cooldown_s": 0.75, "tabg_force_on_hit": 50000,
+      "todo": "TABG has no blade multipliers, reach or mass for this weapon; blunt-class row to measure",
+      "source": "TABG tabg/data/weapons.csv row Shovel (damageOnHit 56, cooldown 0.75 s, forceOnHit 50000)"
+    }
+  }
+}

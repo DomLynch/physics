@@ -18,3 +18,5 @@ jobs:
         run: npm run test:budget
       - name: state runners (death, stagger, knockdown)
         run: node --test test/states.test.mjs
+      - name: rules (M4 rows validate, bad probes rejected, round-trip hash)
+        run: node --test test/rules.test.mjs
