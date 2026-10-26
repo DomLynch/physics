@@ -251,6 +251,41 @@ async function gltfIO() {
 }
 const mul4 = (a, b) => { const o = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k]; return o; }; // column-major a x b
 
+// The source GLB with meshopt and quantisation undone: plain float32 vertex attributes, same vertex space, same nodes (for plain readers such as
+// tools/cut-validate.mjs: `--source-out` writes it).
+export async function decompressGlb(glbBytes) {
+  const io = await gltfIO();
+  const doc = await io.readBinary(glbBytes instanceof Uint8Array ? glbBytes : new Uint8Array(glbBytes));
+  // like the cut output: vertices in metres (vertex space -> world baked in, inverse binds absorb the inverse), so source and cut compare directly
+  const skin = doc.getRoot().listSkins()[0], ibm = skin && skin.getInverseBindMatrices();
+  let Q = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  if (ibm) Q = mul4(skin.listJoints()[0].getWorldMatrix(), ibm.getElement(0, new Array(16)));
+  const A = [Q[0], Q[4], Q[8], Q[1], Q[5], Q[9], Q[2], Q[6], Q[10]];
+  const [a0, b0, c0, d0, e0, f0, g0, h0, i0] = A, det = a0 * (e0 * i0 - f0 * h0) - b0 * (d0 * i0 - f0 * g0) + c0 * (d0 * h0 - e0 * g0);
+  const Ai = [(e0 * i0 - f0 * h0) / det, (c0 * h0 - b0 * i0) / det, (b0 * f0 - c0 * e0) / det, (f0 * g0 - d0 * i0) / det, (a0 * i0 - c0 * g0) / det, (c0 * d0 - a0 * f0) / det, (d0 * h0 - e0 * g0) / det, (b0 * g0 - a0 * h0) / det, (a0 * e0 - b0 * d0) / det];
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) for (const sem of prim.listSemantics()) {
+    const a = prim.getAttribute(sem);
+    if (/^JOINTS_/.test(sem)) continue;
+    const n = a.getElementSize(), out = new Float32Array(a.getCount() * n), el = new Array(n).fill(0);
+    for (let i = 0; i < a.getCount(); i++) {
+      a.getElement(i, el);
+      if (sem === "POSITION") out.set([A[0] * el[0] + A[1] * el[1] + A[2] * el[2] + Q[12], A[3] * el[0] + A[4] * el[1] + A[5] * el[2] + Q[13], A[6] * el[0] + A[7] * el[1] + A[8] * el[2] + Q[14]], i * n);
+      else if (sem === "NORMAL") out.set(norm([Ai[0] * el[0] + Ai[3] * el[1] + Ai[6] * el[2], Ai[1] * el[0] + Ai[4] * el[1] + Ai[7] * el[2], Ai[2] * el[0] + Ai[5] * el[1] + Ai[8] * el[2]]), i * n);
+      else out.set(el, i * n);
+    }
+    prim.setAttribute(sem, doc.createAccessor().setType(a.getType()).setArray(out).setBuffer(doc.getRoot().listBuffers()[0]));
+  }
+  if (ibm) {
+    const t = [-(Ai[0] * Q[12] + Ai[1] * Q[13] + Ai[2] * Q[14]), -(Ai[3] * Q[12] + Ai[4] * Q[13] + Ai[5] * Q[14]), -(Ai[6] * Q[12] + Ai[7] * Q[13] + Ai[8] * Q[14])];
+    const Qinv = [Ai[0], Ai[3], Ai[6], 0, Ai[1], Ai[4], Ai[7], 0, Ai[2], Ai[5], Ai[8], 0, t[0], t[1], t[2], 1];
+    const arr = new Float32Array(ibm.getCount() * 16);
+    for (let i = 0; i < ibm.getCount(); i++) arr.set(mul4(ibm.getElement(i, new Array(16)), Qinv), i * 16);
+    ibm.setArray(arr);
+  }
+  for (const ext of doc.getRoot().listExtensionsUsed()) if (ext.extensionName === "EXT_meshopt_compression" || ext.extensionName === "KHR_mesh_quantization") ext.dispose();
+  return io.writeBinary(doc);
+}
+
 // ---------------------------------------------------------------- the cutter
 export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const io = await gltfIO();
@@ -286,6 +321,15 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   }
   const A = [Q[0], Q[4], Q[8], Q[1], Q[5], Q[9], Q[2], Q[6], Q[10]]; // row-major 3x3 of vertex -> world
   const toWorld = (p) => [A[0] * p[0] + A[1] * p[1] + A[2] * p[2] + Q[12], A[3] * p[0] + A[4] * p[1] + A[5] * p[2] + Q[13], A[6] * p[0] + A[7] * p[1] + A[8] * p[2] + Q[14]];
+  // The output is written in metres: vertices go to world and the inverse binds absorb Q^-1 (jointWorld x (IBM Q^-1) x (Q v) = jointWorld x IBM x v),
+  // so the contract file is plain float32 in the units of the measure row, with no hidden dequantisation matrix.
+  const Ai = (() => {
+    const [a, b, c, d, e, f, g, h, i] = A, det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    return [(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det, (f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det, (d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det];
+  })();
+  const normalToWorld = (n) => norm([Ai[0] * n[0] + Ai[3] * n[1] + Ai[6] * n[2], Ai[1] * n[0] + Ai[4] * n[1] + Ai[7] * n[2], Ai[2] * n[0] + Ai[5] * n[1] + Ai[8] * n[2]]); // A^-T n
+  const tangentToWorld = (t) => [A[0] * t[0] + A[1] * t[1] + A[2] * t[2], A[3] * t[0] + A[4] * t[1] + A[5] * t[2], A[6] * t[0] + A[7] * t[1] + A[8] * t[2]];
+  const Qinv = (() => { const t = [-(Ai[0] * Q[12] + Ai[1] * Q[13] + Ai[2] * Q[14]), -(Ai[3] * Q[12] + Ai[4] * Q[13] + Ai[5] * Q[14]), -(Ai[6] * Q[12] + Ai[7] * Q[13] + Ai[8] * Q[14])]; return [Ai[0], Ai[3], Ai[6], 0, Ai[1], Ai[4], Ai[7], 0, Ai[2], Ai[5], Ai[8], 0, t[0], t[1], t[2], 1]; })();
   const normalToVertex = (n) => norm([A[0] * n[0] + A[3] * n[1] + A[6] * n[2], A[1] * n[0] + A[4] * n[1] + A[7] * n[2], A[2] * n[0] + A[5] * n[1] + A[8] * n[2]]); // A^T n
   // the measure row is floor-lifted (tools/glb-measure.mjs): recover its offset from the 20 role joints
   const roles = Object.keys(rigMap.joints).filter((r) => row.joints[r]);
@@ -372,7 +416,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const c = pre[v];
     if (!firstOf.has(c)) { firstOf.set(c, v); continue; }
     const r = firstOf.get(c);
-    if (V.pos[v][0] !== V.pos[r][0] || V.pos[v][1] !== V.pos[r][1] || V.pos[v][2] !== V.pos[r][2]) { V.pos[v] = V.pos[r].slice(); V.raw[v] = V.raw[r].slice(); snapped++; }
+    if (opts.snapCracks === true && (V.pos[v][0] !== V.pos[r][0] || V.pos[v][1] !== V.pos[r][1] || V.pos[v][2] !== V.pos[r][2])) { V.pos[v] = V.pos[r].slice(); V.raw[v] = V.raw[r].slice(); snapped++; }
   }
   report.crack_vertices_snapped = snapped;
   let ymin = Infinity, ymax = -Infinity;
@@ -463,6 +507,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const BIT = { neck: 1, shoulder_left: 2, shoulder_right: 4, hip_left: 8, hip_right: 16, waist: 32, hip_split: 64 };
   const sequence = [fns.neck, fns.shoulder_left, fns.shoulder_right, fns.hip_left, fns.hip_right, fns.waist];
   const homeOf = (bits) => bits & 1 ? "head" : bits & 2 ? "arm_left" : bits & 4 ? "arm_right" : (bits & 24) === 24 ? (bits & 64 ? "leg_left" : "leg_right") : bits & 8 ? "leg_left" : bits & 16 ? "leg_right" : bits & 32 ? "upper_torso" : "root";
+  const feasible = (r, b) => r === "head" ? !!(b & 1) : r === "upper_torso" ? !(b & 1) && !!(b & 32) && !(b & 2) && !(b & 4) : r === "root" ? !(b & 56) :
+    r === "arm_left" ? !!(b & 2) : r === "arm_right" ? !!(b & 4) : r === "leg_left" ? !!(b & 8) && (!(b & 16) || !!(b & 64)) : !!(b & 16) && (!(b & 8) || !(b & 64));
   const cellTris = []; // [a, b, c, prim, cell bits]
   let trianglesSplit = 0;
   for (const [a, b, c, pi] of tris) {
@@ -480,6 +526,13 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     });
     if (polys.length > 1 || polys[0].v.some((v) => v >= verticesIn)) trianglesSplit++;
     for (const P of polys) for (let k = 1; k + 1 < P.v.length; k++) cellTris.push([P.v[0], P.v[k], P.v[k + 1], pi, P.bits]);
+  }
+  if (opts.debug) {
+    const seen = new Set();
+    for (const t of cellTris) { seen.add(t[0]); seen.add(t[1]); seen.add(t[2]); }
+    const lost = new Map();
+    for (const t of tris) for (let k = 0; k < 3; k++) if (!seen.has(t[k])) lost.set(t[k], t[3]);
+    report.lostAfterSplit = { count: lost.size, sample: [...lost.entries()].slice(0, 5).map(([v, p]) => [v, p, V.pos[v].map(r6)]) };
   }
   // fragments = connected pieces (welded positions) of one cell. A fragment goes to the region its cell names, unless its bones say otherwise:
   // when the home region owns under 20 percent of the fragment's skin weight, the region owning most of it takes the fragment (a foot sticking
@@ -506,9 +559,10 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const total = score.reduce((s, x) => s + x, 0);
     let region = home;
     if (total > 0 && score[regionIdx[home]] / total < 0.2) {
-      let best = 0;
-      for (let k = 1; k < score.length; k++) if (score[k] > score[best]) best = k;
-      region = REGIONS[best].id;
+      // only a region the cell's planes allow can take it (a piece's vertices stay on its side of every plane that bounds it)
+      let best = -1;
+      for (let k = 0; k < score.length; k++) if (feasible(REGIONS[k].id, cellOfFrag.get(f)) && score[k] > 0 && (best < 0 || score[k] > score[best])) best = k;
+      if (best >= 0) region = REGIONS[best].id;
     }
     if (region !== home) {
       fragStats.reassigned++;
@@ -737,6 +791,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
         capTris.push(...triangulateLoops(h.pts, [], stats));
       }
       capStats.forced_ears += stats.forced; capStats.bridge_fallbacks += stats.bridgeFallback;
+      if (opts.debug && (stats.forced || stats.bridgeFallback)) (report.forced ||= []).push({ region: R.id, plane: dom, forced: stats.forced, rings: rings.map((r) => [r.pts.length, +r.area.toFixed(6)]), holes: holes.length, orphanHoles: orphanHoles.length });
       // the caps this group may feed: planes it lies on that this region has a cap for (a loop along two planes, the Lambda of the root's lower edge,
       // is triangulated once and shared out by the nearest plane)
       const planesHere = [...new Set(infos.flatMap((i) => Object.keys(i.len)).map((p) => (p === "hip_split" ? dom : p)))].filter((p) => capOf.has(R.id + ":" + p)).sort((a, b) => planeOrder.indexOf(a) - planeOrder.indexOf(b));
@@ -796,10 +851,14 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       const pos = new Float32Array(n * 3), posW = new Float64Array(n * 3), jj = new Uint16Array(n * 4), ww = new Float32Array(n * 4);
       const att = Object.fromEntries(semantics.map((s) => [s, new Float32Array(n * V.attr[s][0].length)]));
       P.gv.forEach((v, k) => {
-        pos.set(V.raw[v], k * 3); posW.set(V.pos[v], k * 3);
+        pos.set(V.pos[v], k * 3); posW.set(V.pos[v], k * 3);
         const b = bindWeights(v, R.id);
         jj.set(b.j, k * 4); ww.set(b.w, k * 4);
-        for (const s of semantics) att[s].set(V.attr[s][v], k * V.attr[s][v].length);
+        for (const s of semantics) {
+          let val = V.attr[s][v];
+          if (s === "NORMAL") val = normalToWorld(val); else if (s === "TANGENT") val = [...norm(tangentToWorld(val)), val[3]];
+          att[s].set(val, k * val.length);
+        }
       });
       prim.setAttribute("POSITION", mkAcc("VEC3", pos));
       for (const s of semantics) prim.setAttribute(s, mkAcc(["SCALAR", "VEC2", "VEC3", "VEC4"][V.attr[s][0].length - 1], att[s]));
@@ -823,7 +882,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const n = rec.verts.length;
     const posW = new Float64Array(n * 3), pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), jj = new Uint16Array(n * 4), ww = new Float32Array(n * 4);
     rec.verts.forEach((v, k) => {
-      pos.set(V.raw[v], k * 3); posW.set(V.pos[v], k * 3); nor.set(normalToVertex(rec.nrm[k]), k * 3); uv.set(rec.uv[k], k * 2);
+      pos.set(V.pos[v], k * 3); posW.set(V.pos[v], k * 3); nor.set(rec.nrm[k], k * 3); uv.set(rec.uv[k], k * 2);
       const b = bindWeights(v, C.region);
       jj.set(b.j, k * 4); ww.set(b.w, k * 4);
     });
@@ -834,6 +893,11 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     addNode(C.id, doc.createMesh(C.id).addPrimitive(prim));
     capGeom[C.id] = { positions: posW, indices: rec.tris };
     outStats.caps[C.id] = { vertices: n, triangles: rec.tris.length / 3 };
+  }
+  if (ibm) { // inverse binds absorb Q^-1 (see above)
+    const arr = new Float32Array(joints.length * 16);
+    for (let i = 0; i < joints.length; i++) arr.set(mul4(ibm.getElement(i, new Array(16)), Qinv), i * 16);
+    ibm.setArray(arr);
   }
   const glb = await io.writeBinary(doc);
 
@@ -854,10 +918,12 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
 
   // ---- manifest
   const planes = {};
-  for (const id of ["neck", "shoulder_left", "shoulder_right", "hip_left", "hip_right", "waist", "hip_split"]) {
+  for (const id of ["neck", "shoulder_left", "shoulder_right", "hip_left", "hip_right", "waist"]) {
     const f = fns[id];
-    planes[id] = { point: sub(f.point, offset).map(r6), normal: f.n.map(r6), source: f.source, ...(id === "hip_split" ? { internal: true } : {}) };
+    planes[id] = { point: sub(f.point, offset).map(r6), normal: f.n.map(r6), source: f.source };
   }
+  // the internal hip bisector is not a cut: kept out of `planes` (readers match plane names loosely) and listed apart
+  const internalPlanes = { hip_split: { point: sub(fns.hip_split.point, offset).map(r6), normal: fns.hip_split.n.map(r6), source: fns.hip_split.source } };
   let verticesOut = 0, capVerts = 0;
   for (const R of REGIONS) verticesOut += outStats.pieces[R.id].vertices;
   for (const k of Object.keys(outStats.caps)) capVerts += outStats.caps[k].vertices;
@@ -869,7 +935,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     regions: REGIONS.map((r) => ({ id: r.id, mesh: r.mesh, detached_by: r.detached_by })),
     caps: CAPS.filter((c) => capGeom[c.id]).map((c) => ({ id: c.id, mesh: c.id, region: c.region, shown_when_cut: c.shown_when_cut })),
     planes,
-    plane_frame: { about: "plane points are in the measure row's coordinates (floor-lifted bind pose, metres); add bind_offset to get the GLB's bind-pose world space; vertex_to_world maps the GLB's stored vertex space to that world space", bind_offset: offset.map(r6), crotch_apex: apex ? sub(apex, offset).map(r6) : null, vertex_to_world: Q.map((x) => Math.round(x * 1e9) / 1e9) },
+    internal_planes: internalPlanes,
+    plane_frame: { about: "plane points are in the measure row's coordinates (floor-lifted bind pose, metres); add bind_offset to get the GLB's bind-pose world space; vertex_to_world is the identity in the cut GLB (written in metres); source_vertex_to_world is the matrix the source GLB's stored vertex space needed", bind_offset: offset.map(r6), crotch_apex: apex ? sub(apex, offset).map(r6) : null, vertex_to_world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], source_vertex_to_world: Q.map((x) => Math.round(x * 1e9) / 1e9) },
     stats: {
       vertices_in: verticesIn,
       vertices_out: verticesOut,
@@ -927,6 +994,18 @@ async function main() {
   if (debug) console.log(JSON.stringify(report, null, 1));
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, name + ".cut.glb"), glb);
+  if (args.includes("--meshopt")) { // optional shipping copy: meshopt + quantised, NOT the contract file
+    const { NodeIO } = await import("@gltf-transform/core");
+    const { ALL_EXTENSIONS, EXTMeshoptCompression } = await import("@gltf-transform/extensions");
+    const { MeshoptDecoder, MeshoptEncoder } = await import("meshoptimizer");
+    await MeshoptDecoder.ready; await MeshoptEncoder.ready;
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder, "meshopt.encoder": MeshoptEncoder });
+    const d = await io.readBinary(glb);
+    d.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.QUANTIZE });
+    writeFileSync(join(outDir, name + ".cut.min.glb"), await io.writeBinary(d));
+  }
+  const so = args.indexOf("--source-out");
+  if (so >= 0) writeFileSync(args[so + 1], await decompressGlb(readFileSync(glbPath)));
   writeFileSync(join(outDir, name + ".cut.manifest.json"), JSON.stringify(manifest, null, 1) + "\n");
   const s = manifest.stats;
   console.log(`${name}: vertices ${s.vertices_in} -> ${s.vertices_out} (+${s.cap_vertices} cap), triangles ${s.triangles_in} -> ${s.triangles_out}, split ${s.triangles_split}, watertight ${s.watertight} (open edges ${s.open_edges}: ${s.open_edges_at_cuts} at cuts, ${s.open_edges_native} native to the source; ${s.non_manifold_edges} non-manifold), orphan weights ${s.orphan_weights}, rebound ${s.weights_rebound}`);
