@@ -24,6 +24,10 @@
     },
     "targets_source": "BRIEF M3 'arm 0.9 / torso 0.6 / 0.12' read as HQ HandMuscleWeakener muscle weights arm 0.9 / forearm 0.6 / hand 0.12 for the arm chain, torso and legs at the torso value 0.6 (own reading of the ambiguous '0.12'); retune on our clips"
   },
+  "cut": {
+    "helmet": { "radius_m": 0.13, "mass_kg": 1.6, "pop_impulse": [0, 3.0, 0], "spin_rad_s": [0, 0, 6], "source": "own: a closed helm about 1.6 kg and 26 cm across (Half Sword head capsule 23 cm + a 3 cm shell), popped up 1.9 m/s and spun on the cut; Strategy 2026-10-26: the helmet flies as a prop (M5); retune on the clip" },
+    "edge": { "samples": 6, "through_core": 0.6, "source": "own: the blade segment is tested at 6 interpolations between its start-of-tick and end-of-tick poses; a part counts as cut THROUGH when the blade passes within 0.6 of the capsule radius of its axis (GM sweeps the blade through organ colliders, A: BRIEF M5). The threshold that turns this into a cut is the evaluator's (rules.json)" }
+  },
   "knockdown": {
     "damage_over": { "value": 60, "fall_s": 0.2 },
     "push_over": { "value": 80, "fall_s": 0.5 },

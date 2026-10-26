@@ -1,0 +1,13 @@
+{
+  "about": "M5 proof timeline (ticks at 60 Hz): guard; at 1.5 s the blade takes the head (cut + kill in the same tick, helmet flies as a prop); at 9.5 s the frozen corpse is cut on tap (right arm). The camera is V3's fight camera pulled in, as in proof/m3.",
+  "seed": 731,
+  "warmup_ticks": 60,
+  "end_tick": 720,
+  "camera": { "fov": 40, "position": [1.0, 2.2, 5.0], "look": [0, 1.0, 0] },
+  "guard": { "arm": 55, "forearm": 55, "hand": 55 },
+  "events": [
+    { "tick": 90, "type": "cut", "unit": "head", "helmet": true, "impulse": [2, 5, -9], "cap_radius": 0.05, "note": "blade takes the head: cut(head) + helmet prop" },
+    { "tick": 90, "type": "kill", "part": "spine2", "impulse": [4, 2, -35], "note": "blade takes the head: cut(head) + helmet prop, death ramp" },
+    { "tick": 570, "type": "cut", "unit": "arm_right", "impulse": [0, 4, -2], "cap_radius": 0.055, "note": "tap on the corpse: cut(arm_right)" }
+  ]
+}
