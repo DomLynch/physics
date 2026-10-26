@@ -9,8 +9,14 @@
     ".": "./src/index.mjs",
     "./data/*": "./data/*"
   },
-  "files": ["src", "data", "docs"],
-  "engines": { "node": ">=22" },
+  "files": [
+    "src",
+    "data",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test --test-concurrency=1 test/*.test.mjs",
     "test:determinism": "node --test test/determinism.test.mjs",
@@ -18,5 +24,9 @@
   },
   "dependencies": {
     "jolt-physics": "1.1.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.186.0"
   }
 }
