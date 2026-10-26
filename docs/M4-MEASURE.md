@@ -28,6 +28,8 @@ Strength = tip speed x sharpness, so the rungs below are tip speed in m/s at sha
 
 Sorted peaks of the 12 swings: 2.95 3.87 5.25 6.25 6.95 7.85 8.69 9.08 11.32 12.01 12.20 13.09. Percentiles are linear interpolation. With 12 swings p99 and max are the same few points: read them as a range, not a tail.
 
+> **Superseded 2026-10-26 by `docs/M4-CALIBRATION.md`:** the rungs and the speed gate below are hand-speed numbers with no weapon. They are now weapon tip speed (hand speed x lever of the weapon row), with per-weapon sharpness ratios, a heavy and a counter-hit multiplier. The hand-speed measurement on this page is unchanged and still the source.
+
 ## Proposed thresholds (in data/rules.json)
 
 | row | was | now | where it sits |
@@ -50,7 +52,7 @@ Findings to act on:
 
 - Mixamo and Hellish Quart library clips: the clip GLBs live on the donor store (`/mnt/frankendom-donors/.../site-mixamo-clips`, per `tools/mixamo/CLIP-FORMAT.md`), not on the Mac, and `site/models/mixamo/` holds only the index and character GLBs. Not read.
 - Special swings: no labels in the dump, so none identified.
-- Weapon tip: the dump has no weapon axis. Putting a rules.json weapon on the hand axis (`--weapon gm_battleaxe` / `gm_katana` / `gm_claymore`, reach_max 1.5 / 1.55 / 1.8 m) gives 55 to 80 m/s medians, which is the wrist rotation times a long lever on a guessed axis, not a measurement. Not used; no weapon reach row added.
+- Weapon tip: the dump has no weapon axis. The old `--weapon` option (a weapon placed on the hand axis by its reach_max, 55 to 80 m/s medians, a guessed axis) is removed. M4 calibration instead scales the measured hand speed by the lever (arm reach + weapon length) / arm reach, an assumption stated in `docs/M4-CALIBRATION.md`; the tool prints the lever table.
 - Sharpness: no per-weapon value exists yet, so strength is expressed at sharpness 1.0.
 - Light / heavy are a duration proxy; the sample is one fight, one body, one hero opponent, 12 swings.
 
@@ -61,4 +63,4 @@ git -C ~/Developer/frankendom-v3 show origin/docs/ragdoll-poses:docs/ragdoll-fig
 node tools/tip-speed.mjs /tmp/fight.json data/bodies/minotaur.measure.json
 ```
 
-Options: `--window 3` (ticks), `--start 2.0` (m/s), `--gap 0.15` (s), `--snap 0.3` (0 keeps the snaps), `--weapon <rules.json weapon id>`, `--json out.json`, `--series out.csv` (per-tick speed of both hands).
+Options: `--window 3` (ticks), `--start 2.0` (m/s), `--gap 0.15` (s), `--snap 0.3` (0 keeps the snaps), `--json out.json`, `--series out.csv` (per-tick speed of both hands).

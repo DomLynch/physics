@@ -1,0 +1,123 @@
+# M4 calibration: one strength number, from our own clips
+
+Strategy ruling (COMBAT-101 items 16 and 17, A1 to A4, B2 to B5; binding): strength = tip speed x sharpness, three rungs (hit, stick, cut), measured on our clips, sharpness 1.0 for the baseline blade, donor multipliers kept only as ratios between weapons. Target behaviour: a normal full-speed LIGHT swing with the baseline blade lands between stick and cut on cloth; only a HEAVY swing or a COUNTER-HIT cuts; mail needs a heavy; plate needs a heavy plus the counter-hit; armour never blocks (a tier only multiplies a threshold, and a cut stays reachable for the strongest allowed hit).
+
+This page supersedes the "Proposed thresholds" table of `docs/M4-MEASURE.md` (hand-speed rungs, no weapon). The hand speeds themselves are unchanged. Everything below is reproducible:
+
+```
+git -C ~/Developer/frankendom-v3 show origin/docs/ragdoll-poses:docs/ragdoll-fight-poses.json > /tmp/fight.json
+node tools/tip-speed.mjs /tmp/fight.json data/bodies/minotaur.measure.json   # hand speeds, arm reach, lever and tip table
+node tools/calibration-table.mjs                                              # the behaviour table (runs the evaluator)
+```
+
+## 1. Measured
+
+Clip source: Frankendom V3 recorded fight dump `docs/ragdoll-fight-poses.json` (branch `docs/ragdoll-poses`, 902 ticks at 60 Hz, the Minotaur "pitborn" on the 65 rig fighting the hero). Body: `data/bodies/minotaur.measure.json`. 12 swings after the 28 pose snaps are removed; light / heavy is split by run duration at the median (0.2 s), a proxy because the dump has no clip labels.
+
+Hand-end speed per swing (m/s, peak per swing):
+
+| class | swings | p50 | p90 | p99 | max |
+|---|---|---|---|---|---|
+| all | 12 | 8.27 | 12.18 | 13.00 | 13.09 |
+| light | 7 | 6.25 | 9.74 | 11.16 | 11.32 |
+| heavy | 5 | 12.01 | 12.74 | 13.06 | 13.09 |
+
+Arm reach (shoulder pivot to hand end at rest, the same chain the tool uses for the hand): 0.5634 m (left and right equal).
+
+Lever = (arm reach + weapon length) / arm reach, tip speed = hand speed x lever. Weapon length is grip to blade tip along the weapon axis, `bladeTip.z - holdPoint.z` in the Gladio Mori `weapons-physics.csv` (donor number; no length exists in our rows, in `weapons.csv` or in the TABG data, so this is the only source). TABG Viking Axe and Shovel have no length anywhere: `length_m` is null with a todo.
+
+| weapon | length m | lever | tip light p50 / p90 / p99 | tip heavy p50 / p90 / p99 |
+|---|---|---|---|---|
+| gm_dagger | 0.331 | 1.588 | 9.9 / 15.5 / 17.7 | 19.1 / 20.2 / 20.7 |
+| **gm_gladius (baseline)** | 0.559 | 1.992 | 12.4 / 19.4 / 22.2 | 23.9 / 25.4 / 26.0 |
+| gm_battleaxe | 1.040 | 2.846 | 17.8 / 27.7 / 31.8 | 34.2 / 36.2 / 37.2 |
+| gm_katana | 0.969 | 2.720 | 17.0 / 26.5 / 30.4 | 32.7 / 34.6 / 35.5 |
+| gm_rapier | 1.150 | 3.041 | 19.0 / 29.6 / 33.9 | 36.5 / 38.7 / 39.7 |
+| gm_claymore | 1.164 | 3.066 | 19.2 / 29.9 / 34.2 | 36.8 / 39.1 / 40.0 |
+| tabg_viking_axe, tabg_shovel | null | null | todo | todo |
+
+(Tip speed before sharpness. The gladius arm 0.563 + 0.559 = 1.12 m matches the donor `reach_max_m` 1.15, a sanity check on the length number.)
+
+## 2. Sharpness: a relative ratio, baseline 1.0
+
+`strength_scale.baseline_weapon` = `gm_gladius`, the plain blade. Each weapon row carries `slash_sharpness` and `stab_sharpness` = donor multiplier divided by the baseline's (slash 2.92, stab 2.8), so the Gladio Mori numbers are ratios, not absolutes. The donor `slash_mult` / `stab_mult` columns stay in the rows as the source; a test pins each ratio to the division.
+
+| weapon | slash | stab |
+|---|---|---|
+| gm_gladius | 1.000 | 1.000 |
+| gm_katana, gm_claymore | 1.000 | 1.043 |
+| gm_battleaxe | 0.997 | 1.000 |
+| gm_dagger | 0.342 | 1.071 |
+| gm_rapier | 0.342 | 1.143 |
+
+The best slash ratio is 1.0 (nothing slashes sharper than the gladius in the donor data); the best stab ratio is 1.143 but stabs never sever. So the difference between weapons is the lever far more than the sharpness.
+
+## 3. Chosen rungs and why
+
+Rungs are weapon-tip m/s of strength at sharpness 1.0 for the baseline blade. They keep the percentiles of the first M4 measurement (hit = p10, stick = p50, cut = p90 of all 12 swing peaks) and move them to tip speed with the baseline lever 1.992:
+
+| row | hand percentile | x lever | rung |
+|---|---|---|---|
+| `strength_scale.rung_hit` | p10 = 4.01 | 1.992 | **8.0** |
+| `strength_scale.rung_stick` | p50 = 8.27 | 1.992 | **16.5** |
+| `strength_scale.rung_cut` | p90 = 12.18 | 1.992 | **24.3** |
+| `melee_speed_gate.min_speed_m_s` | p10 = 4.01 | 1.992 | **8.0** (tip speed) |
+
+Why these satisfy the target: the full-speed light swing (hand p90 9.74, tip 19.4) sits between stick (16.5) and the cloth cut line (24.3 x 1.05 = 25.5); even the fastest measured light swing (p99 hand 11.16, tip 22.2) stays under it. A cut therefore needs more than a light swing can give.
+
+`swing.heavy_mult` = **1.92**, `measured`: heavy p50 12.01 over light p50 6.25 (ratio 1.923). A heavy at the full-speed light reference is 19.4 x 1.92 = 37.3: over the mail line (36.5), under plate tier 2 (48.6). `swing.counter_hit_mult` = **1.75**, `own` start value (todo: measure): the smallest round value that lifts a heavy over the top plate line with a margin (needs at least 1.63; heavy alone cannot reach it and light + counter-hit 33.9 does not even cut mail).
+
+Armour thresholds (cut rung x tier modifier): none 24.3, cloth 25.5, leather 27.9, mail 36.5, plate_t2 48.6, plate_t3 60.8. The tier rows themselves are unchanged (own start values).
+
+Bone gate (`3 / sqrt(bone_mult) x armour modifier`, 2.7 to 3.0 m/s bare, 7.5 for plate_t3) is unchanged and still does not bind: it reads the physical tip speed and every swing is far above it.
+
+## 4. Behaviour table (computed by `tools/calibration-table.mjs`)
+
+One slash on a bare arm (`arm_off`, a severable unit), hand speeds from the rows (`swing.hand_speed_ref_m_s`), outcome word and strength / cut threshold of that tier in brackets (1.00 or more = cut).
+
+Baseline blade, `gm_gladius` (lever 1.992, sharpness 1.0):
+
+| swing (hand m/s) | tip m/s | none | cloth | leather | mail | plate_t2 | plate_t3 |
+|---|---|---|---|---|---|---|---|
+| light, typical (p50 hand 6.25) | 12.5 | hit (0.51) | hit (0.49) | hit (0.45) | hit (0.34) | hit (0.26) | hit (0.20) |
+| light, full speed (p90 hand 9.74) | 19.4 | stick (0.80) | stick (0.76) | stick (0.69) | stick (0.53) | stick (0.40) | stick (0.32) |
+| light + counter-hit | 19.4 | cut (1.40) | cut (1.33) | cut (1.22) | stick (0.93) | stick (0.70) | stick (0.56) |
+| heavy | 19.4 | cut (1.53) | cut (1.46) | cut (1.33) | cut (1.02) | stick (0.77) | stick (0.61) |
+| heavy + counter-hit | 19.4 | cut (2.68) | cut (2.56) | cut (2.33) | cut (1.79) | cut (1.34) | cut (1.07) |
+
+Strongest weapon, `gm_claymore` (lever 3.066, slash sharpness 1.0; the strongest slash power = lever x slash sharpness among the rows):
+
+| swing (hand m/s) | tip m/s | none | cloth | leather | mail | plate_t2 | plate_t3 |
+|---|---|---|---|---|---|---|---|
+| light, typical (p50 hand 6.25) | 19.2 | stick (0.79) | stick (0.75) | stick (0.69) | stick (0.53) | stick (0.39) | stick (0.32) |
+| light, full speed (p90 hand 9.74) | 29.9 | cut (1.23) | cut (1.17) | cut (1.07) | stick (0.82) | stick (0.61) | stick (0.49) |
+| light + counter-hit | 29.9 | cut (2.15) | cut (2.05) | cut (1.87) | cut (1.43) | cut (1.08) | stick (0.86) |
+| heavy | 29.9 | cut (2.36) | cut (2.25) | cut (2.05) | cut (1.57) | cut (1.18) | stick (0.94) |
+| heavy + counter-hit | 29.9 | cut (4.13) | cut (3.93) | cut (3.59) | cut (2.75) | cut (2.06) | cut (1.65) |
+
+Cloth and "none" behave the same in the table (cloth 1.05 is a thin tier). A fall, a kill or a bleed is not shown: the table classifies the strength.
+
+### The reachability number (armour never blocks)
+
+Top plate line = rung_cut 24.3 x plate_t3 2.5 = **60.75**. Strongest allowed hit on the baseline blade: full-speed light tip 19.40 x heavy 1.92 x counter-hit 1.75 x best slash ratio 1.0 = **65.20**, which exceeds 60.75 (margin 7 percent). With the strongest weapon's lever (claymore, 3.066): **100.34**. Every tier is reachable; the top tier needs a heavy AND a counter-hit for the baseline blade and for the claymore. A test asserts this from the evaluator, not from the arithmetic.
+
+## 5. What is measured, what is assumed, what is own
+
+| item | status | note |
+|---|---|---|
+| hand speed p10 / p50 / p90 / p99 | measured | 12 swings, one fight, one body (Minotaur), one opponent |
+| arm reach 0.5634 m | measured | Minotaur body rest chain; a body with another arm passes `armReachM` |
+| rungs 8.0 / 16.5 / 24.3, gate 8.0 | measured percentiles, assumed lever | design call: p10 / p50 / p90 of the swing peaks |
+| lever formula | assumed | the weapon continues the arm and the chain turns about the shoulder; the dump has no weapon axis |
+| weapon length_m | assumed | donor numbers (Gladio Mori), the weapon axis taken as z; not our measurement |
+| sharpness ratios | assumed | donor multipliers divided by the gladius; not measured on our clips |
+| heavy_mult 1.92 | measured on a proxy | p50 / p50 of 5 duration-split "heavy" and 7 "light" swings; the p90 / p90 ratio is only 1.31 |
+| counter_hit_mult 1.75 | own | picked so heavy + counter-hit clears the top plate line; todo: measure on counter-hit clips |
+| armour tiers, bone gate, knockdown, budgets | unchanged | start values from the M4 rows |
+
+Open points to hand back to Strategy:
+
+- **Heavy double counting.** `heavy_mult` is the median heavy / light ratio. The measured heavy swings alone (hand p50 12.01 x 1.992 = 23.9 tip) sit just under the cut line (24.3), so a clip's own heavy speed without the multiplier would not cut cloth. The evaluator therefore expects the light-reference hand speed with `swing: "heavy"`, or the measured heavy speed with `swing: "light"`; feeding both counts the heavy twice (a heavy at 12.0 hand x 1.992 x 1.92 = 45.9 would sit at 94 percent of the plate tier 2 line). Re-measure on labelled charged clips.
+- **Long weapons cut on a light swing.** At the same hand speed, a claymore (lever 3.07) or a rapier (3.04, but slash sharpness 0.34) swings faster at the tip. The claymore cuts cloth and leather with a full-speed light, and cuts plate tier 2 with a heavy alone; only the top plate still needs the counter-hit. That follows from COMBAT-101 A2 (a long arm or weapon swings a faster tip on the same clip), but it is a design call if two-handers should also need a heavy for cloth: the fix is a lower lever for two-handers or a slower hand speed row, not a block.
+- **Margins are thin.** Heavy on mail is 1.02 of the line (2 percent); light + counter-hit on mail is 0.93. Both are deterministic but a small move of a rung flips them, which is why a test pins them.
+- Not measured: Mixamo and Hellish Quart library clips (on the donor store, not on this machine), special swings (no labels), counter-hit speeds, a real weapon tip.
