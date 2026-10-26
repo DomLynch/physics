@@ -16,6 +16,11 @@ jobs:
         run: npm run test:determinism
       - name: budget (five fighters + one cut under 3 ms)
         run: npm run test:budget
+      - name: phone bench page builds (one self-contained html, no external requests)
+        run: |
+          npm run build:bench
+          test -s proof/bench/dist/bench.html
+          ! grep -E "(src|href)=[\"']https?:" proof/bench/dist/bench.html
       - name: state runners, bodies, target pose
         run: node --test test/states.test.mjs test/bodies.test.mjs test/pose.test.mjs
       - name: rules (M4 rows validate, bad probes rejected, round-trip hash)
