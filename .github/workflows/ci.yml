@@ -27,3 +27,5 @@ jobs:
         run: node --test test/rules.test.mjs
       - name: rules evaluator (every outcome, armour never blocks, counters, determinism)
         run: node --test test/rules-eval.test.mjs
+      - name: cut-units (synthetic skinned body, real V3 bodies only where their GLBs exist)
+        run: node --test test/cut-units.test.mjs
