@@ -1,0 +1,15 @@
+{
+  "about": "M6 proof timeline (ticks at 60 Hz): every severable unit cut in turn on the Minotaur-106, one segment each on a fresh ragdoll (a cut cannot be undone). In each segment the cut lands at tick 40 on the guard pose; the head is cut together with the death ramp (kill). Camera = V3's fight camera pulled in, as in proof/m5.",
+  "seed": 731,
+  "warmup_ticks": 30,
+  "camera": { "fov": 40, "position": [1.0, 2.2, 5.0], "look": [0, 1.0, 0] },
+  "guard": { "arm": 55, "forearm": 55, "hand": 55 },
+  "segments": [
+    { "unit": "head", "ticks": 280, "cut_tick": 40, "impulse": [2, 5, -9], "kill": { "part": "spine2", "impulse": [4, 2, -35] }, "note": "head cut + kill" },
+    { "unit": "arm_left", "ticks": 220, "cut_tick": 40, "impulse": [3, 3, -2], "note": "arm_left cut" },
+    { "unit": "arm_right", "ticks": 220, "cut_tick": 40, "impulse": [-3, 3, -2], "note": "arm_right cut" },
+    { "unit": "leg_left", "ticks": 220, "cut_tick": 40, "impulse": [2, 2, -4], "note": "leg_left cut" },
+    { "unit": "leg_right", "ticks": 220, "cut_tick": 40, "impulse": [-2, 2, -4], "note": "leg_right cut" },
+    { "unit": "torso_waist", "ticks": 220, "cut_tick": 40, "impulse": [0, 4, -8], "note": "torso_waist cut" }
+  ]
+}

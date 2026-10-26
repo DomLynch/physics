@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.mjs",
     "./three-rig": "./src/three-rig.mjs",
+    "./three-cuts": "./src/three-cuts.mjs",
     "./data/*": "./data/*"
   },
   "files": [

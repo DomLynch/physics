@@ -1,0 +1,7 @@
+{
+  "schema": "cut-caps/1",
+  "about": "Cap material rows for src/three-cuts.mjs setCapMaterial(rows) / createCutRig(..., { rows }). Colours are CSS strings. Own start values for a flesh-red stump face, tunable on Dom's phone; the blood row mixes its tint into flesh and inner by `amount` (0 = clean cut, 1 = all tint), so a game can raise it after a kill.",
+  "flesh": { "color": "#a8372e", "source": "own start value: raw muscle red, a little lighter than the arena floor tone so the cut face reads at 375 wide against dark armour" },
+  "inner": { "color": "#d9cdb4", "source": "own start value: bone ivory for a cap_inner core (used only when the cut GLB carries a cap_inner material)" },
+  "blood": { "tint": "#5a0c0a", "amount": 0.25, "source": "own start value: dark arterial red mixed in at a quarter, so a fresh cut is not a flat red disc; raise toward 0.6 for a bleeding kill" }
+}
