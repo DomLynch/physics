@@ -28,7 +28,10 @@
     "jolt-physics": "1.1.1"
   },
   "devDependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
     "esbuild": "0.28.2",
+    "meshoptimizer": "1.2.0",
     "three": "0.186.0"
   }
 }
