@@ -18,3 +18,5 @@ jobs:
         run: npm run test:budget
       - name: state runners, bodies, target pose
         run: node --test test/states.test.mjs test/bodies.test.mjs test/pose.test.mjs
+      - name: rules (M4 rows validate, bad probes rejected, round-trip hash)
+        run: node --test test/rules.test.mjs
