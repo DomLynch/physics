@@ -1,0 +1,12 @@
+{
+  "about": "M3 proof timeline. Ticks are 60 Hz. Camera approximates V3's fight camera (data/fight.json: eye about 2.8 m up, 1.0 m over the shoulder, looking at the foe); distance pulled in so the figure fills the 375-wide frame.",
+  "seed": 731,
+  "warmup_ticks": 60,
+  "end_tick": 720,
+  "camera": { "fov": 40, "position": [1.0, 2.2, 5.0], "look": [0, 1.0, 0] },
+  "guard": { "arm": 55, "forearm": 55, "hand": 55 },
+  "events": [
+    { "tick": 90, "type": "stagger", "part": "spine2", "impulse": [0, 0, -60], "note": "hit: stagger dip (hold 0.5 s, back over 0.35 s)" },
+    { "tick": 270, "type": "kill", "part": "spine2", "impulse": [6, 4, -70], "note": "final blow: death ramp 1 to 0.01 over 1 s" }
+  ]
+}

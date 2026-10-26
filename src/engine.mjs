@@ -118,7 +118,7 @@ export async function createWorld(opts = {}) {
         physics.AddConstraint(c);
         c.SetMotorState(Jolt.EMotorState_Position);
         c.SetTargetAngle(0);
-        cons.push({ kind: "hinge", c, i });
+        cons.push({ kind: "hinge", c, i, rel });
         Jolt.destroy(s); Jolt.destroy(hax); Jolt.destroy(nor);
       } else {
         const axis = new Jolt.Vec3(...qrot(qc, [0, 1, 0])), plane = new Jolt.Vec3(...qrot(qc, [1, 0, 0]));
@@ -132,7 +132,7 @@ export async function createWorld(opts = {}) {
         physics.AddConstraint(c);
         c.SetSwingMotorState(Jolt.EMotorState_Position); c.SetTwistMotorState(Jolt.EMotorState_Position);
         const q = new Jolt.Quat(...rel); c.SetTargetOrientationBS(q); Jolt.destroy(q); // child's orientation relative to the parent (M1 finding)
-        cons.push({ kind: "ball", c, i });
+        cons.push({ kind: "ball", c, i, rel });
         Jolt.destroy(s); Jolt.destroy(axis); Jolt.destroy(plane);
       }
       Jolt.destroy(pivot);
@@ -205,6 +205,17 @@ export async function createWorld(opts = {}) {
         }
       },
       get state() { return state; },
+      // pose the motors drive towards: world orientation of every part's capsule, 4 floats (x y z w) per part in partIds order (the game's animated pose,
+      // retargeted onto the capsules by role). The hips' own orientation goes through setRoot. Ball joints take the child's orientation relative to the
+      // parent; hinges the rotation about their axis relative to the spawn pose.
+      setTargetPose(q) {
+        const at = (i) => [q[i * 4], q[i * 4 + 1], q[i * 4 + 2], q[i * 4 + 3]];
+        for (const k of cons) {
+          const rel = qmul(qconj(at(D.def[k.i].parent)), at(k.i));
+          if (k.kind === "hinge") { const d = qmul(qconj(k.rel), rel); k.c.SetTargetAngle(2 * Math.atan2(d[0], d[3])); }
+          else { const t = new Jolt.Quat(...rel); k.c.SetTargetOrientationBS(t); Jolt.destroy(t); }
+        }
+      },
       // M3 death: motor strength ramps to 0.01 over 1 s with the limp damper, limits and self-collision stay on, the hit impulse lands this same tick,
       // the ragdoll freezes (sleeps) once every body is under the freeze speed. hit = { part, impulse: [x,y,z] } (optional). Hips are released.
       kill(hit) {
