@@ -4,7 +4,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createPhysics } from "../src/index.mjs";
 
-for (const name of ["minotaur", "psyche"]) {
+import { generateRow, loadTable } from "../src/index.mjs";
+
+// the ragdoll's capsule lengths must match the lengths measured from the GLB joints (the row is what the game's body really is)
+for (const name of ["minotaur", "psyche", "warrior", "veteran"]) {
+  test(`${name}: ragdoll part lengths match the measured bone lengths`, () => {
+    const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
+    const row = generateRow(name, m, loadTable());
+    const len = (id) => row.roles.find((r) => r.id === id).length_m;
+    const pairs = [["armLeft", m.upper_arm_len], ["forearmLeft", m.forearm_len], ["thighLeft", m.thigh_len], ["shinLeft", m.shin_len], ["neck", m.neck_len]];
+    for (const [id, measured] of pairs) assert.ok(Math.abs(len(id) - measured) / measured < 0.12, `${name} ${id}: ragdoll ${len(id)} m vs measured ${measured} m`);
+  });
+}
+
+for (const name of ["minotaur", "psyche", "warrior", "veteran"]) {
   const body = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
   test(`${name}: holds its rest pose (hips kinematic), then dies and freezes on the floor`, async () => {
     const p = await createPhysics({ seed: 1 });
