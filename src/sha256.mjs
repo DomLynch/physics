@@ -8,7 +8,11 @@ const K = new Uint32Array([
 const rotr = (x, n) => (x >>> n) | (x << (32 - n));
 
 export function sha256Hex(text) {
-  const bytes = new TextEncoder().encode(text);
+  return sha256HexBytes(new TextEncoder().encode(text));
+}
+
+// Same digest over raw bytes (a Uint8Array or Buffer): used by tools/cut-validate.mjs to hash a GLB.
+export function sha256HexBytes(bytes) {
   const len = bytes.length, padded = new Uint8Array(((len + 9 + 63) >> 6) << 6);
   padded.set(bytes);
   padded[len] = 0x80;

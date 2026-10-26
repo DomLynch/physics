@@ -22,7 +22,7 @@ jobs:
           test -s proof/bench/dist/bench.html
           ! grep -E "(src|href)=[\"']https?:" proof/bench/dist/bench.html
       - name: state runners, bodies, target pose
-        run: node --test test/states.test.mjs test/bodies.test.mjs test/pose.test.mjs test/three-rig.test.mjs test/api2.test.mjs test/hinge.test.mjs test/cut.test.mjs
+        run: node --test test/states.test.mjs test/bodies.test.mjs test/pose.test.mjs test/three-rig.test.mjs test/api2.test.mjs test/hinge.test.mjs test/cut.test.mjs test/cutbones.test.mjs test/cut-validate.test.mjs
       - name: rules (M4 rows validate, bad probes rejected, round-trip hash)
         run: node --test test/rules.test.mjs
       - name: rules evaluator (every outcome, armour never blocks, counters, determinism)
