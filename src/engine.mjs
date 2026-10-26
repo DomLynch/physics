@@ -39,7 +39,12 @@ export function buildDefinition(row, position = [0, 0, 0]) {
       // rest bend of the joint (parent bone direction vs own): the joint angle is measured from the spawn pose, so the table range moves by it
       const pd = roles[b.parent].rest.dir, d = roles[i].rest.dir;
       const bend = Math.acos(Math.max(-1, Math.min(1, pd[0] * d[0] + pd[1] * d[1] + pd[2] * d[2])));
-      return { hingeMin: rad(j.hinge_min_deg) - bend, hingeMax: rad(j.hinge_max_deg) - bend };
+      // which way does a positive hinge angle (right-hand rotation about the child's own X) move the bone? An elbow flexes forward (+z, the body faces +z),
+      // a knee backward. The generator's hinge axis is the same side-less world axis on both arms, so the left elbow's flexion is the NEGATIVE angle.
+      const hax = qrot(roles[i].rest.quat, [1, 0, 0]);
+      const moved = [d[0] + (hax[1] * d[2] - hax[2] * d[1]) * 0.2, d[1] + (hax[2] * d[0] - hax[0] * d[2]) * 0.2, d[2] + (hax[0] * d[1] - hax[1] * d[0]) * 0.2];
+      const want = roles[i].role === "shin" ? -1 : 1, flipped = (moved[2] - d[2]) * want < 0;
+      return flipped ? { hingeMin: bend - rad(j.hinge_max_deg), hingeMax: bend - rad(j.hinge_min_deg) } : { hingeMin: rad(j.hinge_min_deg) - bend, hingeMax: rad(j.hinge_max_deg) - bend };
     }
     return { swing: rad(j.swing_deg), twist: rad(j.twist_deg) };
   });
@@ -146,7 +151,7 @@ export async function createWorld(opts = {}) {
     const base = new Float64Array(n).fill(1);       // what the game asked for with setMotorStrength
     const want = new Float64Array(n).fill(1);       // base after the state runner (death, stagger, knockdown)
     const motor = W.motor;
-    const solveHinges = ropts.solveHinges !== false; // setTargetPose twists the parent so the elbow/knee bend plane matches the clip
+    const solveHinges = ropts.solveHinges !== false; // (default true since the elbow sign fix) // setTargetPose twists the parent so the elbow/knee bend plane matches the clip
     const gainArr = new Float64Array(n).fill(ropts.motorGain ?? 1);        // tracking gain per joint: stiffness multiplier
     const dampArr = new Float64Array(n).fill(ropts.motorDamping ?? 1);     // damping multiplier per joint (less damping = less lag behind a fast clip, more wobble) // tracking gain: scales every joint's stiffness (damping by sqrt) so the motors follow fast clips closer
     let state = "alive", st = null, frozen = false, calm = 0, lastRoot = null, targetQ = null;
