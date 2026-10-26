@@ -28,6 +28,19 @@ const pose = rd.readPose();                                         // Float32Ar
 | `physics.rand()` | Seeded mulberry32 for sim draws (finisher rolls). The game owns what it draws. |
 | `rd.destroy()`, `physics.destroy()` | Free bodies and constraints. |
 
+## three.js glue: `@frankendom/physics/three-rig`
+
+```js
+import * as THREE from "three";
+import { createThreeRig } from "@frankendom/physics/three-rig";
+const rig = createThreeRig(THREE, rd, { hips: pelvisBone, spine: spine01, ..., toeRight: ballR }, fighterGroup);
+```
+`bones` maps the 20 part ids (`rd.partIds`) to your Object3Ds (your role map); `root` is the Object3D whose local frame is the sim frame (the fighter's group with its position and yaw). Create the rig while the model is in its bind pose, before the first step. Alive: after the animation has posed the bones, call `rig.drive()` each frame (sends the hips via `setRoot` and the animated pose via `setTargetPose`). Dying or dead: after `physics.step()`, call `rig.applyPose()` and the bones follow the capsules. Also `rd.setTargetPose(Float32Array)` (4 floats per part, world quaternion of each capsule) if you drive the motors yourself.
+
+## State runners (M3)
+
+`rd.kill({ part, impulse })` (strength 1 to 0.01 over 1 s, limp damper, limits and self-collision on, impulse the same tick, hips released, sleeps when still), `rd.stagger({ part, impulse })` (arm 0.9 / torso 0.6 / hand 0.12, hold 0.5 s, back over 0.35 s), `rd.knockdown("damage" | "push", hit)` (TABG values: 0.2 / 0.5 s fall, 2 s down, recover 0.3 per s), `rd.state` (`alive`, `stagger`, `knockdown`, `dying`, `frozen`). Numbers: `data/states.json`.
+
 ## Rules the package keeps
 
 - Deterministic: same inputs and same call order give the same per-tick hash (CI test `test/determinism.test.mjs`, twice). No `Math.random`, no `Date.now`, no `performance.now` in `src/` (the test greps for it).
