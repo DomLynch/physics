@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>capture selftest</title>
+<style>html,body{margin:0;background:#101114}canvas{display:block;width:375px;height:812px}</style></head>
+<body><canvas id="c" width="750" height="1624"></canvas>
+<script>
+// Capture contract: __ready (Promise), __advance(ticks) (sim ticks at 60 Hz, then ONE synchronous render), __done (boolean).
+// The sim here is a tick counter; the box position is a pure function of the tick, so every run draws the same 90 frames.
+const TOTAL_TICKS = 180; // 90 frames at 2 ticks per frame
+const cv = document.getElementById("c"), g = cv.getContext("2d");
+let tick = 0;
+function render() {
+  g.fillStyle = "#101114"; g.fillRect(0, 0, 750, 1624);
+  const x = 75 + (600 - 150) * (0.5 - 0.5 * Math.cos((tick / TOTAL_TICKS) * Math.PI * 2));
+  g.fillStyle = "#3b82f6"; g.fillRect(x, 700, 150, 150);
+  g.fillStyle = "#e8e8ea"; g.font = "bold 96px system-ui"; g.fillText("tick " + tick, 60, 200);
+  g.fillRect(60, 260, 630 * (tick / TOTAL_TICKS), 24);
+}
+window.__done = false;
+window.__ready = Promise.resolve().then(render);
+window.__advance = (n) => { tick += n; render(); if (tick >= TOTAL_TICKS) window.__done = true; };
+</script></body></html>
