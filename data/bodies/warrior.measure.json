@@ -1,0 +1,120 @@
+{
+ "id": "warrior",
+ "source": "warrior.glb bind pose via v1-65.json",
+ "height_m": 1.7357,
+ "neck_len": 0.0852,
+ "torso_len": 0.4418,
+ "shoulder_w": 0.3694,
+ "upper_arm_len": 0.2768,
+ "forearm_len": 0.2787,
+ "thigh_len": 0.4168,
+ "shin_len": 0.3928,
+ "foot_len": 0.1475,
+ "chest_w": 0.3764,
+ "waist_w": 0.3472,
+ "hip_w": 0.3305,
+ "chest_d": 0.2936,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9638,
+   -0.0004
+  ],
+  "Spine": [
+   0,
+   1.0561,
+   0.0154
+  ],
+  "Spine1": [
+   0,
+   1.2187,
+   0.0141
+  ],
+  "Spine2": [
+   0,
+   1.3555,
+   0.0002
+  ],
+  "Neck": [
+   0,
+   1.4941,
+   -0.0424
+  ],
+  "Head": [
+   0,
+   1.5774,
+   -0.0245
+  ],
+  "LeftArm": [
+   0.1847,
+   1.446,
+   -0.0548
+  ],
+  "LeftForeArm": [
+   0.4615,
+   1.446,
+   -0.0548
+  ],
+  "LeftHand": [
+   0.7402,
+   1.446,
+   -0.0548
+  ],
+  "RightArm": [
+   -0.1847,
+   1.446,
+   -0.0548
+  ],
+  "RightForeArm": [
+   -0.4615,
+   1.446,
+   -0.0548
+  ],
+  "RightHand": [
+   -0.7402,
+   1.446,
+   -0.0548
+  ],
+  "LeftUpLeg": [
+   0.0963,
+   0.9311,
+   -0.0004
+  ],
+  "LeftLeg": [
+   0.0965,
+   0.5143,
+   -0.0056
+  ],
+  "LeftFoot": [
+   0.0965,
+   0.122,
+   -0.0259
+  ],
+  "LeftToeBase": [
+   0.0949,
+   0,
+   0.0569
+  ],
+  "RightUpLeg": [
+   -0.0963,
+   0.9311,
+   -0.0004
+  ],
+  "RightLeg": [
+   -0.0965,
+   0.5143,
+   -0.0056
+  ],
+  "RightFoot": [
+   -0.0965,
+   0.122,
+   -0.0259
+  ],
+  "RightToeBase": [
+   -0.0949,
+   0,
+   0.0569
+  ]
+ }
+}
