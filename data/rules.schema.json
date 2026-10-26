@@ -1,0 +1,175 @@
+{
+  "$comment": "Schema for data/rules.json (physics-rules/1). A JSON Schema subset interpreted by src/rules.mjs validateRules: type, properties, required, additionalProperties (false or a schema), minimum, exclusiveMinimum, const, enum, items, minItems, maxItems. Closed key sets everywhere: additionalProperties false. Extra checks in code: every object that holds numbers needs a source (or inherits one), every null needs a todo, and lintNoBlock rejects any key matching immune|invulnerab|block|cannot_sever|no_dismember|prevent.",
+  "$defs": {
+    "source": { "type": "string" },
+    "mult": { "type": "number", "minimum": 0 },
+    "multNull": { "type": ["number", "null"], "minimum": 0 },
+    "posNull": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "pos": { "type": "number", "exclusiveMinimum": 0 },
+    "tierRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dismember_threshold_modifier", "damage_taken_mult", "source"],
+      "properties": {
+        "dismember_threshold_modifier": { "type": "number", "minimum": 1 },
+        "damage_taken_mult": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cut", "stab", "blunt"],
+          "properties": {
+            "cut": { "type": "number", "minimum": 0 },
+            "stab": { "type": "number", "minimum": 0 },
+            "blunt": { "type": "number", "minimum": 0 }
+          }
+        },
+        "source": { "type": "string" }
+      }
+    },
+    "zoneRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["body_part_mult", "source"],
+      "properties": { "body_part_mult": { "type": "number", "minimum": 0 }, "source": { "type": "string" } }
+    },
+    "weaponRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reach_min_m", "reach_max_m", "mass_kg", "slash_mult", "stab_mult", "slash_bone_mult", "stab_bone_mult", "bone_break_speed_slash", "bone_break_speed_stab", "bone_break_speed", "source"],
+      "properties": {
+        "reach_min_m": { "type": ["number", "null"], "minimum": 0 },
+        "reach_max_m": { "type": ["number", "null"], "minimum": 0 },
+        "mass_kg": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "slash_mult": { "type": ["number", "null"], "minimum": 0 },
+        "stab_mult": { "type": ["number", "null"], "minimum": 0 },
+        "slash_bone_mult": { "type": ["number", "null"], "minimum": 0 },
+        "stab_bone_mult": { "type": ["number", "null"], "minimum": 0 },
+        "bone_break_speed_slash": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "bone_break_speed_stab": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "bone_break_speed": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "tabg_damage_on_hit": { "type": "number", "minimum": 0 },
+        "tabg_cooldown_s": { "type": "number", "exclusiveMinimum": 0 },
+        "tabg_force_on_hit": { "type": "number", "minimum": 0 },
+        "todo": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "about", "global", "strength_scale", "melee_speed_gate", "zones", "bone_gate", "armour_tiers", "knockdown", "part_hp", "locational", "bleed_out", "stiffness_by_state", "weapons"],
+  "properties": {
+    "schema": { "const": "physics-rules/1" },
+    "about": { "type": "string" },
+    "global": {
+      "type": "object", "additionalProperties": false, "required": ["damage_scale", "source"],
+      "properties": { "damage_scale": { "type": "number", "exclusiveMinimum": 0 }, "source": { "type": "string" } }
+    },
+    "strength_scale": {
+      "type": "object", "additionalProperties": false,
+      "required": ["formula", "rung_hit", "rung_stick", "rung_cut", "status", "measure_note", "source"],
+      "properties": {
+        "formula": { "type": "string" },
+        "rung_hit": { "type": "number", "exclusiveMinimum": 0 },
+        "rung_stick": { "type": "number", "exclusiveMinimum": 0 },
+        "rung_cut": { "type": "number", "exclusiveMinimum": 0 },
+        "status": { "enum": ["start", "measured"] },
+        "measure_note": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    },
+    "melee_speed_gate": {
+      "type": "object", "additionalProperties": false, "required": ["min_speed_m_s", "full_strength_margin_m_s", "source"],
+      "properties": { "min_speed_m_s": { "type": "number", "minimum": 0 }, "full_strength_margin_m_s": { "type": "number", "minimum": 0 }, "source": { "type": "string" } }
+    },
+    "zones": {
+      "type": "object", "additionalProperties": false, "required": ["head", "torso", "legs", "feet"],
+      "properties": {
+        "head": { "$ref": "#/$defs/zoneRow" }, "torso": { "$ref": "#/$defs/zoneRow" },
+        "legs": { "$ref": "#/$defs/zoneRow" }, "feet": { "$ref": "#/$defs/zoneRow" }
+      }
+    },
+    "bone_gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["numerator_m_s", "formula", "bone_mult_min", "bone_mult_max", "armour_effect", "source"],
+      "properties": {
+        "numerator_m_s": { "type": "number", "exclusiveMinimum": 0 },
+        "formula": { "type": "string" },
+        "bone_mult_min": { "type": "number", "exclusiveMinimum": 0 },
+        "bone_mult_max": { "type": "number", "exclusiveMinimum": 0 },
+        "armour_effect": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    },
+    "armour_tiers": {
+      "type": "object", "additionalProperties": false,
+      "required": ["none", "cloth", "leather", "mail", "plate_t2", "plate_t3"],
+      "properties": {
+        "none": { "$ref": "#/$defs/tierRow" }, "cloth": { "$ref": "#/$defs/tierRow" },
+        "leather": { "$ref": "#/$defs/tierRow" }, "mail": { "$ref": "#/$defs/tierRow" },
+        "plate_t2": { "$ref": "#/$defs/tierRow" }, "plate_t3": { "$ref": "#/$defs/tierRow" }
+      }
+    },
+    "knockdown": {
+      "type": "object", "additionalProperties": false,
+      "required": ["counter_fall_at", "counter_cap", "counter_resets_on_fall", "getup_grace_s", "fall_seconds", "push_force_over", "recover_per_s", "stun_duration_pct", "stun_note", "source"],
+      "properties": {
+        "counter_fall_at": { "type": "number", "exclusiveMinimum": 0 },
+        "counter_cap": { "type": "number", "exclusiveMinimum": 0 },
+        "counter_resets_on_fall": { "type": "boolean" },
+        "getup_grace_s": { "type": "number", "minimum": 0 },
+        "fall_seconds": {
+          "type": "object", "additionalProperties": false, "required": ["damage", "push", "down", "source"],
+          "properties": {
+            "damage": { "type": "number", "minimum": 0 }, "push": { "type": "number", "minimum": 0 },
+            "down": { "type": "number", "minimum": 0 }, "source": { "type": "string" }
+          }
+        },
+        "push_force_over": { "type": "number", "exclusiveMinimum": 0 },
+        "recover_per_s": { "type": "number", "exclusiveMinimum": 0 },
+        "stun_duration_pct": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 1, "maxItems": 8 },
+        "stun_note": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    },
+    "part_hp": {
+      "type": "object", "additionalProperties": false,
+      "required": ["head", "torso", "arm_sword", "arm_off", "legs_min", "legs_max", "source"],
+      "properties": {
+        "head": { "type": "number", "exclusiveMinimum": 0 }, "torso": { "type": "number", "exclusiveMinimum": 0 },
+        "arm_sword": { "type": "number", "exclusiveMinimum": 0 }, "arm_off": { "type": "number", "exclusiveMinimum": 0 },
+        "legs_min": { "type": "number", "exclusiveMinimum": 0 }, "legs_max": { "type": "number", "exclusiveMinimum": 0 },
+        "source": { "type": "string" }
+      }
+    },
+    "locational": {
+      "type": "object", "additionalProperties": false, "required": ["arm_gone_damage_mult", "leg_crawl_to_stand_s", "source"],
+      "properties": {
+        "arm_gone_damage_mult": { "type": "number", "minimum": 0 },
+        "leg_crawl_to_stand_s": { "type": "number", "exclusiveMinimum": 0 },
+        "source": { "type": "string" }
+      }
+    },
+    "bleed_out": {
+      "type": "object", "additionalProperties": false, "required": ["seconds_min", "seconds_max", "source"],
+      "properties": {
+        "seconds_min": { "type": "number", "exclusiveMinimum": 0 }, "seconds_max": { "type": "number", "exclusiveMinimum": 0 },
+        "source": { "type": "string" }
+      }
+    },
+    "stiffness_by_state": {
+      "type": "object", "additionalProperties": false, "required": ["idle", "attack", "roll", "fall", "dead", "source"],
+      "properties": {
+        "idle": { "type": "number", "minimum": 0, "maximum": 1 },
+        "attack": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "minItems": 2, "maxItems": 2 },
+        "roll": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fall": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dead": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": { "type": "string" }
+      }
+    },
+    "weapons": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/weaponRow" }
+    }
+  }
+}
