@@ -56,6 +56,7 @@ export function createThreeRig(THREE, rd, bones, root, opts = {}) {
     // capsules -> bones (parents first; roles are in parent-first order)
     applyPose() {
       const p = rd.readPose();
+      const cutRoles = new Set(rd.cuts.map((u) => rd.row.severable.find((s) => s.id === u).cut_role));
       for (let i = 0; i < n; i++) {
         const o = i * 10, delta = qmul([p[o + 3], p[o + 4], p[o + 5], p[o + 6]], qconj(roles[i].rest.quat)), bw = qmul(delta, restQ[i]);
         const b = objs[i];
@@ -63,8 +64,9 @@ export function createThreeRig(THREE, rd, bones, root, opts = {}) {
         b.parent.getWorldQuaternion(pq);
         tq.set(bw[0], bw[1], bw[2], bw[3]).premultiply(rootQ()).premultiply(pq.invert());
         b.quaternion.copy(tq);
-        if (i === 0) {
-          const c = qrot(delta, [0, 1, 2].map((k) => roles[0].rest.pivot[k] - roles[0].rest.centre[k]));
+        // the hips, and every bone whose joint was cut: the bone goes to its capsule's joint (a severed piece leaves its parent, so the parent-relative offset no longer holds)
+        if (i === 0 || cutRoles.has(roles[i].id)) {
+          const c = qrot(delta, [0, 1, 2].map((k) => roles[i].rest.pivot[k] - roles[i].rest.centre[k]));
           v.set(p[o] + c[0] - offset[0], p[o + 1] + c[1] - offset[1], p[o + 2] + c[2] - offset[2]);
           root.localToWorld(v);
           b.position.copy(b.parent.worldToLocal(v));
