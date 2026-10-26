@@ -1,0 +1,140 @@
+{
+  "schema": "ragdoll-role-table/1",
+  "about": "M2 role table: one row per ragdoll body role on the 106-joint (Mixamo-named) skeleton. Every number carries a source tag: HQ = Hellish Quart (docs/parts-lab/hellish-quart/data/physics.json, median of the 25+ fighters), HS = Half Sword Willie_PhysicsAsset_Capsules (docs/parts-lab/half-sword/data/hs-compare), GG = Gladio and Glory study (docs/STUDY-gladio-combat.md), own = starting value of ours, to tune in M4. Tools/ragdoll-gen.mjs turns this table plus one body_measure row into a ragdoll row. Armour never blocks a dismemberment (Dom, 2026-10-25): armour_tiers carry a dismember_threshold_modifier number, not a block flag; the generator lints any key that looks like a block.",
+  "reference": {
+    "total_mass_kg": 65,
+    "total_mass_source": "HQ README: about 65 kg per fighter (HQ rigidbody medians sum to 58.3 kg: the fractions below are normalised to the 65)",
+    "reference_body": "mh-male-01",
+    "mass_bounds_kg": [18, 140],
+    "volume_m3": 0.0847,
+    "volume_m3_source": "bodyVolume() of reference body mh-male-01; equals volume_reference_m3 in every ragdoll-row/2 of the OpenTrident M2 run",
+    "head_ext_height_ratio": 0.13,
+    "hand_ext_height_ratio": 0.055,
+    "toe_ext_height_ratio": 0.05,
+    "ext_sources": "head capsule HS head 7.76 radius + 7.92 length = 23.4 cm on a ~1.8 m body = 0.13 of height; hand and toe: own"
+  },
+  "roles": [
+    { "id": "hips", "start": "Hips", "end": "Spine", "parent": null, "mass_hq_kg": 12.7, "mass_source": "HQ Hips 12.7",
+      "r": { "from": "hip_w", "k": 0.27, "max_len_ratio": 0.8, "source": "HS pelvis r 11.29 cm = 0.27 of a 0.42 m hip width" },
+      "joint": null, "damage_multiplier": 1.2, "damage_source": "GG Hips 1.2", "material": "flesh", "armour_slot": "waist" },
+    { "id": "spine", "start": "Spine", "end": "Spine1", "parent": "hips", "mass_hq_kg": 3.5, "mass_source": "HQ Spine1 12.7 split spine 3.5 / spine1 4.2 / spine2 5.0 (own split)",
+      "r": { "from": "waist_w", "k": 0.25, "max_len_ratio": 0.62, "source": "HS spine_02 r 10.03 cm" },
+      "joint": { "type": "ball", "swing_deg": 20, "twist_deg": 15, "source": "HQ Spine1 swing 25/25 shared over 3 spine bodies (own split, starts stiffer than the animation needs: tune)" },
+      "damage_multiplier": 1.2, "damage_source": "GG Chest 1.2", "material": "flesh", "armour_slot": "chest" },
+    { "id": "spine1", "start": "Spine1", "end": "Spine2", "parent": "spine", "mass_hq_kg": 4.2, "mass_source": "HQ Spine1 split",
+      "r": { "from": "waist_chest", "k": 0.25, "max_len_ratio": 0.62, "source": "HS spine_03/04 r 10.2 to 11.1 cm" },
+      "joint": { "type": "ball", "swing_deg": 18, "twist_deg": 12, "source": "HQ Spine1 split" },
+      "damage_multiplier": 1.2, "damage_source": "GG Chest 1.2", "material": "flesh", "armour_slot": "chest" },
+    { "id": "spine2", "start": "Spine2", "end": "Neck", "parent": "spine1", "mass_hq_kg": 5.0, "mass_source": "HQ Spine1 split",
+      "r": { "from": "chest_w", "k": 0.27, "max_len_ratio": 0.62, "source": "HS spine_05 r 12.25 cm" },
+      "joint": { "type": "ball", "swing_deg": 18, "twist_deg": 12, "source": "HQ Spine1 split" },
+      "damage_multiplier": 1.2, "damage_source": "GG Chest 1.2", "material": "flesh", "armour_slot": "chest" },
+    { "id": "neck", "start": "Neck", "end": "Head", "parent": "spine2", "mass_hq_kg": 0.5, "mass_source": "HQ Head 5.49 split head 5.0 / neck 0.5 (own split)",
+      "r": { "from": "neck_len", "k": 0.0, "fixed_height_ratio": 0.03, "max_len_ratio": 1.6, "source": "HS neck_01 r 5.4 cm on 1.8 m" },
+      "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 40, "source": "HQ Head X -30/30, Y 30 (swing), Z 85 shared with the head body" },
+      "damage_multiplier": 1.5, "damage_source": "own (GG has no neck; decapitation target, same as Head)", "material": "flesh", "armour_slot": "neck" },
+    { "id": "head", "start": "Head", "ext": "head", "parent": "neck", "mass_hq_kg": 5.0, "mass_source": "HQ Head 5.49",
+      "r": { "from": "fixed_height_ratio", "fixed_height_ratio": 0.043, "max_len_ratio": 0.5, "source": "HS head r 7.76 cm on 1.8 m" },
+      "joint": { "type": "ball", "swing_deg": 35, "twist_deg": 45, "source": "HQ Head swing 30, twist share of 85" },
+      "damage_multiplier": 1.5, "damage_source": "GG Head 1.5", "material": "flesh", "armour_slot": "head" },
+    { "id": "arm", "sided": true, "start": "Arm", "end": "ForeArm", "parent": "spine2", "mass_hq_kg": 2.03, "mass_source": "HQ LeftArm 2.03",
+      "r": { "from": "upper_arm_r", "k_len": 0.162, "min_measured": 1.0, "max_measured": 1.6, "max_len_ratio": 0.34, "source": "HS upperarm r 4.48 cm over 27.6 cm = 0.162 of the bone length; measured chain radius as floor" },
+      "joint": { "type": "ball", "swing_deg": 90, "twist_deg": 60, "source": "HQ Arm Y 85, Z 45, X -35..120" },
+      "damage_multiplier": 1.0, "damage_source": "GG upper arms 1.0", "material": "flesh", "armour_slot": "arms" },
+    { "id": "forearm", "sided": true, "start": "ForeArm", "end": "Hand", "parent": "arm", "mass_hq_kg": 1.2, "mass_source": "HQ LeftForeArm 1.2",
+      "r": { "from": "forearm_r", "k_len": 0.135, "min_measured": 1.0, "max_measured": 1.6, "max_len_ratio": 0.34, "source": "HS lowerarm r 3.95 cm over 29.3 cm = 0.135" },
+      "joint": { "type": "hinge", "hinge_min_deg": -30, "hinge_max_deg": 110, "source": "HQ LeftForeArm X -30.4..109.6" },
+      "damage_multiplier": 0.5, "damage_source": "GG forearms 0.5", "material": "flesh", "armour_slot": "arms" },
+    { "id": "hand", "sided": true, "start": "Hand", "ext": "hand", "parent": "forearm", "mass_hq_kg": 0.5, "mass_source": "HQ LeftHand median 0.5",
+      "r": { "from": "fixed_height_ratio", "fixed_height_ratio": 0.022, "max_len_ratio": 0.45, "source": "own (HS hand is a box)" },
+      "joint": { "type": "ball", "swing_deg": 50, "twist_deg": 25, "source": "HQ LeftHand X +-50, Y 50, Z 25" },
+      "damage_multiplier": 0.5, "damage_source": "own (GG has none for hands: forearm value)", "material": "flesh", "armour_slot": "hands" },
+    { "id": "thigh", "sided": true, "start": "UpLeg", "end": "Leg", "parent": "hips", "mass_hq_kg": 7.41, "mass_source": "HQ LeftUpLeg 7.41",
+      "r": { "from": "thigh_r", "k_len": 0.153, "min_measured": 1.0, "max_measured": 1.6, "max_len_ratio": 0.34, "source": "HS thigh r 8.08 cm over 52.8 cm = 0.153" },
+      "joint": { "type": "ball", "swing_deg": 85, "twist_deg": 45, "source": "HQ LeftUpLeg Y 85, Z 45, X -120..35" },
+      "damage_multiplier": 1.0, "damage_source": "GG upper legs 1.0", "material": "flesh", "armour_slot": "legs" },
+    { "id": "shin", "sided": true, "start": "Leg", "end": "Foot", "parent": "thigh", "mass_hq_kg": 3.49, "mass_source": "HQ LeftLeg 3.49",
+      "r": { "from": "shin_r", "k_len": 0.123, "min_measured": 1.0, "max_measured": 1.6, "max_len_ratio": 0.3, "source": "HS calf r 6.17 cm over 50.0 cm = 0.123" },
+      "joint": { "type": "hinge", "hinge_min_deg": -3.2, "hinge_max_deg": 136.8, "source": "HQ LeftLeg X -3.2..136.8" },
+      "damage_multiplier": 0.5, "damage_source": "GG lower legs 0.5", "material": "flesh", "armour_slot": "legs" },
+    { "id": "foot", "sided": true, "start": "Foot", "end": "ToeBase", "parent": "shin", "mass_hq_kg": 0.9, "mass_source": "HQ LeftFoot 1.09 split foot 0.9 / toe 0.19",
+      "r": { "from": "fixed_height_ratio", "fixed_height_ratio": 0.026, "max_len_ratio": 0.45, "source": "own" },
+      "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 20, "source": "HQ LeftFoot +-50, Y 50, Z 25 (reduced: the toe body takes the rest)" },
+      "damage_multiplier": 0.5, "damage_source": "own (lower leg value)", "material": "flesh", "armour_slot": "feet" },
+    { "id": "toe", "sided": true, "start": "ToeBase", "ext": "toe", "parent": "foot", "mass_hq_kg": 0.19, "mass_source": "HQ LeftFoot split",
+      "r": { "from": "fixed_height_ratio", "fixed_height_ratio": 0.02, "max_len_ratio": 0.5, "source": "own" },
+      "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 5, "source": "own (M1 harness value)" },
+      "damage_multiplier": 0.5, "damage_source": "own", "material": "flesh", "armour_slot": "feet" }
+  ],
+  "motor": {
+    "sk": 40,
+    "sk_note": "M1 harness: stiffness = SK x subtree mass x 9.81 x 0.15 m arm (N*m/rad); damping = 2 x 0.8 x sqrt(K x subtree mass x 0.15^2). SK 40 was the value that held the Mixamo fight-idle pose to 4.6 degrees in Jolt (docs/parts-lab/physics/m1-bakeoff/RECEIPT.md).",
+    "inertia_multiplier": 8,
+    "inertia_note": "M1 finding: torso capsules need 8x inertia or the joint springs blow up at 60 Hz",
+    "puppetmaster_reference": { "muscleSpring": 45.88, "muscleDamper": 1.44, "pinPow": 1.67, "pinDistanceFalloff": 4.1, "solverIterationCount": 24, "internalCollisions": false, "source": "HQ PuppetMaster_65235.yaml (Unity units, not directly comparable with the Jolt numbers above)" },
+    "root": "hips follow the animation as a kinematic body while the character is alive and are released on death (M1 finding)"
+  },
+  "solver": {
+    "substep_hz": 120,
+    "iterations": 6,
+    "scope": "thrown weapons and cuts only, inside the 60 Hz sim",
+    "source": "Strategy addendum 2026-10-25 (M1 variant approved)"
+  },
+  "stiffness_by_state": {
+    "idle": 0.5, "attack": [0.5, 0.7], "roll": 0.4, "fall": 0.1, "dead": 0.01,
+    "note": "defaults for the motor strength scale per state; they will live on clip tags later (Strategy addendum 2026-10-25)"
+  },
+  "part_mechanics": {
+    "formula": "tip_speed_m_s = reach_m * angular_speed_rad_s (from the clip); strength follows from mass_kg * tip_speed; reach_m is the length of the part's chain to its tip",
+    "note": "every role row carries length_m, mass_kg and reach_m, measured per body from the measure row, so a dwarf, a reference body and a giant differ (Strategy addendum 2026-10-25, experiment 1: tip-speed histogram per body size)"
+  },
+  "severable": {
+    "about": "Six severable units (Half Sword Severable_BodyParts_Enum / HQ chopped heads). The corpse-cut is the loot mechanic: the player taps a part on a dead body, the finisher cut plays, physics detaches the part WITH its gear. Each unit names the role whose parent joint is removed, the roles that go with it, and the gear slots attached to it. The head is the template: the same fields serve all six.",
+    "units": [
+      { "id": "head", "cut_role": "head", "cut_parent": "neck", "carries_roles": ["head"], "gear_slots": ["head"], "note": "the neck stump stays on the torso (neck role + neck slot gear stays unless a coif: see armour slot neck)" },
+      { "id": "arm_left", "cut_role": "armLeft", "cut_parent": "spine2", "carries_roles": ["armLeft", "forearmLeft", "handLeft"], "gear_slots": ["arms", "hands"] },
+      { "id": "arm_right", "cut_role": "armRight", "cut_parent": "spine2", "carries_roles": ["armRight", "forearmRight", "handRight"], "gear_slots": ["arms", "hands"] },
+      { "id": "leg_left", "cut_role": "thighLeft", "cut_parent": "hips", "carries_roles": ["thighLeft", "shinLeft", "footLeft", "toeLeft"], "gear_slots": ["legs", "feet"] },
+      { "id": "leg_right", "cut_role": "thighRight", "cut_parent": "hips", "carries_roles": ["thighRight", "shinRight", "footRight", "toeRight"], "gear_slots": ["legs", "feet"] },
+      { "id": "torso_waist", "cut_role": "spine", "cut_parent": "hips", "carries_roles": ["spine", "spine1", "spine2", "neck", "head", "armLeft", "forearmLeft", "handLeft", "armRight", "forearmRight", "handRight"], "gear_slots": ["chest", "neck"], "note": "a waist cut: the upper body goes with everything attached above the cut; hips and legs stay as the root piece" }
+    ]
+  },
+  "death": {
+    "motor_strength_ramp": { "from": 1.0, "to": 0.01, "seconds": 1.0, "source": "HQ killDuration 1 and Strategy M3 (1 to 0.01 over 1 s)" },
+    "limp_damper": 2.0,
+    "limits_on": true,
+    "self_collision": true,
+    "freeze_speed_m_s": 0.02,
+    "stagger_dip": { "down_s": 0.5, "up_s": 0.35, "source": "Strategy M3" }
+  },
+  "materials": {
+    "flesh": { "friction": 0.75, "restitution": 0.1, "source": "HS PM_Flesh" },
+    "fabric": { "friction": 0.5, "restitution": 0.05, "source": "HS PM_Fabric (friction default)" },
+    "leather": { "friction": 0.8, "restitution": 0.2, "source": "HS PM_Leather" },
+    "mail": { "friction": 0.1, "restitution": 0.35, "source": "HS PM_Mail" },
+    "metal": { "friction": 0.1, "restitution": 0.35, "source": "HS PM_Metal" }
+  },
+  "armour_tiers": {
+    "about": "Per armour tier and body slot. NO block field exists or is allowed (Dom 2026-10-25: armour raises the force needed to dismember and cuts damage; a hard enough blow still takes the head off, helmet and all, and the helmet flies off as a prop). Numbers are starting values, own, derived in shape from the HS rating ladder and the three-games document section 4; tune in M4. Design check for M4: every dismember-capable weapon class must be able to exceed 2.5x the dismember base, or top armour is a block in practice.",
+    "tiers": {
+      "none":        { "material": "flesh",   "dismember_threshold_modifier": 1.0,  "damage_taken_mult": { "cut": 1.0,  "stab": 1.0, "blunt": 1.0 }, "hs_rating_echo": "cut 0.1 to 0.25" },
+      "cloth":       { "material": "fabric",  "dismember_threshold_modifier": 1.05, "damage_taken_mult": { "cut": 0.95, "stab": 0.97, "blunt": 0.95 }, "hs_rating_echo": "cut 0.25 to 0.5" },
+      "leather":     { "material": "leather", "dismember_threshold_modifier": 1.15, "damage_taken_mult": { "cut": 0.85, "stab": 0.9,  "blunt": 0.8 },  "hs_rating_echo": "cut 50" },
+      "mail":        { "material": "mail",    "dismember_threshold_modifier": 1.5,  "damage_taken_mult": { "cut": 0.65, "stab": 0.8,  "blunt": 0.85 }, "hs_rating_echo": "cut 100" },
+      "plate_t2":    { "material": "metal",   "dismember_threshold_modifier": 2.0,  "damage_taken_mult": { "cut": 0.45, "stab": 0.6,  "blunt": 0.75 }, "hs_rating_echo": "cut 250" },
+      "plate_t3":    { "material": "metal",   "dismember_threshold_modifier": 2.5,  "damage_taken_mult": { "cut": 0.35, "stab": 0.5,  "blunt": 0.7 },  "hs_rating_echo": "cut 500 (gold)" }
+    },
+    "slots": {
+      "head":     { "covers_roles": ["head"], "detach_as_prop_on_sever": true },
+      "neck":     { "covers_roles": ["neck"], "detach_as_prop_on_sever": false, "note": "a mail coif or gorget follows the head" },
+      "chest":    { "covers_roles": ["spine", "spine1", "spine2"], "detach_as_prop_on_sever": false },
+      "waist":    { "covers_roles": ["hips"], "detach_as_prop_on_sever": false },
+      "arms":     { "covers_roles": ["arm", "forearm"], "detach_as_prop_on_sever": true },
+      "hands":    { "covers_roles": ["hand"], "detach_as_prop_on_sever": true },
+      "legs":     { "covers_roles": ["thigh", "shin"], "detach_as_prop_on_sever": true },
+      "feet":     { "covers_roles": ["foot", "toe"], "detach_as_prop_on_sever": true }
+    },
+    "default_tier": "none",
+    "design_check_ratio": { "value": 2.5, "status": "reserved for M4", "rule": "for every dismember-capable weapon class, its top attainable blow strength must exceed this ratio times the dismember base, or top armour is a block in practice (three-games doc section 4; Strategy addendum)" }
+  }
+}

@@ -1,3 +1,11 @@
+# HANDOFF (Physics Dev, live state; update every PR)
+**Updated 2026-10-26 evening.**
+- **LIVE:** nothing consumed yet. Package skeleton `@frankendom/physics` 0.1.0 in PR "package skeleton" (Jolt 1.1.1 WASM, ragdoll generator lifted from OpenTrident M2, deterministic 60 Hz step, determinism + 5-fighter 3 ms tests, `docs/API.md`). Node on the VPS: five fighters + one cut about 0.2 ms average (loaded box, not a phone).
+- **In flight:** API doc sent to Frankendom v3 Dev (waiting for its answer); OpenTrident Dev asked for the M1/M2 handover, 65-joint measure rows for V3's four bodies, and the best 106 body for the M3 clip.
+- **Next three:** (1) M3: death ramp + stagger dip as row-driven runners, target pose from a clip, 375 clip at the fight camera + real-phone number with five fighters; (2) M4 rule rows (data PR); (3) M6 schema + lint (data PR).
+- **Where the lifted code came from:** `opentrident-steam/docs/parts-lab/physics/` (M1 bake-off, M2 receipt, M3 receipt and `m3-bench`), `tools/ragdoll-gen.mjs`. The 20-body role table is `data/ragdoll-role-table.json`; world numbers are `data/world.json`.
+- **Known gaps:** hinge limits for bent-rest bodies are shifted by the rest bend (sign unverified on a bent-elbow MakeHuman body); M2's pose-gate failures (3 of 50 generated bodies, the dwarf) are not fixed; no phone number yet.
+
 # Physics Dev brief: M3 to M6 as a package (Strategy, drafted 2026-10-25 night; updated 2026-10-26 ~20:00 Dubai at Dom's go)
 
 ## Update 2026-10-26 evening (Dom's decisions; this block wins over anything below that disagrees)
