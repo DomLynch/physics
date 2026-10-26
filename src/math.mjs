@@ -14,4 +14,7 @@ export function qrot(q, v) {
 export const vadd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 export const vsub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 export const vscl = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
-export const rad = (d) => (d * Math.PI) / 180;
+export const vdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export const vcross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+export const qaxis = (axis, angle) => { const s = Math.sin(angle / 2); return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(angle / 2)]; };
+export const rad =(d) => (d * Math.PI) / 180;

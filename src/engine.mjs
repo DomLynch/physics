@@ -3,7 +3,7 @@
 import initJolt from "jolt-physics/wasm-compat";
 import WORLD from "../data/world.json" with { type: "json" };
 import STATES from "../data/states.json" with { type: "json" };
-import { qmul, qconj, qrot, vadd, vsub, rad } from "./math.mjs";
+import { qmul, qconj, qrot, vadd, vsub, vdot, vcross, qaxis, rad } from "./math.mjs";
 
 
 let joltPromise = null;
@@ -146,8 +146,9 @@ export async function createWorld(opts = {}) {
     const base = new Float64Array(n).fill(1);       // what the game asked for with setMotorStrength
     const want = new Float64Array(n).fill(1);       // base after the state runner (death, stagger, knockdown)
     const motor = W.motor;
-    let dampScale = ropts.motorDamping ?? 1; // multiplier on the joint damping (less damping = less lag behind a fast clip, more wobble)
-    let gain = ropts.motorGain ?? 1; // tracking gain: scales every joint's stiffness (damping by sqrt) so the motors follow fast clips closer
+    const solveHinges = ropts.solveHinges !== false; // setTargetPose twists the parent so the elbow/knee bend plane matches the clip
+    const gainArr = new Float64Array(n).fill(ropts.motorGain ?? 1);        // tracking gain per joint: stiffness multiplier
+    const dampArr = new Float64Array(n).fill(ropts.motorDamping ?? 1);     // damping multiplier per joint (less damping = less lag behind a fast clip, more wobble) // tracking gain: scales every joint's stiffness (damping by sqrt) so the motors follow fast clips closer
     let state = "alive", st = null, frozen = false, calm = 0, lastRoot = null, targetQ = null;
     const lerp = (a, b, u) => a + (b - a) * u;
     const shape = (t, g) => (t < g.ease_in_s ? t / g.ease_in_s : t < g.ease_in_s + g.hold_s ? 1 : Math.max(0, 1 - (t - g.ease_in_s - g.hold_s) / g.up_s));
@@ -182,7 +183,7 @@ export async function createWorld(opts = {}) {
         if (s === strength[k.i]) continue;
         strength[k.i] = s;
         const limp = s <= motor.limp_strength_at_or_below;
-        const stiff = K[k.i] * gain * s, damp = limp ? C[k.i] * motor.limp_damper_scale * motor.limp_damper_multiplier : C[k.i] * dampScale * Math.sqrt(gain) * Math.sqrt(s);
+        const stiff = K[k.i] * gainArr[k.i] * s, damp = limp ? C[k.i] * motor.limp_damper_scale * motor.limp_damper_multiplier : C[k.i] * dampArr[k.i] * Math.sqrt(gainArr[k.i]) * Math.sqrt(s);
         const sets = k.kind === "hinge" ? [k.c.GetMotorSettings()] : [k.c.GetSwingMotorSettings(), k.c.GetTwistMotorSettings()];
         for (const m of sets) { const sp = m.mSpringSettings; sp.mMode = Jolt.ESpringMode_StiffnessAndDamping; sp.mStiffness = stiff; sp.mDamping = damp; }
       }
@@ -214,7 +215,16 @@ export async function createWorld(opts = {}) {
       // retargeted onto the capsules by role). The hips' own orientation goes through setRoot. Ball joints take the child's orientation relative to the
       // parent; hinges the rotation about their axis relative to the spawn pose.
       // tracking gain 1 = the M1 value (SK 40); higher follows fast clips closer (needs the x8 inertia; test before raising above about 4)
-      setMotorGain(g, damping = dampScale) { gain = g; dampScale = damping; strength.fill(NaN); },
+      setMotorGain(g, damping = 1) { gainArr.fill(g); dampArr.fill(damping); strength.fill(NaN); },
+      // per-role tuning: { all: { gain, damping }, <role>: {...}, <partId>: {...} } (later keys win), e.g. arms { gain: 2, damping: 0.25 } and neck/head { gain: 1, damping: 1 }
+      setMotorTuning(rows) {
+        for (let i = 1; i < n; i++) {
+          const r = { ...(rows.all || {}), ...(rows[D.def[i].role] || {}), ...(rows[D.def[i].id] || {}) };
+          if (r.gain !== undefined) gainArr[i] = r.gain;
+          if (r.damping !== undefined) dampArr[i] = r.damping;
+        }
+        strength.fill(NaN);
+      },
       // put every capsule on the last setTargetPose / setRoot pose now (no motor lag, velocities zeroed): hides the lag at the moment of death
       snapToTarget() {
         if (!targetQ || !lastRoot) return false;
@@ -257,10 +267,32 @@ export async function createWorld(opts = {}) {
       },
       setTargetPose(q) {
         targetQ = Float32Array.from(q);
-        const at =(i) => [q[i * 4], q[i * 4 + 1], q[i * 4 + 2], q[i * 4 + 3]];
+        const at = (i) => [q[i * 4], q[i * 4 + 1], q[i * 4 + 2], q[i * 4 + 3]];
+        // working copy of the parent targets: a hinge (elbow, knee) can only bend in one plane, so the plane is brought to the clip by twisting its parent
+        // about the parent's own long axis (a capsule is round: the twist is invisible on the capsule, it only turns the elbow's bend plane)
+        const adj = D.def.map((_, i) => at(i)), theta = {};
+        if (solveHinges) for (const k of cons) {
+          if (k.kind !== "hinge") continue;
+          const i = k.i, p = D.def[i].parent, lim = D.limits[i], tw = D.limits[p] ? D.limits[p].twist : 0;
+          const hax = qrot(D.spawn[i].q, [1, 0, 0]), a = qrot(qconj(D.spawn[p].q), hax), d0 = qrot(k.rel, [0, 1, 0]);
+          const dY = qrot(at(i), [0, 1, 0]), Qp = at(p);
+          const perp = (d) => { const s = vdot(a, d); return [d[0] - a[0] * s, d[1] - a[1] * s, d[2] - a[2] * s]; };
+          const d0p = perp(d0);
+          let best = { err: Infinity, t: 0, th: 0 };
+          const N = 24;
+          for (let s = -N; s <= N; s++) {
+            const t = (s / N) * tw, dd = qrot(qconj(qmul(Qp, qaxis([0, 1, 0], t))), dY), ddp = perp(dd);
+            let th = Math.atan2(vdot(a, vcross(d0p, ddp)), vdot(d0p, ddp));
+            th = Math.min(lim.hingeMax, Math.max(lim.hingeMin, th));
+            const got = qrot(qaxis(a, th), d0), err = Math.acos(Math.min(1, Math.max(-1, vdot(got, dd)))) + 1e-3 * Math.abs(t);
+            if (err < best.err) best = { err, t, th };
+          }
+          adj[p] = qmul(adj[p], qaxis([0, 1, 0], best.t));
+          theta[i] = best.th;
+        }
         for (const k of cons) {
-          const rel = qmul(qconj(at(D.def[k.i].parent)), at(k.i));
-          if (k.kind === "hinge") { const d = qmul(qconj(k.rel), rel); k.c.SetTargetAngle(2 * Math.atan2(d[0], d[3])); }
+          const rel = qmul(qconj(adj[D.def[k.i].parent]), adj[k.i]);
+          if (k.kind === "hinge") k.c.SetTargetAngle(solveHinges ? theta[k.i] : (() => { const d = qmul(qconj(k.rel), rel); return 2 * Math.atan2(d[0], d[3]); })());
           else { const t = new Jolt.Quat(...rel); k.c.SetTargetOrientationBS(t); Jolt.destroy(t); }
         }
       },
@@ -336,6 +368,7 @@ export async function createWorld(opts = {}) {
       },
     };
     api.setMotorStrength(ropts.motorStrength ?? 1);
+    if (ropts.motorTuning) api.setMotorTuning(ropts.motorTuning);
     ragdolls.push(api);
     return api;
   }
