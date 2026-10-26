@@ -18,6 +18,14 @@ Unit names are the package's severable ids (`rd.cut(unit)`; `rd.cuts`). Gear (he
 - **Triangles that cross a plane are split at the plane** (new vertices interpolated: position, normal, UV, all skin weights), never assigned whole, so no gap or ledge.
 - **Each piece is bound only to bones on its own side of the cut.** A vertex of the head piece that carries weight on the Neck bone (which stays with the torso when the head is cut) is re-bound to the Head bone (weights renormalised); likewise at the other planes. Vertices keep their weights otherwise. Result: when the physics head flies, no vertex of the head piece is still driven by a torso bone, and no rubber-sheet stretch appears.
 
+## Hair (Physics Dev ruling, binding)
+Hair, hair cards, eyelashes and brows (any material that belongs to the head) go **whole to `piece_head`**, never cut at a plane, **re-bound rigidly to the Head bone** (weights renormalised to Head only), because a severed head must carry its hair and hair cut into fragments at the neck plane would look wrong. The tool finds them by material name (`/hair|lash|brow/i`; `hairMaterials` overrides) and declares them in the manifest, so the validator knows why they are across the plane:
+```json
+"plane_exempt": { "piece_head": ["Ch22_hair"] },
+"plane_exempt_reason": "hair, hair cards and eyelashes belong to the head: ..."
+```
+`plane_exempt` relaxes the **planes** check for those materials only (they hang below the neck plane to the knees). Weights, bone side, watertightness, orientation and the cap checks still apply to them; Head-only binding is a valid bone side for the head. A body with no such material has no `plane_exempt` and behaves as before (the Minotaur).
+
 ## Caps
 - Each cut boundary has **two caps**, one on each side, built by triangulating the cut loop(s) (handle several loops, e.g. horns or hair strands crossing the plane; holes by ear clipping with hole bridging or a fan with a centre vertex), with normals facing out of the piece, UVs for a flesh material, and the same skin weights as the loop vertices (so the cap follows its piece).
 - Cap meshes: `cap_neck_head`, `cap_neck_torso`, `cap_shoulder_left_arm`, `cap_shoulder_left_torso`, `cap_shoulder_right_arm`, `cap_shoulder_right_torso`, `cap_hip_left_leg`, `cap_hip_left_root`, `cap_hip_right_leg`, `cap_hip_right_root`, `cap_waist_torso`, `cap_waist_root`. Material `cap_flesh` (and an optional `cap_inner` for bone or a darker core; a data row picks colours).
@@ -30,8 +38,10 @@ Unit names are the package's severable ids (`rd.cut(unit)`; `rd.cuts`). Gear (he
   "regions": [{ "id": "head", "mesh": "piece_head", "detached_by": "head" }, ...],
   "caps": [{ "id": "cap_neck_head", "mesh": "cap_neck_head", "region": "head", "shown_when_cut": "head" }, ...],
   "planes": { "neck": { "point": [x, y, z], "normal": [x, y, z], "source": "..." }, ... },
+  "plane_exempt": { "piece_head": ["<hair material>"] }, "plane_exempt_reason": "...",
   "stats": { "vertices_in": 0, "vertices_out": 0, "triangles_split": 0, "watertight": true, "orphan_weights": 0 } }
 ```
+(`plane_exempt` and its reason are present only when the body has hair-card, eyelash or brow materials.)
 
 ## Acceptance (the tool)
 Vertex and skin-weight conservation (every original vertex lands in exactly one piece, or is split with its weights interpolated), watertight pieces with their caps on, no vertex bound to a bone across a cut, a render of every unit cut in turn from 8 angles at 375 wide with no hole or ledge, runs on the Minotaur-106 and Psyche-106 first (V3 `rig/106-default` GLBs; warrior and Centurion 106 files when V3 provides them).

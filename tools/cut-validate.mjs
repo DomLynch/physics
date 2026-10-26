@@ -2,6 +2,8 @@
 // on the tool that made it.
 //   node tools/cut-validate.mjs <body.cut.glb> <body.cut.manifest.json> [--source <body.glb>] [--json] [--hash] [--plane-offset x,y,z]
 //   node tools/cut-validate.mjs <file.glb> --hash        (just the sha256 of the bytes, for determinism runs)
+//   node tools/cut-validate.mjs <plain.glb> --self       (the open, over-used and flipped edges a surface already has: run on the plain source)
+// With --source, watertight and orientation separate defects native to the source from defects the cut introduced (docs/CUT-VALIDATE.md).
 // Exit code 1 on any failed check. Checks: structure, watertight, orientation, weights, bone_side, caps, conservation (needs --source), planes.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -87,11 +89,12 @@ function nodeTree(json) {
 // Every primitive of a mesh node, concatenated: positions, normals, uvs, joints, weights, triangle indices.
 function extractMesh(g, nodeIndex) {
   const node = g.json.nodes[nodeIndex], mesh = g.json.meshes[node.mesh];
-  const out = { name: node.name || mesh.name, meshName: mesh.name, node: nodeIndex, skin: node.skin, pos: [], nrm: [], uv: [], jn: [], wt: [], extra: 0, idx: [], nv: 0, notes: [], hasNrm: true, hasUv: true };
+  const out = { name: node.name || mesh.name, meshName: mesh.name, node: nodeIndex, skin: node.skin, pos: [], nrm: [], uv: [], jn: [], wt: [], extra: 0, idx: [], nv: 0, notes: [], hasNrm: true, hasUv: true, prims: [] };
   for (const p of mesh.primitives) {
     if ((p.mode ?? 4) !== 4) { out.notes.push("primitive mode " + p.mode + " is not triangles"); continue; }
     if (p.attributes.POSITION === undefined) { out.notes.push("primitive without POSITION"); continue; }
     const P = readAccessor(g, p.attributes.POSITION), nv = P.count;
+    out.prims.push({ material: p.material !== undefined && g.json.materials && g.json.materials[p.material] ? g.json.materials[p.material].name || null : null, v0: out.nv, v1: out.nv + nv });
     out.pos.push(P.data);
     if (p.attributes.NORMAL !== undefined) out.nrm.push(readAccessor(g, p.attributes.NORMAL).data); else { out.hasNrm = false; out.nrm.push(new Float64Array(nv * 3)); }
     if (p.attributes.TEXCOORD_0 !== undefined) out.uv.push(readAccessor(g, p.attributes.TEXCOORD_0).data); else { out.hasUv = false; out.uv.push(new Float64Array(nv * 2)); }
@@ -144,6 +147,74 @@ const triArea = (p, a, b, c) => {
 };
 const fmt = (p) => "(" + p.map((x) => (Math.round(x * 1e4) / 1e4).toString()).join(", ") + ")";
 const names = (arr, max = 6) => arr.slice(0, max).join(", ") + (arr.length > max ? ` and ${arr.length - max} more` : "");
+
+// ---- edge defects, native versus introduced ---------------------------------------------------------------------------------------------------------
+// Welds the meshes together by position and returns every edge defect: open (one triangle), over-used (more than two) and flipped (two triangles
+// that traverse it the same way). `reps` holds the welded positions; a defect is a key lo * 67108864 + hi into them.
+export const NATIVE_TOL = 5e-5, BRIDGE_MAX = 1e-3;
+function edgeDefects(meshes) {
+  const weld = makeWelder(), edges = new Map();
+  let tris = 0, degenerate = 0, verts = 0;
+  for (const m of meshes) {
+    const vid = new Int32Array(m.nv);
+    for (let v = 0; v < m.nv; v++) vid[v] = weld.id(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
+    verts += m.nv;
+    for (let t = 0; t + 2 < m.idx.length; t += 3) {
+      const a = vid[m.idx[t]], b = vid[m.idx[t + 1]], c = vid[m.idx[t + 2]];
+      if (a === b || b === c || a === c) { degenerate++; continue; }
+      tris++;
+      for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+        const lo = Math.min(u, v), hi = Math.max(u, v), key = lo * 67108864 + hi, e = edges.get(key) || { n: 0, dir: 0 };
+        e.n++; e.dir += u < v ? 1 : -1; edges.set(key, e);
+      }
+    }
+  }
+  const open = [], over = [], flipped = [];
+  for (const [key, e] of edges) {
+    if (e.n === 1) open.push(key); else if (e.n > 2) over.push(key); else if (e.dir !== 0) flipped.push(key);
+  }
+  const ends = (key) => { const lo = Math.floor(key / 67108864); return [weld.reps[lo], weld.reps[key - lo * 67108864]]; };
+  return { weld, tris, degenerate, verts, open, over, flipped, ends, at: (key) => ends(key).map(fmt).join(" to ") };
+}
+// A set of segments with a lookup: `has(pa, pb)` is true when both points lie within NATIVE_TOL of one of them (the edge is on that segment: the cut
+// may have split a source edge in two, so the halves are not at the same welded positions as the whole).
+function segIndex(segs, cell = 0.05) {
+  const grid = new Map();
+  const ck = (x, y, z) => x + "," + y + "," + z;
+  segs.forEach((s, id) => {
+    const lo = [0, 1, 2].map((k) => Math.floor((Math.min(s[0][k], s[1][k]) - NATIVE_TOL) / cell)), hi = [0, 1, 2].map((k) => Math.floor((Math.max(s[0][k], s[1][k]) + NATIVE_TOL) / cell));
+    for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) { const k = ck(x, y, z); (grid.get(k) || grid.set(k, []).get(k)).push(id); }
+  });
+  const dseg = (p, s) => {
+    const a = s[0], b = s[1], ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ap = [p[0] - a[0], p[1] - a[1], p[2] - a[2]], l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    const t = l2 > 0 ? Math.max(0, Math.min(1, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2)) : 0;
+    return Math.hypot(ap[0] - t * ab[0], ap[1] - t * ab[1], ap[2] - t * ab[2]);
+  };
+  return {
+    size: segs.length,
+    has(pa, pb) {
+      const list = grid.get(ck(Math.floor(pa[0] / cell), Math.floor(pa[1] / cell), Math.floor(pa[2] / cell)));
+      if (!list) return false;
+      for (const id of list) if (dseg(pa, segs[id]) <= NATIVE_TOL && dseg(pb, segs[id]) <= NATIVE_TOL) return true;
+      return false;
+    },
+    hasPoint(p) {
+      const list = grid.get(ck(Math.floor(p[0] / cell), Math.floor(p[1] / cell), Math.floor(p[2] / cell)));
+      return !!list && list.some((id) => dseg(p, segs[id]) <= NATIVE_TOL);
+    },
+  };
+}
+// The whole mesh surface of a GLB as one welded group: the numbers a source has before any cut (`--self`), and the defects the output may inherit.
+export function surfaceReport(glbBuf) {
+  const g = parseGlb(glbBuf);
+  const meshes = (g.json.nodes || []).map((n, i) => (n.mesh !== undefined ? extractMesh(g, i) : null)).filter(Boolean);
+  const d = edgeDefects(meshes);
+  return {
+    meshes: meshes.length, vertices: d.verts, triangles: d.tris, degenerate: d.degenerate, open_edges: d.open.length, over_used_edges: d.over.length, flipped_edges: d.flipped.length,
+    index: { wt: segIndex([...d.open, ...d.over].map(d.ends)), flipped: segIndex(d.flipped.map(d.ends)) },
+    sample: { open: d.open.slice(0, 3).map(d.at), over_used: d.over.slice(0, 3).map(d.at), flipped: d.flipped.slice(0, 3).map(d.at) },
+  };
+}
 
 export function canonicalPlane(key) {
   const k = String(key).toLowerCase();
@@ -202,6 +273,19 @@ export function validate(glbBuf, manifest, opts = {}) {
       if (n.skin === undefined) bad.push(`mesh "${nm}" is not skinned`);
       else if (n.skin !== 0) bad.push(`mesh "${nm}" uses skin ${n.skin}, not the one skin`);
     }
+    if (manifest && manifest.plane_exempt !== undefined) {
+      const pe = manifest.plane_exempt;
+      if (!pe || typeof pe !== "object" || Array.isArray(pe)) bad.push("plane_exempt must be an object mapping a piece mesh to a list of material names");
+      else {
+        if (typeof manifest.plane_exempt_reason !== "string" || !manifest.plane_exempt_reason.trim()) bad.push("plane_exempt needs a plane_exempt_reason (why these materials may leave their piece's side of a plane)");
+        for (const [pieceName, mats] of Object.entries(pe)) {
+          if (!REGIONS.some((r) => "piece_" + r === pieceName)) { bad.push(`plane_exempt names ${JSON.stringify(pieceName)}, which is not a piece mesh`); continue; }
+          if (!Array.isArray(mats) || !mats.length || mats.some((m) => typeof m !== "string")) { bad.push(`plane_exempt.${pieceName} must be a non-empty list of material names`); continue; }
+          const m = getMesh(pieceName), have = new Set(m ? m.prims.map((q) => q.material) : []);
+          for (const mat of mats) if (!have.has(mat)) bad.push(`plane_exempt.${pieceName} names material ${JSON.stringify(mat)}, which the piece does not use`);
+        }
+      }
+    }
     if (opts.source) {
       const sg = parseGlb(opts.source), st = nodeTree(sg.json), ss = (sg.json.skins || [])[0];
       if (!ss) bad.push("source GLB has no skin");
@@ -227,41 +311,46 @@ export function validate(glbBuf, manifest, opts = {}) {
     if (m) parts.push({ id, kind: "cap", region: (reg && reg.region) || region, mesh: m });
   }
 
+  // plane_exempt (manifest): materials of a piece that may lie across its planes (hair on the head piece). Honoured by the planes check, and by the cap
+  // direction heuristic (the piece centroid is taken without them: hair hanging below the neck would drag the head's centroid under its own cap). Nothing
+  // else is exempt: weights, bone_side, watertight, orientation and the cap checks apply to those vertices as to any other.
+  const exemptMask = (p) => {
+    const names = manifest && manifest.plane_exempt && Array.isArray(manifest.plane_exempt[p.id]) ? manifest.plane_exempt[p.id] : null;
+    if (!names || p.kind !== "piece") return null;
+    const mask = new Uint8Array(p.mesh.nv);
+    for (const pr of p.mesh.prims) if (names.includes(pr.material)) mask.fill(1, pr.v0, pr.v1);
+    return mask;
+  };
+
   // ---- 2 watertight + orientation, per piece with its caps
   {
-    const bad = [], badO = [], table = [];
+    // Native versus introduced: with --source, a defect that the source surface already has at the same place (an open edge, an over-used edge, a
+    // flipped edge: the output edge lies on a source edge with that defect) is native and only reported; the check fails on defects the cut introduced.
+    // Without --source every defect counts as introduced.
+    const src = opts.source ? surfaceReport(opts.source) : null;
+    const bad = [], badO = [], table = [], tot = { open: 0, over: 0, flipped: 0, nOpen: 0, nOver: 0, nFlipped: 0 };
     for (const region of REGIONS) {
       const group = parts.filter((p) => p.region === region);
       if (!group.some((p) => p.kind === "piece")) continue;
-      const weld = makeWelder(), edges = new Map();
-      let tris = 0, degenerate = 0, verts = 0;
-      for (const p of group) {
-        const m = p.mesh, vid = new Int32Array(m.nv);
-        for (let v = 0; v < m.nv; v++) vid[v] = weld.id(m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]);
-        verts += m.nv;
-        for (let t = 0; t + 2 < m.idx.length; t += 3) {
-          const a = vid[m.idx[t]], b = vid[m.idx[t + 1]], c = vid[m.idx[t + 2]];
-          if (a === b || b === c || a === c) { degenerate++; continue; }
-          tris++;
-          for (const [u, v] of [[a, b], [b, c], [c, a]]) {
-            const lo = Math.min(u, v), hi = Math.max(u, v), key = lo * 67108864 + hi, e = edges.get(key) || { n: 0, dir: 0 };
-            e.n++; e.dir += u < v ? 1 : -1; edges.set(key, e);
-          }
-        }
-      }
-      const open = [], over = [];
-      let inconsistent = 0;
-      for (const [key, e] of edges) {
-        if (e.n === 1) open.push(key); else if (e.n > 2) over.push(key); else if (e.dir !== 0) inconsistent++;
-      }
-      const at = (key) => { const lo = Math.floor(key / 67108864), hi = key - lo * 67108864; return fmt(weld.reps[lo]) + " to " + fmt(weld.reps[hi]); };
-      table.push(`piece_${region}: ${group.length - 1} caps, ${verts} vertices, ${tris} triangles, ${open.length} open edges, ${over.length} over-used edges` + (degenerate ? `, ${degenerate} degenerate triangles skipped` : ""));
-      if (open.length) bad.push(`piece_${region}: ${open.length} open edge(s); first: ` + open.slice(0, 3).map(at).join("; "));
-      if (over.length) bad.push(`piece_${region}: ${over.length} edge(s) used by more than two triangles; first: ` + over.slice(0, 3).map(at).join("; "));
-      if (inconsistent) badO.push(`piece_${region}: ${inconsistent} edge(s) traversed in the same direction by both triangles (flipped winding)`);
+      const d = edgeDefects(group.map((p) => p.mesh));
+      // An open edge also counts as native when it bridges a native gap: shorter than BRIDGE_MAX (the tool's gap limit) with both ends on source open
+      // edges (the cap's closing chord across a hairline hole the source already had: its two sides stay open, native, and the chord has no piece edge to meet).
+      const onSrc = (idx, key, bridge) => { if (!idx) return false; const [pa, pb] = d.ends(key); return idx.has(pa, pb) || (bridge && Math.hypot(pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]) <= BRIDGE_MAX && idx.hasPoint(pa) && idx.hasPoint(pb)); };
+      const split = (list, idx, bridge) => { const nat = [], intro = []; for (const k of list) (onSrc(idx, k, bridge) ? nat : intro).push(k); return { nat, intro }; };
+      const open = split(d.open, src && src.index.wt, true), over = split(d.over, src && src.index.wt), flip = split(d.flipped, src && src.index.flipped);
+      const nat = (x) => (src ? ` (${x.nat.length} native)` : "");
+      table.push(`piece_${region}: ${group.length - 1} caps, ${d.verts} vertices, ${d.tris} triangles, ${d.open.length} open edges${nat(open)}, ${d.over.length} over-used edges${nat(over)}, ${d.flipped.length} flipped-winding edges${nat(flip)}` + (d.degenerate ? `, ${d.degenerate} degenerate triangles skipped` : ""));
+      tot.open += d.open.length; tot.over += d.over.length; tot.flipped += d.flipped.length; tot.nOpen += open.nat.length; tot.nOver += over.nat.length; tot.nFlipped += flip.nat.length;
+      if (open.intro.length) bad.push(`piece_${region}: ${open.intro.length} open edge(s)${src ? " introduced by the cut" : ""}; first: ` + open.intro.slice(0, 3).map(d.at).join("; "));
+      if (over.intro.length) bad.push(`piece_${region}: ${over.intro.length} edge(s) used by more than two triangles${src ? " introduced by the cut" : ""}; first: ` + over.intro.slice(0, 3).map(d.at).join("; "));
+      if (flip.intro.length) badO.push(`piece_${region}: ${flip.intro.length} edge(s) traversed in the same direction by both triangles (flipped winding)${src ? ", introduced by the cut" : ""}; first: ` + flip.intro.slice(0, 3).map(d.at).join("; "));
     }
-    add("watertight", !bad.length, bad.length ? `${bad.length} piece(s) not watertight` : "every piece with its caps is closed", bad, table);
-    add("orientation", !badO.length, badO.length ? `${badO.length} piece(s) with inconsistent winding` : "winding is consistent across every shared edge", badO);
+    if (src) {
+      table.push(`source surface: ${src.open_edges} open edges, ${src.over_used_edges} over-used edges, ${src.flipped_edges} flipped-winding edges (output edges lying on one of these are native)`);
+    }
+    const natW = tot.nOpen + tot.nOver;
+    add("watertight", !bad.length, bad.length ? `${bad.length} piece(s) with open or over-used edges` + (src ? " introduced by the cut" : "") : src ? `every piece with its caps is closed except ${natW} edge(s) native to the source (${tot.nOpen} open, ${tot.nOver} over-used); none introduced` : "every piece with its caps is closed", bad, table);
+    add("orientation", !badO.length, badO.length ? `${badO.length} piece(s) with inconsistent winding` + (src ? " introduced by the cut" : "") : src && tot.nFlipped ? `winding is consistent across every shared edge except ${tot.nFlipped} flipped edge(s) native to the source; none introduced` : "winding is consistent across every shared edge", badO);
   }
 
   // ---- 3 skin weights
@@ -356,8 +445,8 @@ export function validate(glbBuf, manifest, opts = {}) {
       else if (m.uv.some((x) => !Number.isFinite(x))) bad.push(`${p.id}: NaN in TEXCOORD_0`);
       if (!m.hasNrm) { bad.push(`${p.id}: no NORMAL`); continue; }
       if (!piece) continue;
-      const weld = makeWelder(), cen = [0, 0, 0];
-      for (let v = 0; v < piece.mesh.nv; v++) weld.id(piece.mesh.pos[v * 3], piece.mesh.pos[v * 3 + 1], piece.mesh.pos[v * 3 + 2]);
+      const weld = makeWelder(), cen = [0, 0, 0], ex = exemptMask(piece);
+      for (let v = 0; v < piece.mesh.nv; v++) if (!ex || !ex[v]) weld.id(piece.mesh.pos[v * 3], piece.mesh.pos[v * 3 + 1], piece.mesh.pos[v * 3 + 2]);
       for (const r of weld.reps) for (let k = 0; k < 3; k++) cen[k] += r[k] / weld.reps.length;
       const cc = [0, 0, 0], nm = [0, 0, 0];
       for (let v = 0; v < m.nv; v++) for (let k = 0; k < 3; k++) { cc[k] += m.pos[v * 3 + k] / m.nv; nm[k] += m.nrm[v * 3 + k] / m.nv; }
@@ -409,22 +498,25 @@ export function validate(glbBuf, manifest, opts = {}) {
 
   // ---- 7 planes
   {
-    const bad = [];
+    const bad = [], exemptNote = [];
     for (const p of parts) {
       const cons = CONSTRAINTS[p.region];
       if (!cons) continue;
+      const ex = exemptMask(p);
+      if (ex) exemptNote.push(`${ex.reduce((s, x) => s + x, 0)} ${p.id} vertices (${manifest.plane_exempt[p.id].join(", ")})`);
       for (const [pn, sign] of cons) {
         const pl = planes[pn];
         if (!pl) { if (!bad.some((b) => b.startsWith(`plane "${pn}"`))) bad.push(`plane "${pn}" is not in the manifest`); continue; }
         let n = 0, worst = 0;
         for (let v = 0; v < p.mesh.nv; v++) {
+          if (ex && ex[v]) continue;
           const d = dist(pl, p.mesh.pos[v * 3], p.mesh.pos[v * 3 + 1], p.mesh.pos[v * 3 + 2]) * (sign === "+" ? 1 : -1);
           if (d < -PLANE_TOL) { n++; worst = Math.max(worst, -d); }
         }
         if (n) bad.push(`${p.id}: ${n} vertices on the wrong side of the ${pn} plane (worst ${worst.toFixed(5)})`);
       }
     }
-    add("planes", !bad.length, bad.length ? `${bad.length} violation(s)` : "every piece vertex is on its side of its planes (1e-4)", bad);
+    add("planes", !bad.length, bad.length ? `${bad.length} violation(s)` : "every piece vertex is on its side of its planes (1e-4)" + (exemptNote.length ? `; plane_exempt (manifest): ${exemptNote.join("; ")} not checked` : ""), bad);
   }
 
   return { ok: checks.every((c) => c.ok), sha256: sha256HexBytes(glbBuf), checks };
@@ -437,12 +529,19 @@ function main(argv) {
     const a = argv[i];
     if (a === "--source") flags.source = argv[++i];
     else if (a === "--plane-offset") flags.offset = argv[++i].split(",").map(Number);
-    else if (a === "--json" || a === "--hash") flags[a.slice(2)] = true;
+    else if (a === "--json" || a === "--hash" || a === "--self") flags[a.slice(2)] = true;
     else if (a.startsWith("--")) { console.error("unknown flag " + a); return 2; }
     else pos.push(a);
   }
-  if (!pos[0] || (!pos[1] && !flags.hash)) { console.error("usage: node tools/cut-validate.mjs <body.cut.glb> <body.cut.manifest.json> [--source <body.glb>] [--json] [--hash] [--plane-offset x,y,z]"); return 2; }
+  if (!pos[0] || (!pos[1] && !flags.hash && !flags.self)) { console.error("usage: node tools/cut-validate.mjs <body.cut.glb> <body.cut.manifest.json> [--source <body.glb>] [--json] [--hash] [--plane-offset x,y,z]\n       node tools/cut-validate.mjs <plain.glb> --self"); return 2; }
   const glb = readFileSync(pos[0]);
+  if (flags.self) { // the surface defects a GLB already has (run it on the plain source: what the cut inherits)
+    const r = surfaceReport(glb);
+    delete r.index;
+    if (flags.json) console.log(JSON.stringify(r, null, 1));
+    else console.log(`cut-validate --self ${pos[0]}\n  ${r.meshes} mesh(es), ${r.vertices} vertices, ${r.triangles} triangles (${r.degenerate} degenerate)\n  open edges ${r.open_edges}, over-used edges ${r.over_used_edges}, flipped-winding edges ${r.flipped_edges}`);
+    return 0;
+  }
   if (flags.hash && !pos[1]) { console.log(sha256HexBytes(glb) + "  " + pos[0]); return 0; }
   const manifest = JSON.parse(readFileSync(pos[1], "utf8"));
   const res = validate(glb, manifest, { source: flags.source ? readFileSync(flags.source) : null, planeOffset: flags.offset });
