@@ -1,0 +1,120 @@
+{
+ "id": "psyche-106",
+ "source": "psyche-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.6818,
+ "neck_len": 0.0849,
+ "torso_len": 0.3582,
+ "shoulder_w": 0.3126,
+ "upper_arm_len": 0.2551,
+ "forearm_len": 0.245,
+ "thigh_len": 0.4286,
+ "shin_len": 0.4284,
+ "foot_len": 0.1583,
+ "chest_w": 0.3185,
+ "waist_w": 0.2938,
+ "hip_w": 0.3055,
+ "chest_d": 0.2485,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9884,
+   0.0119
+  ],
+  "Spine": [
+   0,
+   1.0779,
+   0.0091
+  ],
+  "Spine1": [
+   0,
+   1.1823,
+   0.0057
+  ],
+  "Spine2": [
+   0,
+   1.3016,
+   0.0019
+  ],
+  "Neck": [
+   0,
+   1.4359,
+   -0.0024
+  ],
+  "Head": [
+   0,
+   1.5207,
+   0.002
+  ],
+  "LeftArm": [
+   0.1563,
+   1.3905,
+   -0.0023
+  ],
+  "LeftForeArm": [
+   0.4095,
+   1.3679,
+   -0.0241
+  ],
+  "LeftHand": [
+   0.6539,
+   1.3829,
+   -0.0154
+  ],
+  "RightArm": [
+   -0.1563,
+   1.3905,
+   -0.0025
+  ],
+  "RightForeArm": [
+   -0.4095,
+   1.3679,
+   -0.0241
+  ],
+  "RightHand": [
+   -0.6539,
+   1.3829,
+   -0.0151
+  ],
+  "LeftUpLeg": [
+   0.089,
+   0.9387,
+   0.0041
+  ],
+  "LeftLeg": [
+   0.1196,
+   0.5112,
+   -0.0028
+  ],
+  "LeftFoot": [
+   0.1453,
+   0.0855,
+   -0.0434
+  ],
+  "LeftToeBase": [
+   0.1488,
+   0,
+   0.0896
+  ],
+  "RightUpLeg": [
+   -0.089,
+   0.9387,
+   0.0024
+  ],
+  "RightLeg": [
+   -0.1196,
+   0.5112,
+   -0.0033
+  ],
+  "RightFoot": [
+   -0.1452,
+   0.0855,
+   -0.0434
+  ],
+  "RightToeBase": [
+   -0.1488,
+   0,
+   0.0899
+  ]
+ }
+}
