@@ -21,12 +21,13 @@ test("each outcome is reachable from a table of hits", () => {
   const ev = createEvaluator(rules);
   const table = [
     ["miss (below the melee speed gate)", { tipSpeed: GATE.min_speed_m_s - 1, zone: "legs", side: "left" }, "miss"],
-    ["miss (below the hit rung)", { tipSpeed: tipFor(S.rung_hit - 1), zone: "legs", side: "left" }, "miss"],
-    ["hit", { tipSpeed: tipFor(S.rung_hit + 1), zone: "legs", side: "left" }, "hit"],
+    // inside the speed-gate ramp the strength is partial, so a blunt (sharpness 1) swing lands under the hit rung
+    ["miss (below the hit rung)", { kind: "blunt", tipSpeed: GATE.min_speed_m_s + GATE.full_strength_margin_m_s / 2, zone: "legs", side: "left" }, "miss"],
+    ["hit", { kind: "blunt", tipSpeed: (S.rung_hit + S.rung_stick) / 2, zone: "legs", side: "left" }, "hit"],
     ["stick", { tipSpeed: tipFor(S.rung_stick + 1, "stab"), kind: "stab", zone: "arm_off" }, "stick"],
     ["cut", { tipSpeed: tipFor(S.rung_cut * 1.05), zone: "arm_off" }, "cut"],
-    ["knockdown (push force)", { tipSpeed: tipFor(S.rung_hit + 1), zone: "legs", side: "right", force: rules.knockdown.push_force_over + 1 }, "knockdown"],
-    ["kill (head budget)", { tipSpeed: tipFor(S.rung_hit + 1), zone: "head" }, "kill"],
+    ["knockdown (push force)", { kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "legs", side: "right", force: rules.knockdown.push_force_over + 1 }, "knockdown"],
+    ["kill (head budget)", { kind: "stab", tipSpeed: 30, zone: "head" }, "kill"],
   ];
   for (const [name, h, want] of table) {
     const r = ev.evaluateHit(hit(h), fresh());
@@ -51,7 +52,8 @@ test("armour raises the cut threshold but never blocks: every weapon cuts throug
   const ev = createEvaluator(rules);
   for (const [tierId, tier] of Object.entries(rules.armour_tiers)) {
     const threshold = S.rung_cut * tier.dismember_threshold_modifier;
-    const below = ev.evaluateHit(hit({ tipSpeed: tipFor(threshold * 0.98), zone: "arm_off", armour: tierId }), fresh());
+    // the dagger slash row (sharpness 1.0) lets the test sit just under the threshold, clear of the speed-gate ramp
+    const below = ev.evaluateHit(hit({ weapon: "gm_dagger", tipSpeed: Math.max(threshold * 0.98, GATE.min_speed_m_s + GATE.full_strength_margin_m_s), zone: "arm_off", armour: tierId }), fresh());
     assert.notEqual(below.outcome, "cut", `${tierId}: just under the threshold does not cut`);
     assert.ok(Math.abs(below.cutThreshold - threshold) < 1e-9);
     for (const [wid, w] of Object.entries(rules.weapons)) {
@@ -100,7 +102,7 @@ test("knockdown counter: separate from budgets, falls at the row, resets on fall
   const st = fresh();
   st.knockdown.counter = rules.knockdown.counter_fall_at - 1;
   const t0 = 1000;
-  const r1 = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "legs", side: "left" }), t: t0 }, st);
+  const r1 = ev.evaluateHit({ ...hit({ kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "legs", side: "left" }), t: t0 }, st);
   assert.equal(r1.outcome, "knockdown");
   assert.equal(r1.knockdown.fallSeconds, rules.knockdown.fall_seconds.damage);
   assert.equal(st.knockdown.counter, 0, "counter resets on fall");
@@ -108,13 +110,13 @@ test("knockdown counter: separate from budgets, falls at the row, resets on fall
   // second knockdown inside the grace window is ignored (damage still lands, counter does not move)
   st.knockdown.counter = rules.knockdown.counter_fall_at - 1;
   const inGrace = t0 + rules.knockdown.getup_grace_s / 2;
-  const r2 = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "legs", side: "right", force: rules.knockdown.push_force_over + 1 }), t: inGrace }, st);
+  const r2 = ev.evaluateHit({ ...hit({ kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "legs", side: "right", force: rules.knockdown.push_force_over + 1 }), t: inGrace }, st);
   assert.equal(r2.knockdown, null);
   assert.ok(r2.events.some((e) => e.type === "knockdown_ignored"));
   assert.equal(st.knockdown.counter, rules.knockdown.counter_fall_at - 1);
   // grace spans fall + downed + getup grace
   const free = t0 + rules.knockdown.fall_seconds.damage + rules.knockdown.fall_seconds.down + rules.knockdown.getup_grace_s + 0.01;
-  const r3 = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "torso", force: rules.knockdown.push_force_over + 1 }), t: free }, st);
+  const r3 = ev.evaluateHit({ ...hit({ kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "torso", force: rules.knockdown.push_force_over + 1 }), t: free }, st);
   assert.equal(r3.outcome, "knockdown");
   assert.equal(r3.knockdown.cause, "push");
   assert.ok(Math.abs(r3.knockdown.fallSeconds - rules.knockdown.fall_seconds.push * rules.knockdown.stun_duration_pct[1] / 100) < 1e-9, "second stun is diminished");
@@ -128,13 +130,13 @@ test("diminishing stun steps follow the row, then drop out, then reset after the
   const seen = [];
   for (let i = 0; i < pcts.length; i++) {
     st.parts.torso.hp = st.parts.torso.max; // keep it alive: this test is about the stun, not the budget
-    const r = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "torso", force: rules.knockdown.push_force_over + 1 }), t }, st);
+    const r = ev.evaluateHit({ ...hit({ kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "torso", force: rules.knockdown.push_force_over + 1 }), t }, st);
     seen.push(r.knockdown ? r.knockdown.stunPct : 0);
     t += rules.knockdown.fall_seconds.push + rules.knockdown.fall_seconds.down + rules.knockdown.getup_grace_s + 0.1;
   }
   assert.deepEqual(seen, pcts);
   st.parts.torso.hp = st.parts.torso.max;
-  const again = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "torso", force: rules.knockdown.push_force_over + 1 }), t: t + rules.evaluator.stun_window_s + 1 }, st);
+  const again = ev.evaluateHit({ ...hit({ kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "torso", force: rules.knockdown.push_force_over + 1 }), t: t + rules.evaluator.stun_window_s + 1 }, st);
   assert.equal(again.knockdown.stunPct, pcts[0]);
 });
 
@@ -142,15 +144,15 @@ test("kill rules: head budget empty, torso budget empty, both legs gone (one leg
   const ev = createEvaluator(rules);
   // head
   let st = fresh();
-  let r = ev.evaluateHit(hit({ kind: "stab", tipSpeed: tipFor(S.rung_hit + 1, "stab"), zone: "head" }), st);
+  let r = ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 40, zone: "head" }), st);
   assert.equal(r.outcome, "kill"); assert.equal(st.alive, false); assert.equal(st.cause_of_death, "head");
   // torso: stab hard until the budget goes
   st = fresh();
-  for (let i = 0; i < 10 && st.alive; i++) r = ev.evaluateHit(hit({ kind: "stab", tipSpeed: tipFor(S.rung_stick * 1.2, "stab"), zone: "torso" }), st);
+  for (let i = 0; i < 50 && st.alive; i++) r = ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 30, zone: "torso" }), st);
   assert.equal(st.alive, false); assert.equal(st.parts.torso.hp, 0); assert.equal(r.outcome, "kill");
   // legs
   st = fresh();
-  const legHit = (side) => ev.evaluateHit(hit({ kind: "stab", tipSpeed: tipFor(S.rung_stick * 1.5, "stab"), zone: "legs", side }), st);
+  const legHit = (side) => ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 30, zone: "legs", side }), st);
   while (!st.parts.leg_left.gone) legHit("left");
   assert.equal(st.alive, true); assert.equal(st.limp, true);
   assert.ok(st.parts.leg_left.max >= rules.part_hp.legs_min && st.parts.leg_left.max <= rules.part_hp.legs_max);
@@ -186,7 +188,7 @@ test("bleed: a cut starts one timer (rows), the target dies when it runs out; a 
   const r = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_cut * 1.1), zone: "arm_off" }), t: t0 }, st);
   assert.equal(r.bleed, true);
   assert.ok(st.bleed.seconds >= rules.bleed_out.seconds_min && st.bleed.seconds <= rules.bleed_out.seconds_max);
-  const late = ev.evaluateHit({ ...hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "torso" }), t: t0 + rules.bleed_out.seconds_max + 1 }, st);
+  const late = ev.evaluateHit({ ...hit({ kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "torso" }), t: t0 + rules.bleed_out.seconds_max + 1 }, st);
   assert.equal(st.alive, false); assert.equal(st.cause_of_death, "bleed_out");
   assert.ok(late.events.some((e) => e.type === "bleed_out"));
   // dead body: cut a leg off, no damage, no budget movement elsewhere
@@ -210,7 +212,7 @@ test("finisher roll: caller rand, base + overkill capped, sure on match win, bos
   const ev = createEvaluator(rules);
   const r = ev.evaluateHit(hit({ tipSpeed: tipFor(S.rung_cut * 1.1), zone: "head" }), fresh(), { rand: () => 0, finisher: {} });
   assert.equal(r.outcome, "kill"); assert.equal(r.finisher.finisher, true);
-  assert.equal(ev.evaluateHit(hit({ tipSpeed: tipFor(S.rung_hit + 1), zone: "head" }), fresh()).finisher, null, "no rand, no roll");
+  assert.equal(ev.evaluateHit(hit({ kind: "stab", tipSpeed: 30, zone: "head" }), fresh()).finisher, null, "no rand, no roll");
 });
 
 test("fails loudly on a missing or null row", () => {
