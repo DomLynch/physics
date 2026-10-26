@@ -4,6 +4,7 @@ import initJolt from "jolt-physics/wasm-compat";
 import WORLD from "../data/world.json" with { type: "json" };
 import STATES from "../data/states.json" with { type: "json" };
 import { qmul, qconj, qrot, vadd, vsub, vdot, vcross, qaxis, rad } from "./math.mjs";
+import { segSegDist } from "./generate.mjs";
 
 
 let joltPromise = null;
@@ -85,7 +86,7 @@ export async function createWorld(opts = {}) {
     Jolt.destroy(bcs); Jolt.destroy(half); Jolt.destroy(pos); Jolt.destroy(rot);
   }
 
-  const ragdolls = [];
+  const ragdolls = [], props = [];
   let acc = 0, tick = 0, highRateTicks = 0, nextGroup = 1;
   const rand = mulberry32(opts.seed ?? 1);
 
@@ -337,16 +338,47 @@ export async function createWorld(opts = {}) {
         Jolt.destroy(iv);
       },
       // detach a severable unit (head, arm_left, arm_right, leg_left, leg_right, torso_waist): removes the joint of its cut role; the part and what hangs below it fall free
-      cut(unit) {
+      // copts: { helmet: true | { radius_m, mass_kg } } spawns the head gear as a rigid prop (a head cut only), { impulse: [x,y,z] } pushes the severed piece.
+      // Works on a frozen corpse too: the severed piece wakes, the rest stays asleep. Returns { unit, mass_kg, carries_roles, gear_slots, cap, props } or null.
+      cut(unit, copts = {}) {
         const u = row.severable.find((s) => s.id === unit);
         if (!u) throw new Error("unknown severable unit " + unit);
-        const k = cons.findIndex((c) => c.i === D.idx[u.cut_role]);
+        const ci = D.idx[u.cut_role], k = cons.findIndex((c) => c.i === ci);
         if (k < 0) return null;
+        // where the stump is now: the cut joint's pivot carried by the parent capsule's current pose
+        const pi = D.def[ci].parent, pb = bodies[pi], pp = pb.GetPosition(), pr = pb.GetRotation();
+        const local = qrot(qconj(D.spawn[pi].q), vsub(D.pivot[ci], D.spawn[pi].c)), pw = qrot([pr.GetX(), pr.GetY(), pr.GetZ(), pr.GetW()], local);
+        const cap = { part: u.cut_role, position: [pp.GetX() + pw[0], pp.GetY() + pw[1], pp.GetZ() + pw[2]] };
         physics.RemoveConstraint(cons[k].c);
         cons.splice(k, 1);
         cut.add(unit);
         highRateTicks = W.cut_high_rate_ticks;
-        return { unit, mass_kg: u.mass_kg, carries_roles: u.carries_roles, gear_slots: u.gear_slots };
+        const carried = u.carries_roles.map((id) => D.idx[id]);
+        if (frozen) for (const i of carried) bi.ActivateBody(bodies[i].GetID());
+        if (copts.impulse) { const iv = new Jolt.Vec3(...copts.impulse); bi.AddImpulse(bodies[ci].GetID(), iv); Jolt.destroy(iv); }
+        const props = [];
+        if (copts.helmet && unit === "head") {
+          const h = { ...S.cut.helmet, ...(copts.helmet === true ? {} : copts.helmet) }, hb = bodies[ci], hpos = hb.GetPosition(), hv = hb.GetLinearVelocity();
+          props.push(world.createProp({
+            radius: h.radius_m, mass: h.mass_kg, position: [hpos.GetX(), hpos.GetY() + 0.02, hpos.GetZ()],
+            velocity: [hv.GetX() + h.pop_impulse[0] / h.mass_kg, hv.GetY() + h.pop_impulse[1] / h.mass_kg, hv.GetZ() + h.pop_impulse[2] / h.mass_kg], spin: h.spin_rad_s, id: "helmet",
+          }));
+        }
+        return { unit, mass_kg: u.mass_kg, carries_roles: u.carries_roles, gear_slots: u.gear_slots, cap, props };
+      },
+      // swept blade test (M5): the blade segment (base, tip) at the start of the tick and at its end. Returns the parts whose capsule axis it passes within
+      // radius of, nearest first: [{ part, dist, radius, through }]; `through` = passed within through_core x radius of the axis (cut THROUGH the part, not a graze).
+      sweepEdge(base0, tip0, base1, tip1) {
+        const pose = api.readPose(), E = S.cut.edge, out = [];
+        const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+        for (let i = 0; i < n; i++) {
+          const o = i * 10, c = [pose[o], pose[o + 1], pose[o + 2]], ax = qrot([pose[o + 3], pose[o + 4], pose[o + 5], pose[o + 6]], [0, 1, 0]), hh = D.def[i].halfH;
+          const a0 = [c[0] - ax[0] * hh, c[1] - ax[1] * hh, c[2] - ax[2] * hh], a1 = [c[0] + ax[0] * hh, c[1] + ax[1] * hh, c[2] + ax[2] * hh];
+          let best = Infinity;
+          for (let s = 0; s <= E.samples; s++) { const t = s / E.samples; best = Math.min(best, segSegDist(lerp(base0, base1, t), lerp(tip0, tip1, t), a0, a1)); }
+          if (best <= D.def[i].r) out.push({ part: D.def[i].id, dist: best, radius: D.def[i].r, through: best <= E.through_core * D.def[i].r });
+        }
+        return out.sort((x, y) => x.dist / x.radius - y.dist / y.radius);
       },
       // 10 floats per part (px py pz qx qy qz qw vx vy vz), in partIds order. The same Float32Array is reused: copy it if you keep it.
       readPose() {
@@ -384,6 +416,31 @@ export async function createWorld(opts = {}) {
     rand,
     // body measure row (a measure row, or an already generated ragdoll-row/2) -> ragdoll. opts: { position, id, rootKinematic (default true), motorStrength (default 1) }
     createRagdoll(input, ropts) { return makeRagdoll(input, ropts); },
+    // a loose rigid sphere (helmet, thrown part, loot): { radius, mass, position, velocity, spin, id }. Returns { id, readPose() (10 floats), destroy() }.
+    createProp(p) {
+      const shape = new Jolt.SphereShape(p.radius), pos = new Jolt.RVec3(...p.position), rot = new Jolt.Quat(0, 0, 0, 1);
+      const bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Dynamic, 1);
+      bcs.mOverrideMassProperties = Jolt.EOverrideMassProperties_CalculateInertia;
+      bcs.mMassPropertiesOverride.mMass = p.mass;
+      bcs.mFriction = W.body.friction; bcs.mRestitution = p.restitution ?? 0.2; bcs.mLinearDamping = W.body.linear_damping; bcs.mAngularDamping = W.body.angular_damping;
+      const body = bi.CreateBody(bcs);
+      bi.AddBody(body.GetID(), Jolt.EActivation_Activate);
+      Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot);
+      if (p.velocity) { const v = new Jolt.Vec3(...p.velocity); bi.SetLinearVelocity(body.GetID(), v); Jolt.destroy(v); }
+      if (p.spin) { const v = new Jolt.Vec3(...p.spin); bi.SetAngularVelocity(body.GetID(), v); Jolt.destroy(v); }
+      const buf = new Float32Array(10);
+      const prop = {
+        id: p.id || "prop", _live: true,
+        readPose() {
+          const b = body.GetPosition(), r = body.GetRotation(), v = body.GetLinearVelocity();
+          buf.set([b.GetX(), b.GetY(), b.GetZ(), r.GetX(), r.GetY(), r.GetZ(), r.GetW(), v.GetX(), v.GetY(), v.GetZ()]);
+          return buf;
+        },
+        destroy() { if (!prop._live) return; prop._live = false; bi.RemoveBody(body.GetID()); bi.DestroyBody(body.GetID()); props.splice(props.indexOf(prop), 1); },
+      };
+      props.push(prop);
+      return prop;
+    },
     // advance the sim by dt seconds in whole fixed ticks (60 Hz); the remainder is carried. Never reads a clock.
     step(dt = tickDt) {
       acc += dt;
@@ -401,13 +458,13 @@ export async function createWorld(opts = {}) {
     hash() {
       let h = 0x811c9dc5;
       const u = new Uint32Array(1), f = new Float32Array(u.buffer);
-      for (const r of ragdolls) {
+      for (const r of [...ragdolls, ...props]) {
         const p = r.readPose();
         for (let i = 0; i < p.length; i++) { f[0] = p[i] === 0 ? 0 : p[i]; h = Math.imul(h ^ u[0], 0x01000193) >>> 0; }
       }
       return h.toString(16).padStart(8, "0");
     },
-    destroy() { for (const r of [...ragdolls]) r.destroy(); Jolt.destroy(jolt); },
+    destroy() { for (const r of [...ragdolls]) r.destroy(); for (const p of [...props]) p.destroy(); Jolt.destroy(jolt); },
   };
   return world;
 }
