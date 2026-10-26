@@ -7,17 +7,17 @@
   },
   "strength_scale": {
     "formula": "strength = tip_speed_m_s * sharpness",
-    "rung_hit": 20,
-    "rung_stick": 50,
-    "rung_cut": 100,
-    "status": "start",
-    "measure_note": "to be measured on our Mixamo and Hellish Quart attack clips (experiment 1: tip-speed histogram) before any threshold is written",
-    "source": "Gladio and Glory strength scale (hit over 20, stick over 50, kill or cut over 100); COMBAT-101 A1 and item 17. Start values, not measured."
+    "rung_hit": 4.0,
+    "rung_stick": 8.3,
+    "rung_cut": 12.2,
+    "status": "measured",
+    "measure_note": "M4 tip-speed measurement (docs/M4-MEASURE.md, tools/tip-speed.mjs). Rungs are in tip-speed m/s at sharpness 1.0 (reference edge): the old 20/50/100 were Gladio and Glory units with no sharpness column to convert, so the scale is re-based, not scaled. Peaks of 12 swings of ONE clip set (V3 Minotaur, 65 rig, hand end). Not yet measured: Mixamo and Hellish Quart library clips (not readable from the Mac), the special swing class (no labels in the dump), a weapon tip (no weapon axis in the dump). 12 swings is a small sample: re-run on more clips and move the rungs to the new percentiles.",
+    "source": "V3 recorded fight dump docs/ragdoll-fight-poses.json (902 ticks, 60 Hz, Minotaur on the 65 rig, branch docs/ragdoll-poses), hand-end peak tip speed per swing, 12 swings with pose snaps excluded: rung_hit 4.0 = p10 (4.01 m/s), rung_stick 8.3 = p50 (8.27 m/s), rung_cut 12.2 = p90 (12.18 m/s). Replaces the Gladio and Glory start values 20/50/100 (COMBAT-101 A1 and item 17)."
   },
   "melee_speed_gate": {
-    "min_speed_m_s": 5,
+    "min_speed_m_s": 4.0,
     "full_strength_margin_m_s": 0.5,
-    "source": "TABG melee: relativeVelocity >= 5 m/s and swinging forward, then num = clamp(v x 2, 0, 1) (five-games doc section 2.2 and 5 parameters sheet; COMBAT-101 B5). Start value, retune on our clips."
+    "source": "min_speed_m_s 4.0 = p10 of the swing peaks (4.01 m/s) in the V3 Minotaur fight dump, hand end, 12 swings (docs/M4-MEASURE.md): 90 percent of our swings pass; TABG's 5 m/s (relativeVelocity >= 5 m/s then num = clamp(v x 2, 0, 1); five-games doc section 2.2; COMBAT-101 B5) sits at about p17 of them. full_strength_margin_m_s 0.5 is still the TABG start value (not measurable from a pose dump)."
   },
   "zones": {
     "head": { "body_part_mult": 2.0, "source": "TABG Damagable head multiplier 2.0 (five-games doc 2.2; COMBAT-101 B5)" },
@@ -31,7 +31,7 @@
     "bone_mult_min": 0.5,
     "bone_mult_max": 5,
     "armour_effect": "armour multiplies the gate by its dismember_threshold_modifier (raises it, finite, never a wall)",
-    "source": "Gladio Mori Blade.CheckBoneBreak: speed^2 x boneMultiplier > 9, so gate = 3 / sqrt(boneMult) m/s; bone multipliers 0.5 to 5 (five-games doc 2.1 and 5). Start shape, compare with the strength scale cut rung on our clips."
+    "source": "Gladio Mori Blade.CheckBoneBreak: speed^2 x boneMultiplier > 9, so gate = 3 / sqrt(boneMult) m/s; bone multipliers 0.5 to 5 (five-games doc 2.1 and 5). Start shape, UNCHANGED by M4: at numerator 3 the gate (2.7 to 3.0 m/s for bone_mult 1.0 to 1.2) is under 11 to 12 of the 12 measured swing peaks (min 2.95 m/s), so on our clips the cut rung (12.2 m/s at sharpness 1) is what binds, not this gate (docs/M4-MEASURE.md). Left for Dom: raise the numerator only if the bone gate should bind."
   },
   "armour_tiers": {
     "none":     { "dismember_threshold_modifier": 1.0,  "damage_taken_mult": { "cut": 1.0,  "stab": 1.0, "blunt": 1.0 }, "source": "role table armour_tiers (own start values, HS rating ladder shape; Dom 2026-10-25 armour never blocks)" },
