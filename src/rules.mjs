@@ -1,14 +1,12 @@
 // M4/M6 rule rows: loader, hand-written validator (no dependencies) and canonical hash.
 // Schema: data/rules.schema.json (JSON Schema subset, closed key sets). Data: data/rules.json.
-import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
+import SCHEMA from "../data/rules.schema.json" with { type: "json" };
+import RULES_DATA from "../data/rules.json" with { type: "json" };
 import { lintNoBlock } from "./generate.mjs";
-
-const SCHEMA = JSON.parse(readFileSync(new URL("../data/rules.schema.json", import.meta.url), "utf8"));
-const RULES = new URL("../data/rules.json", import.meta.url);
+import { sha256Hex } from "./sha256.mjs";
 
 export function loadRules() {
-  const rules = JSON.parse(readFileSync(RULES, "utf8"));
+  const rules = JSON.parse(JSON.stringify(RULES_DATA));
   assertRules(rules);
   return rules;
 }
@@ -88,4 +86,4 @@ export function canonical(v) {
   if (v && typeof v === "object") return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}";
   return JSON.stringify(v);
 }
-export const rulesHash = (obj) => createHash("sha256").update(canonical(obj)).digest("hex");
+export const rulesHash = (obj) => sha256Hex(canonical(obj));
