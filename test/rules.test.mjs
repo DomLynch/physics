@@ -5,6 +5,15 @@ import { readFileSync } from "node:fs";
 import { validateRules, rulesHash, loadRules } from "../src/rules.mjs";
 import { lintNoBlock } from "../src/generate.mjs";
 
+test("pure-JS sha256 equals node:crypto (so the browser bundle needs no node built-ins)", async () => {
+  const { createHash } = await import("node:crypto");
+  const { sha256Hex } = await import("../src/sha256.mjs");
+  for (const s of ["", "abc", "a".repeat(55), "a".repeat(56), "a".repeat(64), "héllo wörld ⚔".repeat(40)]) {
+    assert.equal(sha256Hex(s), createHash("sha256").update(s).digest("hex"));
+  }
+  assert.ok(!/node:(fs|crypto)/.test(readFileSync(new URL("../src/rules.mjs", import.meta.url), "utf8")), "rules.mjs must stay browser-safe");
+});
+
 const raw = readFileSync(new URL("../data/rules.json", import.meta.url), "utf8");
 const fresh = () => JSON.parse(raw);
 
