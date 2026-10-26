@@ -8,20 +8,25 @@
 //   Dying / dead: after physics.step(), call rig.applyPose(): the bones follow the capsules (the animation no longer drives them).
 import { qmul, qconj, qrot } from "./math.mjs";
 
-export function createThreeRig(THREE, rd, bones, root) {
+// opts.bind = { bones, root }: the same part-id map and frame from an UNTOUCHED copy of the model (e.g. the loaded glTF scene before the animation mixer
+// touched it), when your live rig is already animated at the time you build the rig. Default: read the bind pose from `bones` and `root` themselves.
+export function createThreeRig(THREE, rd, bones, root, opts = {}) {
   const roles = rd.row.roles, n = roles.length;
-  const objs = roles.map((r) => {
-    const b = bones[r.id];
+  const pick = (map) => roles.map((r) => {
+    const b = map[r.id];
     if (!b) throw new Error("no bone for part " + r.id);
     return b;
   });
+  const objs = pick(bones), bindObjs = opts.bind ? pick(opts.bind.bones) : objs, bindRoot = opts.bind ? opts.bind.root : root;
   const wq = new THREE.Quaternion(), rq = new THREE.Quaternion(), tq = new THREE.Quaternion(), pq = new THREE.Quaternion(), v = new THREE.Vector3();
   const arr = (q) => [q.x, q.y, q.z, q.w];
   root.updateWorldMatrix(true, true);
   const rootQ = () => root.getWorldQuaternion(rq);
   // bind-pose orientation of every bone in the sim frame, and the offset that puts the bone's hips joint on the ragdoll's
-  const restQ = objs.map((b) => { root.updateWorldMatrix(true, false); return arr(rootQ().clone().invert().multiply(b.getWorldQuaternion(wq))); });
-  const bindHips = root.worldToLocal(objs[0].getWorldPosition(v.clone()));
+  bindRoot.updateWorldMatrix(true, true);
+  const bindRootQ = bindRoot.getWorldQuaternion(new THREE.Quaternion()).invert();
+  const restQ = bindObjs.map((b) => arr(bindRootQ.clone().multiply(b.getWorldQuaternion(wq))));
+  const bindHips = bindRoot.worldToLocal(bindObjs[0].getWorldPosition(v.clone()));
   const p0 = rd.readPose();
   const ragdollHips = [0, 1, 2].map((k) => roles[0].rest.pivot[k] + (p0[k] - roles[0].rest.centre[k]));
   const offset = [ragdollHips[0] - bindHips.x, ragdollHips[1] - bindHips.y, ragdollHips[2] - bindHips.z];
