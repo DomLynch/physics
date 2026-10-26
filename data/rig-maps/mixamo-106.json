@@ -1,0 +1,11 @@
+{
+  "schema": "rig-map/1",
+  "about": "Role joint -> node name on the 106-joint Mixamo rig (OpenTrident library bodies; Frankendom V3 psyche-106 / minotaur-106). The node names carry the 'mixamorig:' prefix. Used by tools/glb-measure.mjs only.",
+  "joints": {
+    "Hips": "mixamorig:Hips", "Spine": "mixamorig:Spine", "Spine1": "mixamorig:Spine1", "Spine2": "mixamorig:Spine2", "Neck": "mixamorig:Neck", "Head": "mixamorig:Head",
+    "LeftArm": "mixamorig:LeftArm", "LeftForeArm": "mixamorig:LeftForeArm", "LeftHand": "mixamorig:LeftHand",
+    "RightArm": "mixamorig:RightArm", "RightForeArm": "mixamorig:RightForeArm", "RightHand": "mixamorig:RightHand",
+    "LeftUpLeg": "mixamorig:LeftUpLeg", "LeftLeg": "mixamorig:LeftLeg", "LeftFoot": "mixamorig:LeftFoot", "LeftToeBase": "mixamorig:LeftToeBase",
+    "RightUpLeg": "mixamorig:RightUpLeg", "RightLeg": "mixamorig:RightLeg", "RightFoot": "mixamorig:RightFoot", "RightToeBase": "mixamorig:RightToeBase"
+  }
+}

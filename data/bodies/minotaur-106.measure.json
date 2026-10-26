@@ -1,0 +1,120 @@
+{
+ "id": "minotaur-106",
+ "source": "minotaur-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.7225,
+ "neck_len": 0.0994,
+ "torso_len": 0.4147,
+ "shoulder_w": 0.4238,
+ "upper_arm_len": 0.2362,
+ "forearm_len": 0.2523,
+ "thigh_len": 0.4311,
+ "shin_len": 0.3807,
+ "foot_len": 0.1975,
+ "chest_w": 0.4319,
+ "waist_w": 0.3984,
+ "hip_w": 0.3048,
+ "chest_d": 0.3368,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9562,
+   0.0688
+  ],
+  "Spine": [
+   0,
+   1.0581,
+   0.0502
+  ],
+  "Spine1": [
+   0,
+   1.1771,
+   0.0285
+  ],
+  "Spine2": [
+   0,
+   1.3131,
+   0.0037
+  ],
+  "Neck": [
+   0,
+   1.4661,
+   -0.0241
+  ],
+  "Head": [
+   0,
+   1.5545,
+   0.0213
+  ],
+  "LeftArm": [
+   0.2119,
+   1.4042,
+   -0.0242
+  ],
+  "LeftForeArm": [
+   0.4428,
+   1.3653,
+   -0.0555
+  ],
+  "LeftHand": [
+   0.6934,
+   1.3621,
+   -0.0259
+  ],
+  "RightArm": [
+   -0.2119,
+   1.4042,
+   -0.0241
+  ],
+  "RightForeArm": [
+   -0.4428,
+   1.3653,
+   -0.0543
+  ],
+  "RightHand": [
+   -0.6934,
+   1.3621,
+   -0.0259
+  ],
+  "LeftUpLeg": [
+   0.0888,
+   0.8994,
+   0.0553
+  ],
+  "LeftLeg": [
+   0.1311,
+   0.4716,
+   0.0243
+  ],
+  "LeftFoot": [
+   0.1443,
+   0.0944,
+   -0.0259
+  ],
+  "LeftToeBase": [
+   0.1812,
+   0,
+   0.1414
+  ],
+  "RightUpLeg": [
+   -0.0888,
+   0.8994,
+   0.0569
+  ],
+  "RightLeg": [
+   -0.1311,
+   0.4716,
+   0.0224
+  ],
+  "RightFoot": [
+   -0.1443,
+   0.0944,
+   -0.0276
+  ],
+  "RightToeBase": [
+   -0.1812,
+   0,
+   0.1442
+  ]
+ }
+}
