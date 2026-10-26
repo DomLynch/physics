@@ -1,0 +1,35 @@
+{
+  "schema": "physics-state-rows/1",
+  "about": "M3 state runners: death ramp, stagger dip, knockdown. Every number names its source. Start values from donor games, to be retuned on OUR clips before they are final (BRIEF: template layer only).",
+  "death": {
+    "ramp": { "from": "current", "to": 0.01, "seconds": 1.0 },
+    "limp_damper": 2.0,
+    "joint_limits_on": true,
+    "self_collision_on": true,
+    "hit_impulse_same_tick": true,
+    "freeze_speed_sq": 0.02,
+    "freeze_ticks_below": 4,
+    "source": "Hellish Quart PuppetMaster stateSettings: killDuration 1, deadMuscleWeight 0.01, deadMuscleDamper 2, maxFreezeSqrVelocity 0.02 (docs/parts-lab/combat-physics-comparison-three-games.md; Strategy M3). The squared-speed unit is the brief's; the freeze check sums the squared linear speed of each body."
+  },
+  "stagger": {
+    "ease_in_s": 0.05,
+    "hold_s": 0.5,
+    "up_s": 0.35,
+    "ease_in_source": "own: HQ drops the weights at once; 0.05 s (3 ticks) avoids a one-tick pop",
+    "hold_up_source": "Hellish Quart PuppetMasterWeightsFSM 'toGetHit': lower the muscles, hold 0.5 s, FloatInterpolate 0.35 s back up (BRIEF M3 'strength down for 0.5 s, back over 0.35 s')",
+    "targets": {
+      "arm": 0.9, "forearm": 0.6, "hand": 0.12,
+      "spine": 0.6, "spine1": 0.6, "spine2": 0.6, "neck": 0.6, "head": 0.6,
+      "thigh": 0.6, "shin": 0.6, "foot": 0.6, "toe": 0.6
+    },
+    "targets_source": "BRIEF M3 'arm 0.9 / torso 0.6 / 0.12' read as HQ HandMuscleWeakener muscle weights arm 0.9 / forearm 0.6 / hand 0.12 for the arm chain, torso and legs at the torso value 0.6 (own reading of the ambiguous '0.12'); retune on our clips"
+  },
+  "knockdown": {
+    "damage_over": { "value": 60, "fall_s": 0.2 },
+    "push_over": { "value": 80, "fall_s": 0.5 },
+    "down_s": 2.0,
+    "recover_per_s": 0.3,
+    "fall_strength": 0.1,
+    "source": "TABG RagdollHandler.Fall: damage over 60 falls 0.2 s, push force over 80 falls 0.5 s, down 2 s, recovery 0.3 per second (docs/parts-lab/combat-physics-comparison-five-games.md, B5). fall_strength 0.1 is the 'fall' state of stiffness_by_state in the role table (own). Counter-based thresholds (60 of 120) are M4 rows."
+  }
+}

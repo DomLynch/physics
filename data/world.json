@@ -1,0 +1,23 @@
+{
+  "schema": "physics-world-rows/1",
+  "about": "Every number the world uses. Nothing is hard-coded in src/. Each row names its source.",
+  "tick_hz": 60,
+  "tick_source": "Frankendom V3 fixed 60 Hz sim (docs/BRIEF.md: standing ragdolls at 60)",
+  "gravity_m_s2": -9.81,
+  "velocity_iterations": 6,
+  "velocity_iterations_source": "BRIEF: 6 iterations (Gladio steps 6; M1 bake-off used 6)",
+  "collision_substeps": { "standing": 1, "cut_or_thrown": 2 },
+  "collision_substeps_source": "BRIEF: 120 Hz substep only for thrown weapons and cuts, standing ragdolls at 60. 2 substeps per 60 Hz tick = 120 Hz.",
+  "cut_high_rate_ticks": 120,
+  "cut_high_rate_ticks_source": "own: 2 s of 120 Hz after a cut, so the falling piece does not tunnel; tune on clips",
+  "floor": { "half_extent_m": 50, "friction": 0.8, "source": "M1 bake-off scene.mjs / adapters.mjs" },
+  "body": { "friction": 0.8, "linear_damping": 0.05, "angular_damping": 0.2, "source": "M1 bake-off adapters.mjs" },
+  "motor": {
+    "limp_strength_at_or_below": 0.011,
+    "limp_damper_multiplier": 2.0,
+    "limp_damper_scale": 0.1,
+    "limp_source": "M1 adapters.mjs: damper = C x 0.1 x 2 at strength <= 0.01 (approximation of Hellish Quart's damper 2; the unit systems differ)"
+  },
+  "max_dt_ticks_per_step": 4,
+  "max_dt_source": "own: step(dt) never runs more than 4 fixed ticks per call, so a stalled tab cannot spiral"
+}

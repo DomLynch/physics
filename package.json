@@ -1,0 +1,22 @@
+{
+  "name": "@frankendom/physics",
+  "version": "0.1.0",
+  "description": "Shared combat physics for Dom's games: Jolt (WASM), deterministic fixed step, ragdolls from body measure rows. Same module on the phone and headless in Node.",
+  "type": "module",
+  "license": "MIT",
+  "main": "src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./data/*": "./data/*"
+  },
+  "files": ["src", "data", "docs"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:determinism": "node --test test/determinism.test.mjs",
+    "test:budget": "node --test test/budget.test.mjs"
+  },
+  "dependencies": {
+    "jolt-physics": "1.1.1"
+  }
+}

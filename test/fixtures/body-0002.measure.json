@@ -1,0 +1,15 @@
+{
+  "id": "mh-gen-v2-0002",
+  "source": "opentrident-steam docs/parts-lab/physics/ragdoll-rows/measure-inputs/gen50-measure.json:mh-gen-v2-0002 (OpenTrident M2 measure row)",
+  "height_m": 1.5583, "neck_len": 0.051, "torso_len": 0.4533, "shoulder_w": 0.3663, "upper_arm_len": 0.2186, "forearm_len": 0.2271,
+  "thigh_len": 0.3451, "shin_len": 0.3857, "foot_len": 0.1316, "upper_arm_r": 0.07, "forearm_r": 0.0418, "thigh_r": 0.0862, "shin_r": 0.0753,
+  "chest_w": 0.3732, "chest_d": 0.2917, "waist_w": 0.3442, "hip_w": 0.3378,
+  "joints": {
+    "Hips": [0.0004, 0.8229, 0.0136], "Spine": [0.0, 0.9107, 0.0271], "Spine1": [0.0, 0.9833, 0.0251], "Spine2": [0.0, 1.0976, -0.0342],
+    "Neck": [0.0, 1.276, 0.0263], "Head": [0.0037, 1.3215, 0.0491],
+    "LeftArm": [0.1831, 1.1796, 0.0309], "LeftForeArm": [0.3273, 1.0152, 0.0294], "LeftHand": [0.4428, 0.9058, 0.1914],
+    "RightArm": [-0.1831, 1.1796, 0.0309], "RightForeArm": [-0.3273, 1.0152, 0.0294], "RightHand": [-0.4428, 0.9058, 0.1914],
+    "LeftUpLeg": [0.0984, 0.7872, -0.0085], "LeftLeg": [0.1348, 0.4459, 0.0274], "LeftFoot": [0.177, 0.0628, 0.0111], "LeftToeBase": [0.1748, 0.0267, 0.1376],
+    "RightUpLeg": [-0.0984, 0.7872, -0.0085], "RightLeg": [-0.1348, 0.4459, 0.0274], "RightFoot": [-0.177, 0.0628, 0.0111], "RightToeBase": [-0.1748, 0.0267, 0.1376]
+  }
+}
