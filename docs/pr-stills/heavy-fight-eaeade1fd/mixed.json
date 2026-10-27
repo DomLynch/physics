@@ -1,0 +1,246 @@
+{
+ "harness": "light-only-end.mjs",
+ "base": "https://v3.frankendom.com",
+ "query": "default (m4)",
+ "key": "KeyF",
+ "alt": null,
+ "heroToppedUp": "HERO ONLY (health+stamina every tick); foe never written",
+ "probe": {
+  "duelKeys": [
+   "tick",
+   "fighters",
+   "finish",
+   "events",
+   "bands",
+   "radius"
+  ],
+  "foeKeys": [
+   "weapon",
+   "rig",
+   "scale",
+   "poise",
+   "regen",
+   "speed",
+   "body",
+   "health",
+   "maxHealth",
+   "stamina",
+   "rest",
+   "exhausted",
+   "mana",
+   "maxMana",
+   "wound",
+   "woundSite",
+   "phase",
+   "age",
+   "move",
+   "chained",
+   "landed",
+   "chain",
+   "lastMove",
+   "parryCooldown",
+   "punish",
+   "stun",
+   "posture",
+   "critical",
+   "guardDirection",
+   "parrying",
+   "exposed",
+   "evaded",
+   "counterWindow",
+   "charge",
+   "charged",
+   "buffer",
+   "postureRest",
+   "maxStamina",
+   "legWound",
+   "attackFrom",
+   "stall",
+   "loiter",
+   "lashed",
+   "skill",
+   "skillCooldown",
+   "sheet",
+   "oid",
+   "specialShare"
+  ],
+  "foeHealth": 137,
+  "foeMax": 137,
+  "foeStamina": 100,
+  "foeMaxStamina": 100,
+  "foePhase": "ready",
+  "rig": "hero",
+  "weapon": "cleaver",
+  "heroWeapon": "longsword"
+ },
+ "counterPresses": 0,
+ "counterPhaseWaitedTicks": 0,
+ "counterEnd": {
+  "tick": 1,
+  "foeHealth": 137,
+  "hits": 0
+ },
+ "followSwings": 4,
+ "totalTicks": 509,
+ "end": null,
+ "afterEnd": null,
+ "ragdollStateTicks": {
+  "alive": 405,
+  "stagger": 104
+ },
+ "foeFinal": {
+  "health": 130,
+  "max": 137,
+  "fraction": 0.9489,
+  "parts": {
+   "head": 1,
+   "torso": 0.25551254518784455,
+   "arm_left": 1,
+   "arm_right": 1,
+   "leg_left": 1,
+   "leg_right": 1
+  },
+  "ragdoll": "alive",
+  "phase": "attack",
+  "stamina": 7.599999999999866
+ },
+ "hitCount": 2,
+ "rulesFinal": {
+  "hits": 2,
+  "byOutcome": {
+   "hit": 1,
+   "stick": 1
+  },
+  "deferredKills": 0,
+  "renewals": 0,
+  "cuts": []
+ },
+ "swings": [
+  {
+   "n": 1,
+   "kind": "seq",
+   "key": "KeyF",
+   "startTick": 301,
+   "endTick": 354,
+   "hitsLanded": 1,
+   "foeHealth": 134,
+   "foeFrac": 0.9781,
+   "parts": {
+    "head": 1,
+    "torso": 0.8226691799056294,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "stagger"
+  },
+  {
+   "n": 2,
+   "kind": "seq",
+   "key": "KeyF",
+   "startTick": 354,
+   "endTick": 396,
+   "hitsLanded": 0,
+   "foeHealth": 134,
+   "foeFrac": 0.9781,
+   "parts": {
+    "head": 1,
+    "torso": 0.8226691799056294,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 3,
+   "kind": "seq",
+   "key": "KeyG",
+   "startTick": 396,
+   "endTick": 463,
+   "hitsLanded": 1,
+   "foeHealth": 130,
+   "foeFrac": 0.9489,
+   "parts": {
+    "head": 1,
+    "torso": 0.25551254518784455,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "stagger"
+  },
+  {
+   "n": 4,
+   "kind": "seq",
+   "key": "KeyF",
+   "startTick": 463,
+   "endTick": 509,
+   "hitsLanded": 0,
+   "foeHealth": 130,
+   "foeFrac": 0.9489,
+   "parts": {
+    "head": 1,
+    "torso": 0.25551254518784455,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  }
+ ],
+ "hits": [
+  {
+   "tick": 324,
+   "move": "light_right",
+   "loc": "torso",
+   "counterFlag": false,
+   "foeHealth": 134,
+   "foeMax": 137,
+   "foeFrac": 0.9781,
+   "foeStamina": 64.7,
+   "parts": {
+    "head": 1,
+    "torso": 0.8226691799056294,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "stagger",
+   "foePhase": "ready",
+   "gap": 0.89,
+   "rules": {
+    "swing": "light",
+    "counter": false,
+    "zone": "torso",
+    "speed": 6.02,
+    "outcome": "hit",
+    "damage": 4.26,
+    "part": "torso",
+    "partHpAfter": 19.74,
+    "action": "stagger",
+    "deferredKill": false
+   }
+  },
+  {
+   "tick": 463,
+   "orphanRule": {
+    "swing": "heavy",
+    "counter": false,
+    "zone": "torso",
+    "speed": 4.01,
+    "outcome": "stick",
+    "damage": 13.61,
+    "part": "torso",
+    "partHpAfter": 6.13,
+    "action": "stagger",
+    "deferredKill": false
+   }
+  }
+ ]
+}
