@@ -1,0 +1,21 @@
+{"query":"","N":"20","swingsWithHit":18,"falls":6,"maxdropAll":202,"rules":{"hits":14,"byOutcome":{"stick":11,"knockdown":2,"kill":1}}}
+{"a":0,"ro":"","states":"alive","maxdrop":28,"ev":""}
+{"a":1,"ro":"","states":"alive","maxdrop":27,"ev":""}
+{"a":2,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->62.388240766773166 act=stagger","states":"alive|stagger","maxdrop":50,"ev":"32:Hit:heavy_overhead@torso"}
+{"a":3,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->48.77648153354633 act=stagger","states":"alive|stagger","maxdrop":74,"ev":"32:Hit:heavy_overhead@torso 68:Hit:heavy_overhead@torso 68:Staggered"}
+{"a":4,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->35.1647223003195 act=stagger","states":"alive|stagger","maxdrop":40,"ev":"40:Hit:heavy_overhead@torso"}
+{"a":5,"ro":"heavy@4.0m/s legs:stick dmg10.208819424920126 leg_left->65.79118057507988 act=stagger","states":"stagger|alive","maxdrop":21,"ev":"31:Hit:heavy_overhead@legs 31:PostureBroken"}
+{"a":6,"ro":"heavy@4.0m/s legs:knockdown dmg10.208819424920126 leg_left->55.582361150159755 act=knockdown","states":"alive|knockdown","maxdrop":165,"ev":"19:Hit:critical@legs"}
+{"a":7,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->21.552963067092662 act=stagger","states":"knockdown|alive","maxdrop":202,"ev":"31:Hit:heavy_overhead@torso"}
+{"a":8,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->7.941203833865826 act=stagger","states":"alive|stagger","maxdrop":57,"ev":"32:Hit:heavy_overhead@torso"}
+{"a":9,"ro":"heavy@4.0m/s torso:kill dmg13.611759233226836 torso->0 act=knockdown(deferredKill)","states":"alive|knockdown","maxdrop":137,"ev":"31:Hit:heavy_overhead@torso 83:Hit:light_right@torso 83:Staggered"}
+{"a":10,"ro":"","states":"knockdown|alive","maxdrop":137,"ev":"46:Hit:light_left@torso 46:Staggered"}
+{"a":11,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->62.388240766773166 act=stagger","states":"alive|stagger","maxdrop":44,"ev":"31:Hit:heavy_overhead@torso 54:Hit:light_right@torso 54:Staggered"}
+{"a":12,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->48.77648153354633 act=stagger","states":"alive|stagger","maxdrop":39,"ev":"35:Hit:heavy_overhead@torso 35:PostureBroken"}
+{"a":13,"ro":"heavy@4.2m/s legs:stick dmg10.571408463738436 leg_left->65.42859153626156 act=stagger","states":"alive|stagger","maxdrop":23,"ev":"20:Hit:critical@legs"}
+{"a":14,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->35.1647223003195 act=stagger","states":"alive|stagger","maxdrop":46,"ev":"31:Hit:heavy_overhead@torso 32:Hit:heavy_overhead@torso"}
+{"a":15,"ro":"heavy@4.0m/s torso:knockdown dmg13.611759233226836 torso->21.552963067092662 act=knockdown","states":"alive|knockdown","maxdrop":143,"ev":"31:Hit:heavy_overhead@torso 54:Hit:light_left@torso 54:Staggered"}
+{"a":16,"ro":"","states":"knockdown|alive","maxdrop":137,"ev":"15:Hit:light_right@torso 15:Staggered 16:Hit:light_right@torso 16:Staggered 83:Hit:light_left@torso 83:Staggered 83:PostureBroken"}
+{"a":17,"ro":"","states":"alive","maxdrop":49,"ev":"50:Hit:critical@legs 50:Staggered"}
+{"a":18,"ro":"","states":"alive","maxdrop":34,"ev":"16:Hit:light_right@torso 16:Staggered"}
+{"a":19,"ro":"heavy@4.0m/s torso:stick dmg13.611759233226836 torso->7.941203833865826 act=stagger","states":"alive|stagger","maxdrop":36,"ev":"32:Hit:heavy_overhead@torso"}

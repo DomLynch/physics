@@ -1,0 +1,142 @@
+[
+ {
+  "a": 0,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 29,
+  "ev": ""
+ },
+ {
+  "a": 1,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 29,
+  "ev": ""
+ },
+ {
+  "a": 2,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 50,
+  "ev": "19:Hit:light_right@torso"
+ },
+ {
+  "a": 3,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 69,
+  "ev": "19:Hit:light_left@torso 55:Hit:heavy_overhead@torso 55:Staggered"
+ },
+ {
+  "a": 4,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 42,
+  "ev": "20:Hit:light_right@torso 57:Hit:heavy_overhead@torso 57:Staggered"
+ },
+ {
+  "a": 5,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 58,
+  "ev": "19:Hit:light_left@torso"
+ },
+ {
+  "a": 6,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 44,
+  "ev": "20:Hit:light_right@torso"
+ },
+ {
+  "a": 7,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 49,
+  "ev": "20:Hit:light_left@torso"
+ },
+ {
+  "a": 8,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 48,
+  "ev": "20:Hit:light_right@torso 20:PostureBroken"
+ },
+ {
+  "a": 9,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 28,
+  "ev": "12:Hit:slash_riposte@torso"
+ },
+ {
+  "a": 10,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 36,
+  "ev": "19:Hit:light_right@torso 68:Hit:light_right@torso 68:Staggered"
+ },
+ {
+  "a": 11,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 34,
+  "ev": "24:Hit:light_left@torso 24:Staggered"
+ },
+ {
+  "a": 12,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 41,
+  "ev": "20:Hit:light_right@torso"
+ },
+ {
+  "a": 13,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 47,
+  "ev": "25:Hit:light_left@torso 77:Hit:light_right@torso 77:Staggered"
+ },
+ {
+  "a": 14,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 35,
+  "ev": "40:Hit:light_left@torso 40:Staggered"
+ },
+ {
+  "a": 15,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 37,
+  "ev": "20:Hit:light_right@torso 58:Hit:light_right@torso 58:Staggered"
+ },
+ {
+  "a": 16,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 33,
+  "ev": "20:Hit:light_left@torso 20:Staggered"
+ },
+ {
+  "a": 17,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 52,
+  "ev": "19:Hit:light_right@torso"
+ },
+ {
+  "a": 18,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 51,
+  "ev": "19:Hit:light_left@torso 19:PostureBroken"
+ },
+ {
+  "a": 19,
+  "ro": "",
+  "states": "alive|stagger",
+  "maxdrop": 37,
+  "ev": "11:Hit:slash_riposte@torso 12:Hit:slash_riposte@torso"
+ }
+]

@@ -1,0 +1,142 @@
+[
+ {
+  "a": 0,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 29,
+  "ev": ""
+ },
+ {
+  "a": 1,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 29,
+  "ev": ""
+ },
+ {
+  "a": 2,
+  "ro": "light@5.6m/s torso:hit dmg9.984129982774377 torso->66.01587001722562 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 52,
+  "ev": "20:Hit:light_right@torso"
+ },
+ {
+  "a": 3,
+  "ro": "light@6.8m/s torso:kill dmg21.08229377282671 torso->0 act=stagger(deferredKill)",
+  "states": "alive|stagger",
+  "maxdrop": 34,
+  "ev": "19:Hit:light_left@torso 19:Staggered"
+ },
+ {
+  "a": 4,
+  "ro": "light@6.0m/s torso:hit dmg10.642994404282591 torso->65.35700559571741 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 38,
+  "ev": "20:Hit:light_right@torso 70:Hit:heavy_overhead@torso 70:Staggered 71:Hit:heavy_overhead@torso 71:Staggered"
+ },
+ {
+  "a": 5,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 36,
+  "ev": "58:Hit:heavy_overhead@torso 58:Staggered"
+ },
+ {
+  "a": 6,
+  "ro": "light@6.8m/s torso:stick dmg12.057799257481031 torso->53.29920633823638 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 52,
+  "ev": "20:Hit:light_left@torso"
+ },
+ {
+  "a": 7,
+  "ro": "light@6.0m/s torso:hit dmg10.64642334339049 torso->42.65278299484589 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 38,
+  "ev": "20:Hit:light_right@torso"
+ },
+ {
+  "a": 8,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 38,
+  "ev": "19:Blocked:light_left 49:Hit:heavy_counter@legs 49:Staggered"
+ },
+ {
+  "a": 9,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 37,
+  "ev": "20:Hit:light_right@torso 20:Staggered 20:PostureBroken 76:Hit:critical@legs 76:Staggered"
+ },
+ {
+  "a": 10,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 44,
+  "ev": ""
+ },
+ {
+  "a": 11,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 121,
+  "ev": ""
+ },
+ {
+  "a": 12,
+  "ro": "light@6.0m/s torso:hit dmg10.639873054701194 torso->32.012909940144695 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 42,
+  "ev": "20:Hit:light_right@torso"
+ },
+ {
+  "a": 13,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 44,
+  "ev": "25:Blocked:light_left"
+ },
+ {
+  "a": 14,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 45,
+  "ev": "20:Blocked:light_right 42:Hit:heavy_counter@legs 42:Staggered"
+ },
+ {
+  "a": 15,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 35,
+  "ev": "13:Hit:light_right@torso 13:Staggered 14:Hit:light_right@torso 14:Staggered 66:Hit:light_left@torso 66:Staggered 66:PostureBroken"
+ },
+ {
+  "a": 16,
+  "ro": "",
+  "states": "alive",
+  "maxdrop": 37,
+  "ev": "28:Hit:critical@legs 28:Staggered"
+ },
+ {
+  "a": 17,
+  "ro": "light@6.0m/s torso:hit dmg10.642340937226773 torso->21.37056900291792 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 40,
+  "ev": "19:Hit:light_right@torso"
+ },
+ {
+  "a": 18,
+  "ro": "light@6.8m/s torso:knockdown dmg12.048808499385085 torso->9.321760503532836 act=stagger",
+  "states": "alive|stagger",
+  "maxdrop": 51,
+  "ev": "20:Hit:light_left@torso"
+ },
+ {
+  "a": 19,
+  "ro": "light@6.0m/s torso:kill dmg10.64606366558632 torso->0 act=stagger(deferredKill)",
+  "states": "alive|stagger",
+  "maxdrop": 51,
+  "ev": ""
+ }
+]

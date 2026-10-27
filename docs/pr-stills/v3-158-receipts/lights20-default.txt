@@ -1,0 +1,5 @@
+{"query":"","N":"20","swingsWithHit":14,"falls":0,"maxdropAll":121,"rules":{"hits":9,"byOutcome":{"hit":5,"kill":2,"stick":1,"knockdown":1}}}
+
+real	8m19.427s
+user	0m13.712s
+sys	0m5.084s
