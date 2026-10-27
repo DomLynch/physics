@@ -1,0 +1,403 @@
+{
+ "schema": "m4-swing-sample/1",
+ "about": "Hand-end speed peaks (m/s) of the swings behind the M4 rungs. fight_dump = V3 recorded Minotaur fight on the 65 rig (12 swings, class by run duration, a proxy); clip_106 = the Mixamo melee clips baked in the 106-rig body GLBs, class from the clip label (Attack, Riposte, Cut_Outward(+Mirror), Stab = light; Heavy, Heavy_Gladius = heavy; Skill_* = special, kept apart). Same run detector for both (tools/tip-speed.mjs and tools/clip-swings.mjs: start 2.0 m/s, gap 0.15 s, 3-tick window, pose snaps excluded).",
+ "arm_reach_m": {
+  "fight_dump": 0.563382455475694,
+  "psyche-106": 0.5869902684679277,
+  "minotaur-106": 0.5998434871681411
+ },
+ "swings": [
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 5.252
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 12.014
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "heavy",
+   "side": "Left",
+   "peak_m_s": 9.079
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 12.202
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 7.848
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 8.694
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 2.948
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 11.316
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 6.248
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 3.87
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "heavy",
+   "side": "Left",
+   "peak_m_s": 13.094
+  },
+  {
+   "source": "fight_dump",
+   "body": "minotaur",
+   "clip": null,
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 6.953
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 6.357
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 11.591
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 3.712
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 2.029
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Heavy",
+   "class": "heavy",
+   "side": "Left",
+   "peak_m_s": 6.067
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Heavy",
+   "class": "heavy",
+   "side": "Left",
+   "peak_m_s": 2.182
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Heavy",
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 5.784
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Heavy",
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 2.363
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Riposte",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 8.383
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Riposte",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 2.012
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Riposte",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 6.026
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Riposte",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 10.257
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Riposte",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 2.103
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_WitchArm",
+   "class": "special",
+   "side": "Left",
+   "peak_m_s": 4.969
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_WitchArm",
+   "class": "special",
+   "side": "Left",
+   "peak_m_s": 7.084
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_WitchArm",
+   "class": "special",
+   "side": "Right",
+   "peak_m_s": 4.811
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_WitchArm",
+   "class": "special",
+   "side": "Right",
+   "peak_m_s": 6.215
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_WitchArm",
+   "class": "special",
+   "side": "Right",
+   "peak_m_s": 2.077
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_Pommel",
+   "class": "special",
+   "side": "Left",
+   "peak_m_s": 2.651
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_Pommel",
+   "class": "special",
+   "side": "Left",
+   "peak_m_s": 5.969
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_Pommel",
+   "class": "special",
+   "side": "Right",
+   "peak_m_s": 3.844
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Skill_Pommel",
+   "class": "special",
+   "side": "Right",
+   "peak_m_s": 10.041
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Cut_Outward",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 5.429
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Cut_Outward",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 3.035
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Cut_Outward",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 10.837
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Cut_OutwardMirror",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 2.752
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Cut_OutwardMirror",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 2.294
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Cut_OutwardMirror",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 10.014
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Stab",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 2.394
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Stab",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 7.59
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Heavy_Gladius",
+   "class": "heavy",
+   "side": "Left",
+   "peak_m_s": 3.507
+  },
+  {
+   "source": "clip_106",
+   "body": "psyche-106",
+   "clip": "Heavy_Gladius",
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 11.586
+  },
+  {
+   "source": "clip_106",
+   "body": "minotaur-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 10.73
+  },
+  {
+   "source": "clip_106",
+   "body": "minotaur-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 2.332
+  },
+  {
+   "source": "clip_106",
+   "body": "minotaur-106",
+   "clip": "Attack",
+   "class": "light",
+   "side": "Right",
+   "peak_m_s": 5.531
+  },
+  {
+   "source": "clip_106",
+   "body": "minotaur-106",
+   "clip": "Heavy",
+   "class": "heavy",
+   "side": "Right",
+   "peak_m_s": 5.844
+  },
+  {
+   "source": "clip_106",
+   "body": "minotaur-106",
+   "clip": "Riposte",
+   "class": "light",
+   "side": "Left",
+   "peak_m_s": 6.978
+  }
+ ]
+}

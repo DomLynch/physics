@@ -126,4 +126,40 @@ Open points to hand back to Strategy:
 2. **Long weapons stay honest.** A claymore light swing cutting cloth is the point of a claymore. The balance lever is the weapon row (stamina cost, wind-up ticks, recovery), not a fake threshold or a lower lever.
 3. **Thin margins are accepted while pinned by tests; each one is a deliberate ruling if it moves.** Pinned today (tests in `test/calibration.test.mjs`): heavy on mail 1.02 of the cut line (cuts); light + counter-hit on mail 0.93 (sticks); heavy + counter-hit on plate_t3 1.07 (cuts); light on cloth 0.76 (sticks, never cuts). Moving a rung (`strength_scale`), `heavy_mult` 1.92 or `counter_hit_mult` 1.75 flips these, so a change needs a ruling and the test changed in the same PR.
 
-- Not measured: Mixamo and Hellish Quart library clips (on the donor store, not on this machine), special swings (no labels), counter-hit speeds, a real weapon tip.
+- Not measured (as of the first table; section 6 widens it): Mixamo and Hellish Quart library clips (on the donor store, not on this machine), special swings (no labels), counter-hit speeds, a real weapon tip.
+
+## 6. Widened sample (2026-10-27, 106 rig): derivation, nothing re-pinned
+
+Strategy ruling 1 above asked for the 12-swing table to be widened with V3's 106 clips. Tools: `tools/clip-swings.mjs` (hand-end speed of every melee clip baked in a 106 body GLB, same run detector as `tools/tip-speed.mjs`, rig map `data/rig-maps/mixamo-106.json`, hand end = the hand's Middle1 joint) and `tools/swing-sample.mjs` (merges them with the dump table into `data/m4-swing-sample.json`, derives the rungs; `node tools/swing-sample.mjs` prints the numbers below). Test: `test/calibration-sample.test.mjs`. The GLBs are read locally; the committed sample holds numbers and clip names only.
+
+```
+node tools/tip-speed.mjs ~/Developer/frankendom-v3/docs/ragdoll-fight-poses.json data/bodies/minotaur.measure.json --json /tmp/dump.json
+node tools/clip-swings.mjs ~/Developer/frankendom-v3/src/assets/psyche-106.glb data/rig-maps/mixamo-106.json /tmp/psyche.json
+node tools/clip-swings.mjs ~/Developer/frankendom-v3/src/assets/minotaur-106.glb data/rig-maps/mixamo-106.json /tmp/minotaur.json
+node tools/swing-sample.mjs /tmp/dump.json /tmp/psyche.json /tmp/minotaur.json
+```
+
+Sample: 12 fight-dump swings (Minotaur, 65 rig) + 23 Psyche-106 clip swings + 5 Minotaur-106 clip swings = **40** (9 more Psyche `Skill_*` swings kept apart as special). Clips read: Attack, Riposte, Cut_Outward, Cut_OutwardMirror, Stab (light), Heavy, Heavy_Gladius (heavy), Skill_WitchArm, Skill_Pommel (special). Light / heavy now come from the clip label, not from run duration. The Minotaur-106 GLB carries only Attack, Heavy and Riposte of these (no Stab, Cut_Outward, Heavy_Gladius, Skill_*).
+
+| hand m/s | n | p10 | p50 | p90 |
+|---|---|---|---|---|
+| 12-swing dump (the pins) | 12 | 4.01 | 8.27 | 12.18 |
+| 106 clips only | 28 | 2.16 | 5.66 | 10.76 |
+| **all 40** | 40 | 2.28 | 6.05 | 11.59 |
+| all, peaks >= 3 m/s (sensitivity) | 30 | 3.85 | 7.28 | 11.63 |
+
+Rungs from them (percentile x baseline lever 1.992) against the pins. Rule used: re-pin only when the wider sample moves a rung by more than 10 percent.
+
+| rung | pin | all 40 | change | peaks >= 3 | change |
+|---|---|---|---|---|---|
+| `rung_hit` (p10) | 8.0 | 4.5 | -43% | 7.7 | -4% |
+| `rung_stick` (p50) | 16.5 | 12.0 | -27% | 14.5 | -12% |
+| `rung_cut` (p90) | 24.3 | 23.1 | **-5%** | 23.2 | -5% |
+
+**Decision: no rung re-pinned, `rules.json` untouched, so no hit or cut outcome changes.** The cut rung (p90, the one that decides cuts) holds within 5 percent. Hit and stick fall outside 10 percent only on the all-40 method, and the whole shift is the bottom of the sample: 9 of the 28 clip runs peak under 3 m/s (a clip's first or last frames, a hand drifting, not a swing). Taking them in would put `rung_hit` below the speed gate (4.5 against `min_speed_m_s` 8.0) and turn a typical light swing (tip 12.5) from a hit into a stick on every armour tier, which is not what ruling 1 asked for. Leaving them out puts hit within 4 percent and stick 12 percent under its pin. That candidate (hit 7.7, stick 14.5, cut 23.2) keeps every pinned behaviour row (light typical hits, light full speed sticks, heavy cuts mail) and moves two thin margins: heavy on mail 1.02 to 1.07, and light + counter-hit on mail 0.93 to 0.98 (still a stick, 2 percent from a cut). That is a Strategy call, so it is stated, not applied.
+
+Other findings:
+- **`heavy_mult` 1.92 is neither supported nor contradicted by clips.** Labelled Heavy clips are not faster than light ones at the hand (heavy / light p50 = 1.13 over 12 heavy and 28 light swings; the 1.92 was a duration proxy). The multiplier stands for the charge, a game mechanic, so it stays a proxy value; re-measure on recorded charged swings, not on library clips.
+- **`counter_hit_mult` 1.75 is still `own`.** The library has no counter-hit swing (Hit, BlockImpact, Deflected are the victim's reactions); it needs a recorded fight with counter-hit events.
+- **Arm reach differs per body.** The pins use 0.5634 m (Minotaur, 65 rig). On the 106 bodies, same hand-end definition: Psyche 0.587 m, Minotaur 0.600 m (baseline lever 1.952 and 1.932, 2 and 3 percent under 1.992). `evaluateHit` takes `armReachM`; a V3 wire that passes the body's reach gets a slightly lower tip speed than the tables above.
+- **Library speed is not game speed.** V3 eases each clip so its contact key meets the move's contact tick (`data/hero-clips.json`), so raw clip peaks are not play speed. The fight dump is play; re-measure on a 106-rig fight dump when V3 records one.
