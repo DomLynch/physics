@@ -31,12 +31,10 @@
     },
     {
       "name": "veteran-65",
-      "source": "v3/veteran.glb",
+      "source": "v3/veteran-cutsrc.glb",
       "rig_map": "data/rig-maps/v1-65.json",
       "measure": "data/bodies/veteran.measure.json",
-      "note": "the Centurion",
-      "blocked_checks": ["watertight", "orientation"],
-      "blocked": "the body mesh CreatureBody (47,360 vertices) is a non-manifold sculpt: the source already has 2,003 open and 1,765 over-used edges and 49 flipped-winding edges (cut-validate --self), six skinned meshes overlap each other, and the section loops through them are tangled (117 loops, 38 holes, 44 forced ears, 50 inward cap triangles). The cut then introduces open edges (watertight: 6 root, 14 torso, 12 head, 2+2 legs, 15 + 2 + 3 + 2 over-used) and 1,054 flipped-winding edges in piece_root (orientation). The cut is geometrically complete (conservation, weights, bone side, planes, caps all PASS). Needs a cleaned body mesh (merge the overlapping shells, fix the non-manifold edges) before the caps can close."
+      "note": "the Centurion, cut from a cleaned copy of V3's veteran.glb (tools/cut-source-repair.mjs, docs/CUT-SOURCE-REPAIR.md)"
     },
     {
       "name": "minotaur-65",
