@@ -27,7 +27,7 @@ test("each outcome is reachable from a table of hits", () => {
     ["stick", { tipSpeed: tipFor(S.rung_stick + 1, "stab"), kind: "stab", zone: "arm_off" }, "stick"],
     ["cut", { tipSpeed: tipFor(S.rung_cut * 1.05), zone: "arm_off" }, "cut"],
     ["knockdown (push force)", { kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "legs", side: "right", force: rules.knockdown.push_force_over + 1 }, "knockdown"],
-    // a kill from full budget needs a heavy swing (evaluator.kill.light_floor_pct: a light swing leaves the head at its floor; test/light-kill-guard.test.mjs)
+    // a light swing deals evaluator.kill.light_damage_mult x damage on the head, so it does not kill a full budget (test/cumulative-damage.test.mjs)
     ["kill (head budget)", { kind: "stab", tipSpeed: 30, zone: "head", swing: "heavy" }, "kill"],
   ];
   for (const [name, h, want] of table) {
