@@ -7,6 +7,7 @@
 // Not modelled: the animated hand-bone speed (browser only): handSpeed is null, so the evaluator input is the data row `handSpeedRef` (light_p50), as on a stopped-clock page.
 // Top-ups: the HERO only (health, stamina every tick). The foe is never written.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import * as pkg from '@frankendom/physics';
 import { initialDuel, stepDuel, idleIntent } from '../src/fight/duel.ts';
 import { initialPractice, stepPractice } from '../src/fight/combat.ts';
@@ -57,8 +58,10 @@ function run({ name, swing, foe, press }) {
   const fin = duel.fighters[1];
   const res = { name, swing, foe, press, verdict: verdict ?? { ended: false, reason: tally.landedHits >= MAX_LANDED ? `cap ${MAX_LANDED} landed hits` : 'tick cap', tick: duel.tick, landedHits: tally.landedHits },
     tally, foeFinal: { health: fin.health, maxHealth: fin.maxHealth, phase: fin.phase }, evaluator: { byOutcome: rules.debug.byOutcome, deferredKills: rules.debug.deferredKills, renewals: rules.debug.renewals }, hits: log };
+  res.byMove = log.reduce((a, l) => { const m = (a[l.move] ??= { hits: 0, simDamage: 0 }); m.hits++; m.simDamage += l.simDamage ?? 0; return a; }, {});
   writeFileSync(`${out}/${name}.json`, JSON.stringify(res));
-  console.log(name, JSON.stringify({ verdict: res.verdict, landed: tally.landedHits, counters: tally.counterHits, swings: tally.swingsPressed, foeHp: `${fin.health}/${fin.maxHealth}`, evalOutcomes: tally.byOutcome, deferredKills: rules.debug.deferredKills, zones: log.reduce((a, l) => (a[l.zone] = (a[l.zone] ?? 0) + 1, a), {}), simDmgPerHit: [...new Set(log.map((l) => l.simDamage))].slice(0, 8), first5: log.slice(0, 5).map((l) => [l.zone, l.simDamage, l.foeSimHpAfter, l.evalOutcome, l.torsoHp, l.headHp]) }));
+  console.log('TRACE', name, gzipSync(JSON.stringify(res)).toString('base64'));   // the job's disk is lost: the full trace rides the log (base64 -d | gunzip)
+  console.log(name, JSON.stringify({ verdict: res.verdict, landed: tally.landedHits, counters: tally.counterHits, swings: tally.swingsPressed, foeHp: `${fin.health}/${fin.maxHealth}`, evalOutcomes: tally.byOutcome, deferredKills: rules.debug.deferredKills, zones: log.reduce((a, l) => (a[l.zone] = (a[l.zone] ?? 0) + 1, a), {}), simDmgPerHit: [...new Set(log.map((l) => l.simDamage))].slice(0, 8), byMove: res.byMove, killHit: log.at(-1), first5: log.slice(0, 5).map((l) => [l.zone, l.simDamage, l.foeSimHpAfter, l.evalOutcome, l.torsoHp, l.headHp]) }));
   return res;
 }
 console.log('foe', FOE.id, 'health', FOE.health, 'weapon', FOE.weapon, 'rig', FOE.rig, 'man health', SIM_RULES.health);
