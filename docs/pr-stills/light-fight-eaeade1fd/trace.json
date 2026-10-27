@@ -1,0 +1,398 @@
+{
+ "harness": "light-only-end.mjs",
+ "base": "https://v3.frankendom.com",
+ "query": "default (m4)",
+ "key": "KeyF",
+ "alt": null,
+ "heroToppedUp": "HERO ONLY (health+stamina every tick); foe never written",
+ "probe": {
+  "duelKeys": [
+   "tick",
+   "fighters",
+   "finish",
+   "events",
+   "bands",
+   "radius"
+  ],
+  "foeKeys": [
+   "weapon",
+   "rig",
+   "scale",
+   "poise",
+   "regen",
+   "speed",
+   "body",
+   "health",
+   "maxHealth",
+   "stamina",
+   "rest",
+   "exhausted",
+   "mana",
+   "maxMana",
+   "wound",
+   "woundSite",
+   "phase",
+   "age",
+   "move",
+   "chained",
+   "landed",
+   "chain",
+   "lastMove",
+   "parryCooldown",
+   "punish",
+   "stun",
+   "posture",
+   "critical",
+   "guardDirection",
+   "parrying",
+   "exposed",
+   "evaded",
+   "counterWindow",
+   "charge",
+   "charged",
+   "buffer",
+   "postureRest",
+   "maxStamina",
+   "legWound",
+   "attackFrom",
+   "stall",
+   "loiter",
+   "lashed",
+   "skill",
+   "skillCooldown",
+   "sheet",
+   "oid",
+   "specialShare"
+  ],
+  "foeHealth": 137,
+  "foeMax": 137,
+  "foeStamina": 100,
+  "foeMaxStamina": 100,
+  "foePhase": "ready",
+  "rig": "hero",
+  "weapon": "cleaver",
+  "heroWeapon": "longsword"
+ },
+ "counterPresses": 0,
+ "counterPhaseWaitedTicks": 0,
+ "counterEnd": {
+  "tick": 1,
+  "foeHealth": 137,
+  "hits": 0
+ },
+ "followSwings": 12,
+ "totalTicks": 632,
+ "end": null,
+ "afterEnd": null,
+ "ragdollStateTicks": {
+  "alive": 530,
+  "stagger": 102
+ },
+ "foeFinal": {
+  "health": 126,
+  "max": 137,
+  "fraction": 0.9197,
+  "parts": {
+   "head": 1,
+   "torso": 0.6259869385322838,
+   "arm_left": 1,
+   "arm_right": 1,
+   "leg_left": 1,
+   "leg_right": 1
+  },
+  "ragdoll": "alive",
+  "phase": "ready",
+  "stamina": 17.86666666666665
+ },
+ "hitCount": 2,
+ "rulesFinal": {
+  "hits": 2,
+  "byOutcome": {
+   "stick": 1,
+   "hit": 1
+  },
+  "deferredKills": 0,
+  "renewals": 0,
+  "cuts": []
+ },
+ "swings": [
+  {
+   "n": 1,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 1,
+   "endTick": 51,
+   "hitsLanded": 0,
+   "foeHealth": 137,
+   "foeFrac": 1,
+   "parts": {
+    "head": 1,
+    "torso": 1,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 2,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 51,
+   "endTick": 93,
+   "hitsLanded": 0,
+   "foeHealth": 137,
+   "foeFrac": 1,
+   "parts": {
+    "head": 1,
+    "torso": 1,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 3,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 93,
+   "endTick": 143,
+   "hitsLanded": 0,
+   "foeHealth": 137,
+   "foeFrac": 1,
+   "parts": {
+    "head": 1,
+    "torso": 1,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 4,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 143,
+   "endTick": 185,
+   "hitsLanded": 0,
+   "foeHealth": 137,
+   "foeFrac": 1,
+   "parts": {
+    "head": 1,
+    "torso": 1,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 5,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 185,
+   "endTick": 235,
+   "hitsLanded": 0,
+   "foeHealth": 137,
+   "foeFrac": 1,
+   "parts": {
+    "head": 1,
+    "torso": 1,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 6,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 235,
+   "endTick": 282,
+   "hitsLanded": 1,
+   "foeHealth": 129,
+   "foeFrac": 0.9416,
+   "parts": {
+    "head": 1,
+    "torso": 0.8033280723450105,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "stagger"
+  },
+  {
+   "n": 7,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 282,
+   "endTick": 332,
+   "hitsLanded": 1,
+   "foeHealth": 126,
+   "foeFrac": 0.9197,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "stagger"
+  },
+  {
+   "n": 8,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 332,
+   "endTick": 377,
+   "hitsLanded": 0,
+   "foeHealth": 126,
+   "foeFrac": 0.9197,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 9,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 377,
+   "endTick": 439,
+   "hitsLanded": 0,
+   "foeHealth": 126,
+   "foeFrac": 0.9197,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 10,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 439,
+   "endTick": 540,
+   "hitsLanded": 0,
+   "foeHealth": 126,
+   "foeFrac": 0.9197,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 11,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 540,
+   "endTick": 590,
+   "hitsLanded": 0,
+   "foeHealth": 126,
+   "foeFrac": 0.9197,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  },
+  {
+   "n": 12,
+   "kind": "follow",
+   "key": "KeyF",
+   "startTick": 590,
+   "endTick": 632,
+   "hitsLanded": 0,
+   "foeHealth": 126,
+   "foeFrac": 0.9197,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "alive"
+  }
+ ],
+ "hits": [
+  {
+   "tick": 282,
+   "orphanRule": {
+    "swing": "light",
+    "counter": false,
+    "zone": "torso",
+    "speed": 6.67,
+    "outcome": "stick",
+    "damage": 4.72,
+    "part": "torso",
+    "partHpAfter": 19.28,
+    "action": "stagger",
+    "deferredKill": false
+   }
+  },
+  {
+   "tick": 302,
+   "move": "light_right",
+   "loc": "torso",
+   "counterFlag": false,
+   "foeHealth": 126,
+   "foeMax": 137,
+   "foeFrac": 0.9197,
+   "foeStamina": 84,
+   "parts": {
+    "head": 1,
+    "torso": 0.6259869385322838,
+    "arm_left": 1,
+    "arm_right": 1,
+    "leg_left": 1,
+    "leg_right": 1
+   },
+   "ragdoll": "stagger",
+   "foePhase": "guard",
+   "gap": 0.85,
+   "rules": {
+    "swing": "light",
+    "counter": false,
+    "zone": "torso",
+    "speed": 6.02,
+    "outcome": "hit",
+    "damage": 4.26,
+    "part": "torso",
+    "partHpAfter": 15.02,
+    "action": "stagger",
+    "deferredKill": false
+   }
+  }
+ ]
+}
