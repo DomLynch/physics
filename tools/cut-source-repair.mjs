@@ -71,12 +71,13 @@ export async function repairSource(glbBytes, meshNames) {
   const fix = new Set(meshNames);
   const tris = []; // { w: [a,b,c] welded ids, prim, i (index of the triangle in its primitive), fix, area, n }
   const prims = [];
-  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+  // like the validator: the skinned meshes only (weapons and props are not part of the cut), named by node
+  for (const node of doc.getRoot().listNodes()) if (node.getMesh() && node.getSkin()) for (const prim of node.getMesh().listPrimitives()) {
     const pos = prim.getAttribute("POSITION"), idx = prim.getIndices();
     if (!pos || !idx) continue;
     const P = pos.getArray(), I = idx.getArray(), vid = new Int32Array(pos.getCount());
     for (let v = 0; v < vid.length; v++) vid[v] = weld.id(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]);
-    const p = { prim, mesh: mesh.getName(), idx: Uint32Array.from(I), P, fix: fix.has(mesh.getName()) };
+    const p = { prim, mesh: node.getName(), idx: Uint32Array.from(I), P, fix: fix.has(node.getName()) };
     prims.push(p);
     for (let t = 0; t + 2 < I.length; t += 3) {
       const q = [I[t], I[t + 1], I[t + 2]], w = q.map((v) => vid[v]);
