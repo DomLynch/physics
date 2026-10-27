@@ -4,7 +4,8 @@
 //   node tools/cut-validate.mjs <file.glb> --hash        (just the sha256 of the bytes, for determinism runs)
 //   node tools/cut-validate.mjs <plain.glb> --self       (the open, over-used and flipped edges a surface already has: run on the plain source)
 // With --source, watertight and orientation separate defects native to the source from defects the cut introduced (docs/CUT-VALIDATE.md).
-// Exit code 1 on any failed check. Checks: structure, watertight, orientation, weights, bone_side, caps, conservation (needs --source), planes.
+// Exit code 1 on any failed check. Checks: structure, watertight, orientation, weights, bone_side, caps, conservation (needs --source), planes,
+// then head_split and belly_open when the manifest enables those optional cuts (optional_units).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { sha256HexBytes } from "../src/sha256.mjs";
@@ -32,6 +33,24 @@ const CONSTRAINTS = {
   leg_left: [["hip_left", "+"]], leg_right: [["hip_right", "+"]],
 };
 const PLANES = ["neck", "waist", "shoulder_left", "shoulder_right", "hip_left", "hip_right"];
+
+// ---- optional cuts (additive manifest fields `optional_units` and `optional_planes`; docs/CUT-CONTRACT.md "Optional cuts") ---------------------------------
+// head_split: piece_head is replaced by piece_head_left (+ side of the sagittal plane) and piece_head_right. Both are detached by `head`, separated by
+// `head_split`. belly_open: one more skinned mesh (cap_belly_opening) on piece_upper_torso, a decal that removes nothing.
+export const SPLIT_PLANE_SIGN = { head_left: "+", head_right: "-" };
+const unitOn = (manifest, id) => !!(manifest && manifest.optional_units && manifest.optional_units[id] && manifest.optional_units[id].enabled === true);
+export function tablesFor(manifest) {
+  const split = unitOn(manifest, "head_split");
+  if (!split) return { regions: REGIONS, regionUnit: REGION_UNIT, caps: CAPS, constraints: CONSTRAINTS, split: false, belly: unitOn(manifest, "belly_open") };
+  const caps = {};
+  for (const [id, v] of Object.entries(CAPS)) if (id !== "cap_neck_head") caps[id] = v;
+  Object.assign(caps, { cap_neck_head_left: ["head_left", "head"], cap_neck_head_right: ["head_right", "head"], cap_split_head_left: ["head_left", "head_split"], cap_split_head_right: ["head_right", "head_split"] });
+  const constraints = { ...CONSTRAINTS, head_left: [["neck", "+"], ["head_split", "+"]], head_right: [["neck", "+"], ["head_split", "-"]] };
+  delete constraints.head;
+  const regionUnit = { ...REGION_UNIT, head_left: "head", head_right: "head" };
+  delete regionUnit.head;
+  return { regions: [...REGIONS.filter((r) => r !== "head"), "head_left", "head_right"], regionUnit, caps, constraints, split: true, belly: unitOn(manifest, "belly_open") };
+}
 
 // ---- GLB reader -------------------------------------------------------------------------------------------------------------------------------------------
 export function parseGlb(buf) {
@@ -235,6 +254,7 @@ export function validate(glbBuf, manifest, opts = {}) {
   const g = parseGlb(glbBuf), json = g.json;
   const off = opts.planeOffset || [0, 0, 0];
   const checks = [];
+  const T = tablesFor(manifest); // the plain contract, or with piece_head replaced by its halves when the manifest enables head_split
   const add = (name, ok, summary, details = [], table = []) => { const c = { name, ok, summary, details, table }; checks.push(c); return c; };
   const tree = nodeTree(json);
   const skin = (json.skins || [])[0];
@@ -254,20 +274,33 @@ export function validate(glbBuf, manifest, opts = {}) {
     const regs = {}, caps = {};
     for (const r of (manifest && manifest.regions) || []) regs[r.id] = r;
     for (const c of (manifest && manifest.caps) || []) caps[c.id] = c;
-    for (const id of REGIONS) {
+    for (const id of T.regions) {
       const r = regs[id];
       if (!r) { bad.push(`manifest has no region "${id}"`); continue; }
       if (r.mesh !== "piece_" + id) bad.push(`region "${id}" names mesh ${JSON.stringify(r.mesh)}, want "piece_${id}"`);
-      if (REGION_UNIT[id] && r.detached_by !== REGION_UNIT[id]) bad.push(`region "${id}" detached_by ${JSON.stringify(r.detached_by)}, want "${REGION_UNIT[id]}"`);
+      if (T.regionUnit[id] && r.detached_by !== T.regionUnit[id]) bad.push(`region "${id}" detached_by ${JSON.stringify(r.detached_by)}, want "${T.regionUnit[id]}"`);
+      if (SPLIT_PLANE_SIGN[id] && r.separated_by !== "head_split") bad.push(`region "${id}" separated_by ${JSON.stringify(r.separated_by)}, want "head_split"`);
     }
-    for (const [id, [region, unit]] of Object.entries(CAPS)) {
+    if (T.split && regs.head) bad.push(`manifest has both "head" and its halves: head_split replaces piece_head`);
+    if (T.belly) {
+      const c = caps.cap_belly_opening;
+      if (!c) bad.push(`manifest has no cap "cap_belly_opening" although belly_open is enabled`);
+      else {
+        if (c.mesh !== "cap_belly_opening") bad.push(`cap "cap_belly_opening" names mesh ${JSON.stringify(c.mesh)}`);
+        if (c.region !== "upper_torso") bad.push(`cap "cap_belly_opening" region ${JSON.stringify(c.region)}, want "upper_torso"`);
+        if (c.shown_when_cut !== "belly_open") bad.push(`cap "cap_belly_opening" shown_when_cut ${JSON.stringify(c.shown_when_cut)}, want "belly_open"`);
+      }
+      if (!("cap_belly_opening" in byName)) bad.push(`mesh "cap_belly_opening" is not in the GLB`);
+      else if (json.nodes[byName.cap_belly_opening].skin !== 0) bad.push(`mesh "cap_belly_opening" is not skinned with the one skin`);
+    }
+    for (const [id, [region, unit]] of Object.entries(T.caps)) {
       const c = caps[id];
       if (!c) { bad.push(`manifest has no cap "${id}"`); continue; }
       if (c.mesh !== id) bad.push(`cap "${id}" names mesh ${JSON.stringify(c.mesh)}`);
       if (c.region !== region) bad.push(`cap "${id}" region ${JSON.stringify(c.region)}, want "${region}"`);
       if (c.shown_when_cut !== unit) bad.push(`cap "${id}" shown_when_cut ${JSON.stringify(c.shown_when_cut)}, want "${unit}"`);
     }
-    for (const nm of [...REGIONS.map((r) => "piece_" + r), ...Object.keys(CAPS)]) {
+    for (const nm of [...T.regions.map((r) => "piece_" + r), ...Object.keys(T.caps)]) {
       if (!(nm in byName)) { bad.push(`mesh "${nm}" is not in the GLB`); continue; }
       const n = json.nodes[byName[nm]];
       if (n.skin === undefined) bad.push(`mesh "${nm}" is not skinned`);
@@ -279,7 +312,7 @@ export function validate(glbBuf, manifest, opts = {}) {
       else {
         if (typeof manifest.plane_exempt_reason !== "string" || !manifest.plane_exempt_reason.trim()) bad.push("plane_exempt needs a plane_exempt_reason (why these materials may leave their piece's side of a plane)");
         for (const [pieceName, mats] of Object.entries(pe)) {
-          if (!REGIONS.some((r) => "piece_" + r === pieceName)) { bad.push(`plane_exempt names ${JSON.stringify(pieceName)}, which is not a piece mesh`); continue; }
+          if (!T.regions.some((r) => "piece_" + r === pieceName)) { bad.push(`plane_exempt names ${JSON.stringify(pieceName)}, which is not a piece mesh`); continue; }
           if (!Array.isArray(mats) || !mats.length || mats.some((m) => typeof m !== "string")) { bad.push(`plane_exempt.${pieceName} must be a non-empty list of material names`); continue; }
           const m = getMesh(pieceName), have = new Set(m ? m.prims.map((q) => q.material) : []);
           for (const mat of mats) if (!have.has(mat)) bad.push(`plane_exempt.${pieceName} names material ${JSON.stringify(mat)}, which the piece does not use`);
@@ -299,17 +332,18 @@ export function validate(glbBuf, manifest, opts = {}) {
         if (moved.length) bad.push(`skeleton parents changed vs source: ${names(moved)}`);
       }
     }
-    add("structure", !bad.length, bad.length ? `${bad.length} problem(s)` : `schema ${SCHEMA}, 7 pieces + 12 caps, one skin (${jointNames.length} joints)` + (opts.source ? ", skeleton matches source" : ""), bad);
+    add("structure", !bad.length, bad.length ? `${bad.length} problem(s)` : `schema ${SCHEMA}, ${T.regions.length} pieces + ${Object.keys(T.caps).length} caps${T.belly ? " + cap_belly_opening" : ""}${T.split ? " (head_split on)" : ""}, one skin (${jointNames.length} joints)` + (opts.source ? ", skeleton matches source" : ""), bad);
   }
 
   // gather what exists
-  const parts = []; // { id, kind, region, mesh }
-  for (const id of REGIONS) { const m = getMesh("piece_" + id); if (m) parts.push({ id: "piece_" + id, kind: "piece", region: id, mesh: m }); }
-  for (const [id, [region]] of Object.entries(CAPS)) {
+  const parts = []; // { id, kind, region, mesh }; kind "decal" (cap_belly_opening) is an open surface by design: weights, bone_side and planes apply, watertight and caps do not
+  for (const id of T.regions) { const m = getMesh("piece_" + id); if (m) parts.push({ id: "piece_" + id, kind: "piece", region: id, mesh: m }); }
+  for (const [id, [region]] of Object.entries(T.caps)) {
     const reg = (manifest.caps || []).find((c) => c.id === id);
     const m = getMesh(id);
     if (m) parts.push({ id, kind: "cap", region: (reg && reg.region) || region, mesh: m });
   }
+  if (T.belly) { const m = getMesh("cap_belly_opening"); if (m) parts.push({ id: "cap_belly_opening", kind: "decal", region: "upper_torso", mesh: m }); }
 
   // plane_exempt (manifest): materials of a piece that may lie across its planes (hair on the head piece). Honoured by the planes check, and by the cap
   // direction heuristic (the piece centroid is taken without them: hair hanging below the neck would drag the head's centroid under its own cap). Nothing
@@ -329,8 +363,8 @@ export function validate(glbBuf, manifest, opts = {}) {
     // Without --source every defect counts as introduced.
     const src = opts.source ? surfaceReport(opts.source) : null;
     const bad = [], badO = [], table = [], tot = { open: 0, over: 0, flipped: 0, nOpen: 0, nOver: 0, nFlipped: 0 };
-    for (const region of REGIONS) {
-      const group = parts.filter((p) => p.region === region);
+    for (const region of T.regions) {
+      const group = parts.filter((p) => p.region === region && p.kind !== "decal");
       if (!group.some((p) => p.kind === "piece")) continue;
       const d = edgeDefects(group.map((p) => p.mesh));
       // An open edge also counts as native when it bridges a native gap: shorter than BRIDGE_MAX (the tool's gap limit) with both ends on source open
@@ -388,6 +422,13 @@ export function validate(glbBuf, manifest, opts = {}) {
     if (!(len > 0)) continue;
     planes[c] = { point: v.point.map((x, i) => x + off[i]), normal: v.normal.map((x) => x / len) };
   }
+  const optPlanes = {}; // optional_planes (head_split, belly_open): same frame as planes
+  for (const [k, v] of Object.entries((manifest && manifest.optional_planes) || {})) {
+    if (!v || !Array.isArray(v.point) || !Array.isArray(v.normal)) continue;
+    const len = Math.hypot(...v.normal);
+    if (len > 0) optPlanes[k] = { point: v.point.map((x, i) => x + off[i]), normal: v.normal.map((x) => x / len) };
+  }
+  if (optPlanes.head_split) planes.head_split = optPlanes.head_split;
   const dist = (pl, x, y, z) => pl.normal[0] * (x - pl.point[0]) + pl.normal[1] * (y - pl.point[1]) + pl.normal[2] * (z - pl.point[2]);
 
   // ---- 4 bone side
@@ -413,8 +454,8 @@ export function validate(glbBuf, manifest, opts = {}) {
     }
     const viol = {};
     for (const p of parts) {
-      const cons = CONSTRAINTS[p.region];
-      if (!cons || cons.some(([pn]) => !positive[pn])) continue;
+      const cons = (T.constraints[p.region] || []).filter(([pn]) => PLANES.includes(pn)); // the sagittal plane has no bone side: both halves use the head's bones (neck +)
+      if (!cons.length || cons.some(([pn]) => !positive[pn])) continue;
       const m = p.mesh;
       for (let v = 0; v < m.nv; v++) for (let k = 0; k < 4; k++) {
         const w = m.wt[v * 4 + k];
@@ -500,7 +541,7 @@ export function validate(glbBuf, manifest, opts = {}) {
   {
     const bad = [], exemptNote = [];
     for (const p of parts) {
-      const cons = CONSTRAINTS[p.region];
+      const cons = T.constraints[p.region];
       if (!cons) continue;
       const ex = exemptMask(p);
       if (ex) exemptNote.push(`${ex.reduce((s, x) => s + x, 0)} ${p.id} vertices (${manifest.plane_exempt[p.id].join(", ")})`);
@@ -517,6 +558,127 @@ export function validate(glbBuf, manifest, opts = {}) {
       }
     }
     add("planes", !bad.length, bad.length ? `${bad.length} violation(s)` : "every piece vertex is on its side of its planes (1e-4)" + (exemptNote.length ? `; plane_exempt (manifest): ${exemptNote.join("; ")} not checked` : ""), bad);
+  }
+
+  // ---- 8 head_split (only when the manifest enables it)
+  if (T.split) {
+    const bad = [], spec = manifest.optional_units.head_split, pl = optPlanes.head_split, table = [];
+    const get = (id) => parts.find((p) => p.id === id);
+    const L = get("piece_head_left"), R = get("piece_head_right"), CL = get("cap_split_head_left"), CR = get("cap_split_head_right");
+    const areaOf = (m) => { let a = 0; for (let t = 0; t + 2 < m.idx.length; t += 3) a += 0.5 * Math.hypot(...triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2])); return a; };
+    if (!pl) bad.push("optional_planes.head_split is missing from the manifest");
+    else if (!L || !R || !CL || !CR) bad.push("a half or a split cap is missing");
+    else {
+      // the plane is the body's symmetry plane: horizontal normal (square to up) and the Head and Neck joints lie on it
+      if (Math.abs(pl.normal[1]) > 0.2) bad.push(`head_split normal ${fmt(pl.normal)} is not horizontal: it must be the body's left-right axis`);
+      // 1. each half is wholly on its side (planes check says so per vertex; here the halves must also be non-empty and meet)
+      const sideCount = (m, sign, ex) => { let n = 0, tot = 0; for (let v = 0; v < m.nv; v++) { if (ex && ex[v]) continue; tot++; if (dist(pl, m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]) * sign > PLANE_TOL) n++; } return [n, tot]; };
+      const [nl, tl] = sideCount(L.mesh, 1, exemptMask(L)), [nr, tr] = sideCount(R.mesh, -1, exemptMask(R));
+      table.push(`left half: ${nl} of ${tl} vertices strictly on the + side (the rest on the cut face); right half: ${nr} of ${tr} strictly on the - side`);
+      if (!nl) bad.push("piece_head_left has no vertex strictly on the + side of the plane: the plane does not split the head");
+      if (!nr) bad.push("piece_head_right has no vertex strictly on the - side of the plane: the plane does not split the head");
+      // 2. the cut faces: flat on the plane, facing away from their own half (left cap -n, right cap +n), winding agreeing
+      for (const [cap, want] of [[CL, -1], [CR, 1]]) {
+        const m = cap.mesh;
+        let off = 0, worst = 0, good = 0, total = 0;
+        for (let v = 0; v < m.nv; v++) { const d = Math.abs(dist(pl, m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2])); if (d > PLANE_TOL) { off++; worst = Math.max(worst, d); } }
+        for (let t = 0; t + 2 < m.idx.length; t += 3) {
+          const gn = triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2]);
+          if (!(Math.hypot(...gn) > 1e-14)) continue;
+          total++; if ((gn[0] * pl.normal[0] + gn[1] * pl.normal[1] + gn[2] * pl.normal[2]) * want > 0) good++;
+        }
+        if (off) bad.push(`${cap.id}: ${off} vertices off the plane (worst ${worst.toFixed(5)}): the cut face is not flat`);
+        if (total && good / total < 0.99) bad.push(`${cap.id}: ${total - good} of ${total} triangles face the wrong way (want ${want < 0 ? "-" : "+"} normal of the plane)`);
+        let nsum = 0; for (let v = 0; v < m.nv; v++) nsum += (m.nrm[v * 3] * pl.normal[0] + m.nrm[v * 3 + 1] * pl.normal[1] + m.nrm[v * 3 + 2] * pl.normal[2]) / m.nv;
+        if (!(nsum * want > 0)) bad.push(`${cap.id}: stored normals do not face away from the half`);
+      }
+      // 3. conservation of area: the two cut faces are the same section seen from each side
+      const aL = areaOf(CL.mesh), aR = areaOf(CR.mesh);
+      table.push(`cut face area: left ${aL.toFixed(6)}, right ${aR.toFixed(6)}`);
+      if (!(aL > 0)) bad.push("cap_split_head_left has no area");
+      else if (Math.abs(aL - aR) / aL > 0.01) bad.push(`the two cut faces differ: ${aL.toFixed(6)} vs ${aR.toFixed(6)} (off by ${(Math.abs(aL - aR) / aL * 100).toFixed(2)} percent, limit 1)`);
+      // 4. the halves meet along one seam: every vertex of a half that lies on the plane has a partner in the other half
+      const onPlane = (p, ex) => { const o = []; for (let v = 0; v < p.mesh.nv; v++) { if (ex && ex[v]) continue; if (Math.abs(dist(pl, p.mesh.pos[v * 3], p.mesh.pos[v * 3 + 1], p.mesh.pos[v * 3 + 2])) <= PLANE_TOL) o.push(v); } return o; };
+      const lv = onPlane(L, exemptMask(L)), rv = onPlane(R, exemptMask(R)), wl = makeWelder(), wr = makeWelder();
+      for (const v of lv) wl.id(L.mesh.pos[v * 3], L.mesh.pos[v * 3 + 1], L.mesh.pos[v * 3 + 2]);
+      for (const v of rv) wr.id(R.mesh.pos[v * 3], R.mesh.pos[v * 3 + 1], R.mesh.pos[v * 3 + 2]);
+      let miss = 0;
+      for (const q of wl.reps) if (wr.find(q[0], q[1], q[2]) < 0) miss++;
+      for (const q of wr.reps) if (wl.find(q[0], q[1], q[2]) < 0) miss++;
+      table.push(`seam: ${wl.reps.length} welded vertices on the plane in the left half, ${wr.reps.length} in the right`);
+      if (!wl.reps.length) bad.push("the halves share no vertex on the plane");
+      if (miss) bad.push(`${miss} welded seam vertices have no partner in the other half: the halves do not meet`);
+      // 5. the unit rows the runtime reads
+      if (spec.unit !== "head_split" || spec.plane !== "head_split") bad.push("optional_units.head_split must name unit and plane head_split");
+    }
+    add("head_split", !bad.length, bad.length ? `${bad.length} problem(s)` : "halves on their sides of the sagittal plane, cut faces flat and facing away, equal areas, halves meet along one seam", bad, table);
+  }
+
+  // ---- 9 belly_open (only when the manifest enables it)
+  if (T.belly) {
+    const bad = [], spec = manifest.optional_units.belly_open, table = [], P = parts.find((p) => p.id === "cap_belly_opening"), torso = parts.find((p) => p.id === "piece_upper_torso");
+    const fr = spec.frame || {};
+    if (spec.removes_geometry !== false) bad.push("optional_units.belly_open.removes_geometry must be false (the patch removes nothing from the torso)");
+    if (spec.detaches !== null && spec.detaches !== undefined) bad.push("belly_open detaches nothing: optional_units.belly_open.detaches must be null");
+    if (!P || !torso || !fr.centre || !fr.forward || !fr.lateral || !fr.up || !(fr.half_width > 0) || !(fr.half_height > 0)) bad.push("the patch mesh, piece_upper_torso or the manifest frame is missing");
+    else {
+      const f = fr.forward, l = fr.lateral, u = fr.up, c = fr.centre.map((x, i) => x + off[i]), m = P.mesh;
+      const lo = (p, o) => { const d = [p[o] - c[0], p[o + 1] - c[1], p[o + 2] - c[2]]; return [l[0] * d[0] + l[1] * d[1] + l[2] * d[2], u[0] * d[0] + u[1] * d[1] + u[2] * d[2], f[0] * d[0] + f[1] * d[1] + f[2] * d[2]]; };
+      const frameOk = Math.abs(Math.hypot(...f) - 1) < 1e-4 && Math.abs(Math.hypot(...l) - 1) < 1e-4 && Math.abs(Math.hypot(...u) - 1) < 1e-4 && Math.abs(f[0] * l[0] + f[1] * l[1] + f[2] * l[2]) < 1e-3 && Math.abs(f[0] * u[0] + f[1] * u[1] + f[2] * u[2]) < 1e-3;
+      if (!frameOk) bad.push("optional_units.belly_open.frame is not an orthonormal forward/lateral/up frame");
+      // 1. winding and normals face forward (out of the belly)
+      let good = 0, total = 0, area = 0;
+      for (let t = 0; t + 2 < m.idx.length; t += 3) {
+        const gn = triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2]), len = Math.hypot(...gn);
+        if (!(len > 1e-14)) continue;
+        total++; area += 0.5 * len; if (gn[0] * f[0] + gn[1] * f[1] + gn[2] * f[2] > 0) good++;
+      }
+      if (!total) bad.push("the patch has no triangles");
+      else if (good / total < 0.99) bad.push(`${total - good} of ${total} patch triangles face into the body (winding against forward)`);
+      let ns = 0; for (let v = 0; v < m.nv; v++) ns += (m.nrm[v * 3] * f[0] + m.nrm[v * 3 + 1] * f[1] + m.nrm[v * 3 + 2] * f[2]) / m.nv;
+      if (!(ns > 0)) bad.push("the patch's stored normals face into the body");
+      // 2. inside the ellipse; in front of the skin by the declared lift, nowhere else
+      const A = fr.half_width, Bh = fr.half_height, tm = torso.mesh;
+      const cand = [];
+      for (let t = 0; t + 2 < tm.idx.length; t += 3) {
+        const q = [0, 1, 2].map((k) => lo(tm.pos, tm.idx[t + k] * 3));
+        if (Math.min(q[0][0], q[1][0], q[2][0]) > A * 1.05 || Math.max(q[0][0], q[1][0], q[2][0]) < -A * 1.05 || Math.min(q[0][1], q[1][1], q[2][1]) > Bh * 1.05 || Math.max(q[0][1], q[1][1], q[2][1]) < -Bh * 1.05) continue;
+        const den = (q[1][1] - q[2][1]) * (q[0][0] - q[2][0]) + (q[2][0] - q[1][0]) * (q[0][1] - q[2][1]);
+        if (Math.abs(den) > 1e-14) cand.push({ q, den });
+      }
+      const skinZ = (x, y) => {
+        let best = -Infinity;
+        for (const { q, den } of cand) {
+          const w0 = ((q[1][1] - q[2][1]) * (x - q[2][0]) + (q[2][0] - q[1][0]) * (y - q[2][1])) / den, w1 = ((q[2][1] - q[0][1]) * (x - q[2][0]) + (q[0][0] - q[2][0]) * (y - q[2][1])) / den, w2 = 1 - w0 - w1;
+          if (w0 < -1e-9 || w1 < -1e-9 || w2 < -1e-9) continue;
+          best = Math.max(best, w0 * q[0][2] + w1 * q[1][2] + w2 * q[2][2]);
+        }
+        return best;
+      };
+      const rim = spec.params.rim_lift, top = spec.params.rim_lift + spec.params.bulge;
+      let outside = 0, floating = 0, buried = 0, noSkin = 0, worstOut = 0;
+      for (let v = 0; v < m.nv; v++) {
+        const [x, y, z] = lo(m.pos, v * 3), e = (x / A) ** 2 + (y / Bh) ** 2;
+        if (e > 1 + 1e-3) { outside++; worstOut = Math.max(worstOut, e); }
+        const sz = skinZ(x, y);
+        if (sz === -Infinity) { noSkin++; continue; }
+        if (z - sz < rim - 2e-4) buried++; else if (z - sz > top + 2e-4) floating++;
+      }
+      if (outside) bad.push(`${outside} patch vertices outside the declared ellipse (worst ${Math.sqrt(worstOut).toFixed(4)} of its radius)`);
+      if (noSkin) bad.push(`${noSkin} patch vertices have no torso skin behind them: the patch is not on piece_upper_torso`);
+      if (buried) bad.push(`${buried} patch vertices are inside or flush with the skin (lift under ${rim} m)`);
+      if (floating) bad.push(`${floating} patch vertices float more than ${top} m in front of the skin`);
+      // 3. area: the patch covers the ellipse (it follows a curved skin, so a little more)
+      const ell = Math.PI * A * Bh;
+      table.push(`patch: ${m.nv} vertices, ${total} triangles, area ${area.toFixed(6)} vs ellipse ${ell.toFixed(6)} (${(area / ell).toFixed(3)}x); torso skin triangles under it: ${cand.length}`);
+      if (area < ell * 0.99) bad.push(`patch area ${area.toFixed(6)} is under the ellipse area ${ell.toFixed(6)}: the patch does not cover its ellipse`);
+      else if (area > ell * 1.6) bad.push(`patch area ${area.toFixed(6)} is over 1.6 times the ellipse area ${ell.toFixed(6)}: it is not following the skin`);
+      if (spec.stats && Math.abs(spec.stats.area - area) / area > 1e-3) bad.push(`manifest says the patch area is ${spec.stats.area}, the mesh has ${area.toFixed(6)}`);
+      // 4. both materials present (flesh rim and core)
+      const mats = new Set(m.prims.map((q) => q.material));
+      if (!mats.has("cap_flesh") || !mats.has("cap_inner")) bad.push(`the patch needs the materials cap_flesh and cap_inner, has ${[...mats].join(", ")}`);
+    }
+    add("belly_open", !bad.length, bad.length ? `${bad.length} problem(s)` : "patch inside its ellipse, on the torso skin by the declared lift, facing forward, covers the ellipse; removes no geometry (weights, bone side and waist plane are checked above)", bad, table);
   }
 
   return { ok: checks.every((c) => c.ok), sha256: sha256HexBytes(glbBuf), checks };

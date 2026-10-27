@@ -1,5 +1,5 @@
 // Body GLB -> seven skinned cut regions + twelve cap meshes on the unchanged skeleton (docs/CUT-CONTRACT.md, docs/CUT-TOOL.md).
-//   node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name]
+//   node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name] [--head-split] [--belly-open]
 // writes <out-dir>/<body>.cut.glb and <out-dir>/<body>.cut.manifest.json.
 // Needs @gltf-transform/core + /extensions + meshoptimizer (devDependencies; the package's runtime never loads this file).
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -34,6 +34,39 @@ export const CAPS = [
 const ANCHOR_ROLES = { Hips: "root", Spine: "upper_torso", Head: "head", LeftArm: "arm_left", RightArm: "arm_right", LeftUpLeg: "leg_left", RightUpLeg: "leg_right" };
 const REGION_ANCHOR = { root: "Hips", upper_torso: "Spine", head: "Head", arm_left: "LeftArm", arm_right: "RightArm", leg_left: "LeftUpLeg", leg_right: "RightUpLeg" };
 const FLESH = { name: "cap_flesh", color: [0.55, 0.1, 0.09, 1], roughness: 0.55 };
+const FLESH_INNER = { name: "cap_inner", color: [0.3, 0.03, 0.04, 1], roughness: 0.35 };
+
+// ---------------------------------------------------------------- optional cuts (opt-in, default OFF; docs/CUT-CONTRACT.md "Optional cuts")
+// Both are rows: every number and name the feature uses is here. `opts.headSplit` / `opts.bellyOpen` (true, or an object that overrides fields of the
+// row) turn them on; with both off the output is byte for byte the seven pieces and twelve caps of the plain contract.
+// HEAD_SPLIT: a sagittal plane splits piece_head into piece_head_left / piece_head_right (they replace piece_head). Both halves stay detached by `head`
+// (they fly together while only the head is cut) and are `separated_by` the unit head_split. Caps: the neck cap of each half, and a cap on the cut face.
+export const HEAD_SPLIT = {
+  unit: "head_split", plane: "head_split", replaces: "head",
+  point_frac: 0.5, // the plane point: this far from the Neck joint to the Head joint, then moved onto the body's symmetry plane
+  regions: [
+    { id: "head_left", mesh: "piece_head_left", detached_by: "head", separated_by: "head_split", bones: "head", side: 1, extra_plane: "head_split" },
+    { id: "head_right", mesh: "piece_head_right", detached_by: "head", separated_by: "head_split", bones: "head", side: -1, extra_plane: "head_split" },
+  ],
+  caps: [
+    { id: "cap_neck_head_left", region: "head_left", plane: "neck", shown_when_cut: "head" },
+    { id: "cap_neck_head_right", region: "head_right", plane: "neck", shown_when_cut: "head" },
+    { id: "cap_split_head_left", region: "head_left", plane: "head_split", shown_when_cut: "head_split" },
+    { id: "cap_split_head_right", region: "head_right", plane: "head_split", shown_when_cut: "head_split" },
+  ],
+};
+// BELLY_OPEN: a wound patch on the front of piece_upper_torso above the waist plane. It removes no geometry and detaches nothing: a skinned mesh
+// (cap_belly_opening: a flesh rim and a dark `cap_inner` core, standing a few millimetres in front of the skin) shown when the unit belly_open is cut.
+export const BELLY_OPEN = {
+  unit: "belly_open", plane: "belly_open", cap: "cap_belly_opening", region: "upper_torso",
+  centre_frac: 0.28, // centre height: this fraction of the way from the waist plane up to the neck plane
+  half_height_frac: 0.18, // semi axis along the spine, as a fraction of the waist to neck distance
+  half_width_frac: 0.3, // semi axis across the body, as a fraction of the shoulder span (LeftArm to RightArm)
+  min_clearance_frac: 0.08, // the ellipse must stay at least this fraction of waist to neck above the waist plane (so it is wholly on the torso's side)
+  rings: 6, segments: 32, core_frac: 0.62, // polar tessellation; the core (cap_inner) is the inner part up to this fraction of the radius
+  rim_lift: 0.0015, bulge: 0.008, // metres in front of the skin along the body's forward axis: at the rim, and the extra at the centre (1 - s^2)
+};
+const rowOf = (def, opt) => (opt && typeof opt === "object" ? { ...def, ...opt } : def);
 
 // ---------------------------------------------------------------- small vector helpers
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -81,6 +114,26 @@ export function buildPlanes(J, apex = null) {
   fns.hip_split = makeFn("hip_split", bp, vlen(bn) > 1e-9 ? bn : sub(J.LeftUpLeg, J.RightUpLeg), "internal: bisector of the two hip planes, separates the legs where both hip half-spaces overlap (no cap of its own)");
   fns.hip_split.d = (p) => fns.hip_left.d(p) - fns.hip_right.d(p), fns.hip_split.exact = true;
   return fns;
+}
+
+// The body's own axes from the joints (T-pose or any pose with the legs apart): lateral = Right to Left (arms and hips, vertical part dropped),
+// centre = the symmetry plane's offset along lateral (mean of the four joints), forward = Foot to ToeBase made square to lateral.
+export function bodyAxes(J) {
+  const flat = (a, b) => { const d = sub(J[a], J[b]); return [d[0], 0, d[2]]; };
+  const lat = norm([0, 1, 2].map((k) => norm(flat("LeftArm", "RightArm"))[k] + norm(flat("LeftUpLeg", "RightUpLeg"))[k]));
+  if (!(vlen(flat("LeftArm", "RightArm")) > 1e-6)) throw new Error("the Left and Right arm joints coincide: no left-right axis");
+  const centre = (dot(lat, J.LeftArm) + dot(lat, J.RightArm) + dot(lat, J.LeftUpLeg) + dot(lat, J.RightUpLeg)) / 4;
+  let fwd = [0, 0, 0];
+  for (const [t, f] of [["LeftToeBase", "LeftFoot"], ["RightToeBase", "RightFoot"]]) if (J[t] && J[f]) { const d = sub(J[t], J[f]); fwd = [fwd[0] + d[0], 0, fwd[2] + d[2]]; }
+  fwd = sub(fwd, lat.map((x) => x * dot(fwd, lat)));
+  if (!(vlen(fwd) > 1e-6)) fwd = cross(lat, [0, 1, 0]);
+  return { lat, centre, fwd: norm(fwd) };
+}
+// head_split: the plane through the Neck to Head line (moved onto the symmetry plane), normal = lateral (Right to Left): + side is the left half
+export function buildHeadSplitPlane(J, row = HEAD_SPLIT) {
+  const { lat, centre } = bodyAxes(J);
+  const a = lerp3(J.Neck, J.Head, row.point_frac), pt = sub(a, lat.map((x) => x * (dot(lat, a) - centre)));
+  return makeFn("head_split", pt, lat, "Neck to Head midline " + row.point_frac + " of the way, moved onto the body's symmetry plane; normal = the left-right axis (Right to Left, from the arm and hip joints)");
 }
 
 // ---------------------------------------------------------------- weld analysis (exported: the tests use the same measure)
@@ -457,6 +510,15 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     else report.notes.push("no crotch apex found: hip planes are the plain thigh-normal planes");
   }
   const fns = buildPlanes(J, apex);
+  // optional cuts (rows above): off unless asked for
+  const headSplit = opts.headSplit ? rowOf(HEAD_SPLIT, opts.headSplit) : null, bellyOpen = opts.bellyOpen ? rowOf(BELLY_OPEN, opts.bellyOpen) : null;
+  if (headSplit) fns.head_split = buildHeadSplitPlane(J, headSplit);
+  // the regions and caps of this run: the plain seven and twelve, with piece_head replaced by its halves when head_split is on
+  const regions = headSplit ? REGIONS.flatMap((r) => (r.id === headSplit.replaces ? headSplit.regions : [r])) : REGIONS;
+  const capsAll = headSplit ? CAPS.filter((c) => c.region !== headSplit.replaces).concat(headSplit.caps) : CAPS;
+  const boneRegion = (id) => (regions.find((r) => r.id === id) || {}).bones || id; // the region whose bones a piece may use
+  const planeOrder = ["neck", "shoulder_left", "shoulder_right", "hip_left", "hip_right", "waist", "hip_split"].concat(headSplit ? ["head_split"] : []);
+  const regionPlanes = (R) => planeOrder.filter((id) => id !== "head_split" || R.extra_plane === "head_split"); // head_split only matters to the halves
 
   // ---- split every triangle at the planes (decision tree of half-space clips); split vertices are shared through a cache
   const edgeCache = new Map();
@@ -544,7 +606,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // when the home region owns under 20 percent of the fragment's skin weight, the region owning most of it takes the fragment (a foot sticking
   // through the shoulder plane's far side, hair hanging below the neck plane, a tail across the hip bisector). Gear follows its bone.
   // welded vertex ids (the pre-weld above made seam duplicates bit-identical)
-  const wcl = weldCluster(V.pos, 1e-5), weldId = (v) => wcl[v];
+  let wcl = weldCluster(V.pos, 1e-5);
+  const weldId = (v) => wcl[v];
   const uf = new Map();
   const find = (x) => { let r = x; while (uf.get(r) !== r) r = uf.get(r); while (x !== r) { const nx = uf.get(x); uf.set(x, r); x = nx; } return r; };
   const unite = (x, y) => { const rx = find(x), ry = find(y); if (rx !== ry) uf.set(Math.max(rx, ry), Math.min(rx, ry)); };
@@ -587,31 +650,60 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     pieceTris[region].push([t[0], t[1], t[2], t[3]]);
   });
 
+  // ---- head_split (opt-in): piece_head is cut again at the sagittal plane into two halves. The head's triangles are split exactly as at the other
+  // planes (shared split vertices, all attributes and weights interpolated). Hair is not cut (Physics Dev ruling): each connected card goes whole to
+  // the half its area lies mostly in. The halves replace piece_head; they are bound to the same bones (the Head side).
+  const hairFor = { head: hairTris };
+  let splitInfo = null;
+  if (headSplit) {
+    const fn = fns.head_split, halves = Object.fromEntries(headSplit.regions.map((r) => [r.id, []]));
+    const idOfSide = (s) => headSplit.regions.find((r) => r.side === s).id;
+    let headIn = 0;
+    for (const [a, b, c, pi] of pieceTris.head) {
+      headIn++;
+      const [pos, neg] = splitPoly([a, b, c], fn);
+      for (const [poly, id] of [[pos, idOfSide(1)], [neg, idOfSide(-1)]]) if (poly) for (let k = 1; k + 1 < poly.length; k++) halves[id].push([poly[0], poly[k], poly[k + 1], pi]);
+    }
+    delete pieceTris.head;
+    Object.assign(pieceTris, halves);
+    wcl = weldCluster(V.pos, 1e-5); // the split vertices are new
+    const hp = new Map(); // hair cards: union-find over welded vertices
+    const hf = (x) => { while (hp.get(x) !== x) { hp.set(x, hp.get(hp.get(x))); x = hp.get(x); } return x; };
+    for (const [a, b, c] of hairTris) { for (const v of [a, b, c]) if (!hp.has(weldId(v))) hp.set(weldId(v), weldId(v)); const ra = hf(weldId(a)); for (const v of [b, c]) { const rv = hf(weldId(v)); if (rv !== ra) hp.set(Math.max(ra, rv), Math.min(ra, rv)); } }
+    const score = new Map();
+    for (const [a, b, c] of hairTris) { const ar = 0.5 * vlen(cross(sub(V.pos[b], V.pos[a]), sub(V.pos[c], V.pos[a]))), cen = [0, 1, 2].map((k) => (V.pos[a][k] + V.pos[b][k] + V.pos[c][k]) / 3); const r = hf(weldId(a)); score.set(r, (score.get(r) || 0) + ar * Math.sign(fn.d(cen))); }
+    for (const id of Object.keys(halves)) hairFor[id] = [];
+    for (const t of hairTris) hairFor[idOfSide((score.get(hf(weldId(t[0]))) || 0) > 0 ? 1 : -1)].push(t);
+    delete hairFor.head;
+    splitInfo = { head_triangles_in: headIn, left_triangles: halves[idOfSide(1)].length, right_triangles: halves[idOfSide(-1)].length, hair_triangles: Object.fromEntries(Object.keys(halves).map((id) => [id, hairFor[id].length])) };
+  }
+
   // ---- bind weights to the bones of the piece's own side
   let weightsRebound = 0, weightsTruncated = 0, orphan = 0;
   const bindCache = new Map();
   const bindWeights = (v, region) => {
     // hair travels with the head as one rigid piece: Head bone only (renormalised weights of a single bone)
-    if (region === "head" && hairVerts.has(v)) return { j: [roleJoint.Head, 0, 0, 0], w: [1, 0, 0, 0] };
-    const key = v * 8 + REGIONS.findIndex((r) => r.id === region);
+    const side = boneRegion(region); // a head half uses the bones of the head
+    if (side === "head" && hairVerts.has(v)) return { j: [roleJoint.Head, 0, 0, 0], w: [1, 0, 0, 0] };
+    const key = v * 8 + REGIONS.findIndex((r) => r.id === side);
     if (bindCache.has(key)) return bindCache.get(key);
     const acc = new Map();
     for (const [j, w] of V.skin[v]) {
       if (!(w > 0)) continue;
       let t = j;
-      if (owner[j] !== region) {
-        t = nearOwned(j, region); weightsRebound++;
+      if (owner[j] !== side) {
+        t = nearOwned(j, side); weightsRebound++;
         if (opts.debug) { const k = `${region}: ${joints[j].getName().replace("mixamorig:", "")} -> ${joints[t].getName().replace("mixamorig:", "")}`; (report.rebinds ||= {})[k] = (report.rebinds[k] || 0) + 1; }
       }
       acc.set(t, (acc.get(t) || 0) + w);
     }
     let list = [...acc.entries()].sort((x, y) => y[1] - x[1] || x[0] - y[0]);
     if (list.length > 4) { weightsTruncated++; list = list.slice(0, 4); }
-    if (!list.length) list = [[roleJoint[REGION_ANCHOR[region]], 1]];
+    if (!list.length) list = [[roleJoint[REGION_ANCHOR[side]], 1]];
     const sum = list.reduce((s, e) => s + e[1], 0);
     const jj = [0, 0, 0, 0], ww = [0, 0, 0, 0];
     list.forEach((e, k) => { jj[k] = e[0]; ww[k] = e[1] / sum; });
-    for (let k = 0; k < 4; k++) if (ww[k] > 0 && owner[jj[k]] !== region) orphan++;
+    for (let k = 0; k < 4; k++) if (ww[k] > 0 && owner[jj[k]] !== side) orphan++;
     const r = { j: jj, w: ww };
     bindCache.set(key, r);
     return r;
@@ -619,9 +711,9 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
 
   // ---- emit each piece: one primitive per source material
   const outPieces = {}; // region -> { prims: [{ pi, gv: [vertex ids], indices }], positionsAll }
-  for (const R of REGIONS) {
+  for (const R of regions) {
     const byPrim = new Map();
-    for (const [a, b, c, pi] of R.id === "head" ? pieceTris.head.concat(hairTris) : pieceTris[R.id]) {
+    for (const [a, b, c, pi] of hairFor[R.id] ? pieceTris[R.id].concat(hairFor[R.id]) : pieceTris[R.id]) {
       if (!byPrim.has(pi)) byPrim.set(pi, { pi, gv: [], map: new Map(), indices: [] });
       const P = byPrim.get(pi);
       for (const v of [a, b, c]) {
@@ -635,10 +727,9 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
 
   // ---- caps: boundary edges of each piece that lie on a cut plane, chained into loops, triangulated (outer rings + holes)
   const capStats = { loops: 0, open_chains: 0, holes: 0, forced_ears: 0, bridge_fallbacks: 0, fallback_loops: 0, inward_triangles: 0, nonplanar_loops: 0, gaps_bridged: 0 };
-  const capOf = new Map(CAPS.map((c) => [c.region + ":" + c.plane, c]));
+  const capOf = new Map(capsAll.map((c) => [c.region + ":" + c.plane, c]));
   const capsOut = {}; // cap id -> { verts: [{v, region}], uv, tris }
-  const planeOrder = ["neck", "shoulder_left", "shoulder_right", "hip_left", "hip_right", "waist", "hip_split"];
-  for (const R of REGIONS) {
+  for (const R of regions) {
     const edges = new Map(); // directed welded edge -> { count, a, b }
     const W = weldId;
     const rep = new Map(); // welded id -> lowest vertex id
@@ -669,7 +760,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const edgeList = [];
     for (const [u, v] of boundary) {
       const pu = V.pos[rep.get(u)], pv = V.pos[rep.get(v)];
-      const on = planeOrder.filter((id) => Math.abs(fns[id].d(pu)) <= 2 * eps && Math.abs(fns[id].d(pv)) <= 2 * eps);
+      const on = regionPlanes(R).filter((id) => Math.abs(fns[id].d(pu)) <= 2 * eps && Math.abs(fns[id].d(pv)) <= 2 * eps);
       if (!on.length) continue;
       // an edge on the meeting line of two planes goes to the plane this region has a cap for
       const plane = on.find((id) => capOf.has(R.id + ":" + id)) || on.find((id) => id === "hip_split") || on[0];
@@ -745,8 +836,41 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       const runs = [];
       rseq.forEach((p, k) => { if (!runs.length || runs[runs.length - 1].plane !== p) runs.push({ plane: p, from: k, to: k }); else runs[runs.length - 1].to = k; });
       if (opts.debug) (report.runs ||= []).push({ region: R.id, n, runs: runs.map((r) => `${r.plane}:${r.to - r.from + 1}`) });
-      if (runs.length === 2 && runs.every((r) => capOf.has(R.id + ":" + r.plane))) {
-        return runs.map((r) => { const sub = []; for (let k = r.from; k <= r.to + 1; k++) sub.push(rot[k % n]); const d = describe(sub, false); d.dom = r.plane; return d; });
+      const runPlanes = [...new Set(runs.map((r) => r.plane))];
+      if (runs.length >= 2 && runs.length % 2 === 0 && runPlanes.length === 2 && runPlanes.every((p) => capOf.has(R.id + ":" + p))) {
+        // Each run is an open polyline of one plane whose two ends lie on the meeting line of the two planes. Per plane the ends are sorted along that line
+        // and paired two by two (even-odd, as for any section of a solid by a plane): each pair is closed by the chord along the line, and the polylines
+        // chained through those chords are the cap polygons. Two runs (the root's hip Lambda) give one polygon per run; a loop that leaves and re-enters
+        // the plane several times (a hollow tube cut by both the neck plane and the sagittal plane) gives the half rings and the separate wall strips.
+        const L = cross(fns[runPlanes[0]].n, fns[runPlanes[1]].n);
+        const subs = runs.map((r) => { const sub = []; for (let k = r.from; k <= r.to + 1; k++) sub.push(rot[k % n]); return sub; });
+        const partner = new Map(); // "run:start|end" -> "run:start|end"
+        for (const pl of runPlanes) {
+          const ends = [];
+          runs.forEach((r, i) => { if (r.plane === pl) { ends.push({ key: i + ":start", t: dot(V.pos[rep.get(subs[i][0])], L) }, { key: i + ":end", t: dot(V.pos[rep.get(subs[i][subs[i].length - 1])], L) }); } });
+          ends.sort((a, b) => a.t - b.t || (a.key < b.key ? -1 : 1));
+          for (let k = 0; k + 1 < ends.length; k += 2) { partner.set(ends[k].key, ends[k + 1].key); partner.set(ends[k + 1].key, ends[k].key); }
+        }
+        const used = new Set(), polys = [];
+        let consistent = true;
+        runs.forEach((r0, i0) => {
+          if (used.has(i0) || !consistent) return;
+          const nodes = [], len = {};
+          let i = i0;
+          for (let guard = 0; guard <= runs.length; guard++) {
+            used.add(i);
+            const d = describe(subs[i], false);
+            nodes.push(...subs[i]);
+            for (const [p, l] of Object.entries(d.len)) len[p] = (len[p] || 0) + l;
+            const next = partner.get(i + ":end");
+            if (!next || !next.endsWith(":start")) { consistent = false; return; } // an end paired with an end: not a section of a solid, keep the one-polygon fallback
+            i = Number(next.split(":")[0]);
+            if (i === i0) break;
+            if (used.has(i)) { consistent = false; return; }
+          }
+          polys.push({ loop: nodes, len, dom: r0.plane });
+        });
+        if (consistent && polys.length) return polys;
       }
       return [describe(loop, true)];
     });
@@ -804,7 +928,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       // is triangulated once and shared out by the nearest plane)
       const planesHere = [...new Set(infos.flatMap((i) => Object.keys(i.len)).map((p) => (p === "hip_split" ? dom : p)))].filter((p) => capOf.has(R.id + ":" + p)).sort((a, b) => planeOrder.indexOf(a) - planeOrder.indexOf(b));
       let targets = planesHere.map((p) => capOf.get(R.id + ":" + p));
-      if (!targets.length) { targets = [CAPS.find((c) => c.region === R.id)]; capStats.fallback_loops++; }
+      if (!targets.length) { targets = [capsAll.find((c) => c.region === R.id)]; capStats.fallback_loops++; }
       let umin = Infinity, umax = -Infinity, vmin = Infinity, vmax = -Infinity;
       for (const v of all) { umin = Math.min(umin, dot(V.pos[v], u)); umax = Math.max(umax, dot(V.pos[v], u)); vmin = Math.min(vmin, dot(V.pos[v], vv)); vmax = Math.max(vmax, dot(V.pos[v], vv)); }
       const S = Math.max(umax - umin, vmax - vmin) || 1;
@@ -837,8 +961,77 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     }
   }
 
+  // ---- belly_open (opt-in): an elliptical wound patch on the front of piece_upper_torso, above the waist plane. Nothing is removed from the torso
+  // and nothing detaches. The ellipse (rows above) lives in the plane belly_open (point = its centre, normal = the body's forward axis). Each patch
+  // vertex is the front-most skin point of piece_upper_torso straight behind it (a ray along -forward), moved `lift` in front of it along forward, so
+  // the patch follows the skin, is skinned like the three skin vertices it sits on (their own-side bone weights, barycentric), and cannot reach other pieces.
+  let belly = null;
+  if (bellyOpen) {
+    const B = bellyOpen, ax = bodyAxes(J), f = ax.fwd, lat = ax.lat;
+    const sa = sub(fns.neck.point, fns.waist.point), L = vlen(sa);
+    let up = sub(sa, f.map((x) => x * dot(sa, f)));
+    up = norm(sub(up, lat.map((x) => x * dot(up, lat))));
+    const span = Math.abs(dot(lat, sub(J.LeftArm, J.RightArm))), a = B.half_width_frac * span, b = B.half_height_frac * L;
+    let c0 = lerp3(fns.waist.point, fns.neck.point, B.centre_frac);
+    c0 = sub(c0, lat.map((x) => x * (dot(lat, c0) - ax.centre)));
+    fns.belly_open = makeFn("belly_open", c0, f, "ellipse centre " + B.centre_frac + " of the way from the waist plane point to the neck plane point on the symmetry plane; normal = the body's forward axis (Foot to ToeBase)");
+    const clear = fns.waist.d(sub(c0, up.map((x) => x * b)));
+    if (clear < B.min_clearance_frac * L) throw new Error(`belly_open: the ellipse reaches ${clear.toFixed(3)} m above the waist plane, under the ${(B.min_clearance_frac * L).toFixed(3)} m clearance: lower half_height_frac or raise centre_frac`);
+    // skin triangles of the torso that the ellipse can see, in the ellipse's own coordinates (X lateral, Y up, Z forward)
+    const loc = (p) => { const d = sub(p, c0); return [dot(lat, d), dot(up, d), dot(f, d)]; };
+    const cand = [];
+    for (const [ta, tb, tc] of pieceTris.upper_torso) {
+      const q = [loc(V.pos[ta]), loc(V.pos[tb]), loc(V.pos[tc])];
+      if (Math.min(q[0][0], q[1][0], q[2][0]) > a || Math.max(q[0][0], q[1][0], q[2][0]) < -a || Math.min(q[0][1], q[1][1], q[2][1]) > b || Math.max(q[0][1], q[1][1], q[2][1]) < -b) continue;
+      const den = (q[1][1] - q[2][1]) * (q[0][0] - q[2][0]) + (q[2][0] - q[1][0]) * (q[0][1] - q[2][1]);
+      if (Math.abs(den) < 1e-14) continue;
+      cand.push({ v: [ta, tb, tc], q, den });
+    }
+    const hitAt = (x, y) => {
+      let best = null;
+      for (const c of cand) {
+        const [p0, p1, p2] = c.q;
+        const w0 = ((p1[1] - p2[1]) * (x - p2[0]) + (p2[0] - p1[0]) * (y - p2[1])) / c.den, w1 = ((p2[1] - p0[1]) * (x - p2[0]) + (p0[0] - p2[0]) * (y - p2[1])) / c.den, w2 = 1 - w0 - w1;
+        if (w0 < -1e-9 || w1 < -1e-9 || w2 < -1e-9) continue;
+        const z = w0 * p0[2] + w1 * p1[2] + w2 * p2[2];
+        if (!best || z > best.z) best = { z, c, w: [w0, w1, w2] };
+      }
+      return best;
+    };
+    const coreRings = Math.round(B.core_frac * B.rings), pv = [], tr = []; // pv: { p, n, uv, j, w, s }
+    const addV = (x, y, s) => {
+      const h = hitAt(x, y);
+      if (!h) throw new Error(`belly_open: no torso skin behind the patch at (${x.toFixed(3)}, ${y.toFixed(3)}) in the ellipse frame: the ellipse is not on the torso`);
+      const z = h.z + B.rim_lift + B.bulge * (1 - s * s);
+      const p = [c0[0] + lat[0] * x + up[0] * y + f[0] * z, c0[1] + lat[1] * x + up[1] * y + f[1] * z, c0[2] + lat[2] * x + up[2] * y + f[2] * z];
+      let n = cross(sub(V.pos[h.c.v[1]], V.pos[h.c.v[0]]), sub(V.pos[h.c.v[2]], V.pos[h.c.v[0]]));
+      n = norm(n); if (dot(n, f) < 0) n = n.map((e) => -e);
+      const acc = new Map();
+      h.c.v.forEach((v, k) => { const bw = bindWeights(v, B.region); for (let m = 0; m < 4; m++) if (bw.w[m] > 0) acc.set(bw.j[m], (acc.get(bw.j[m]) || 0) + bw.w[m] * h.w[k]); });
+      const list = [...acc.entries()].sort((u, w) => w[1] - u[1] || u[0] - w[0]).slice(0, 4), sum = list.reduce((t, e) => t + e[1], 0), jj = [0, 0, 0, 0], ww = [0, 0, 0, 0];
+      list.forEach((e, k) => { jj[k] = e[0]; ww[k] = e[1] / sum; });
+      pv.push({ p, n, uv: [0.5 + 0.5 * x / a, 0.5 + 0.5 * y / b], j: jj, w: ww, s, x, y, skinZ: h.z });
+      return pv.length - 1;
+    };
+    const centre = addV(0, 0, 0), ringStart = [];
+    for (let i = 1; i <= B.rings; i++) { ringStart.push(pv.length); for (let k = 0; k < B.segments; k++) { const an = 2 * Math.PI * k / B.segments, s = i / B.rings; addV(a * s * Math.cos(an), b * s * Math.sin(an), s); } }
+    let flipped = 0;
+    const pushTri = (i0, i1, i2, ring) => {
+      const g = cross(sub(pv[i1].p, pv[i0].p), sub(pv[i2].p, pv[i0].p));
+      if (dot(g, f) < 0) { flipped++; tr.push([i0, i2, i1, ring]); } else tr.push([i0, i1, i2, ring]);
+    };
+    for (let k = 0; k < B.segments; k++) pushTri(centre, ringStart[0] + k, ringStart[0] + (k + 1) % B.segments, 1);
+    for (let i = 0; i + 1 < B.rings; i++) for (let k = 0; k < B.segments; k++) {
+      const a0 = ringStart[i] + k, a1 = ringStart[i] + (k + 1) % B.segments, b0 = ringStart[i + 1] + k, b1 = ringStart[i + 1] + (k + 1) % B.segments;
+      pushTri(a0, b0, b1, i + 2); pushTri(a0, b1, a1, i + 2);
+    }
+    let area = 0;
+    for (const [i0, i1, i2] of tr) area += 0.5 * vlen(cross(sub(pv[i1].p, pv[i0].p), sub(pv[i2].p, pv[i0].p)));
+    belly = { B, c0, f, lat, up, a, b, pv, tr, coreRings, flipped, area, ellipseArea: Math.PI * a * b, waistClearance: clear, torsoTrianglesSeen: cand.length };
+  }
+
   // ---- build the output document
-  const buffer = root.listBuffers()[0] || doc.createBuffer();
+  const buffer =root.listBuffers()[0] || doc.createBuffer();
   const oldAcc = new Set();
   for (const m of oldMeshes) for (const p of m.listPrimitives()) { for (const s of p.listSemantics()) oldAcc.add(p.getAttribute(s)); if (p.getIndices()) oldAcc.add(p.getIndices()); }
   const parent = oldNodes[0].getParentNode();
@@ -856,7 +1049,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     return n;
   };
   const piecePos = {}, pieceIdx = {}, outStats = { pieces: {}, caps: {} };
-  for (const R of REGIONS) {
+  for (const R of regions) {
     const mesh = doc.createMesh(R.mesh);
     const pp = [], ii = [];
     let vcount = 0, tcount = 0;
@@ -891,7 +1084,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const flesh = doc.createMaterial(FLESH.name).setBaseColorFactor(FLESH.color).setRoughnessFactor(FLESH.roughness).setMetallicFactor(0);
   const capGeom = {};
   const capsMissing = [];
-  for (const C of CAPS) {
+  for (const C of capsAll) {
     const rec = capsOut[C.id];
     if (!rec) { capsMissing.push(C.id); continue; }
     const n = rec.verts.length;
@@ -909,6 +1102,22 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     capGeom[C.id] = { positions: posW, indices: rec.tris };
     outStats.caps[C.id] = { vertices: n, triangles: rec.tris.length / 3 };
   }
+  if (belly) { // one mesh, two primitives: the flesh rim and the dark core
+    const inner = doc.createMaterial(FLESH_INNER.name).setBaseColorFactor(FLESH_INNER.color).setRoughnessFactor(FLESH_INNER.roughness).setMetallicFactor(0);
+    const mesh = doc.createMesh(belly.B.cap);
+    for (const [mat, pick] of [[inner, (r) => r <= belly.coreRings], [flesh, (r) => r > belly.coreRings]]) {
+      const T = belly.tr.filter((t) => pick(t[3])), map = new Map(), used = [];
+      for (const t of T) for (const v of t.slice(0, 3)) if (!map.has(v)) { map.set(v, used.length); used.push(v); }
+      const n = used.length, pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), jj = new Uint16Array(n * 4), ww = new Float32Array(n * 4);
+      used.forEach((v, k) => { const q = belly.pv[v]; pos.set(q.p, k * 3); nor.set(q.n, k * 3); uv.set(q.uv, k * 2); jj.set(q.j, k * 4); ww.set(q.w, k * 4); });
+      const idx = T.flatMap((t) => [map.get(t[0]), map.get(t[1]), map.get(t[2])]);
+      mesh.addPrimitive(doc.createPrimitive().setMaterial(mat)
+        .setAttribute("POSITION", mkAcc("VEC3", pos)).setAttribute("NORMAL", mkAcc("VEC3", nor)).setAttribute("TEXCOORD_0", mkAcc("VEC2", uv))
+        .setAttribute("JOINTS_0", mkAcc("VEC4", jj)).setAttribute("WEIGHTS_0", mkAcc("VEC4", ww)).setIndices(mkAcc("SCALAR", n < 65536 ? new Uint16Array(idx) : new Uint32Array(idx))));
+    }
+    addNode(belly.B.cap, mesh);
+    outStats.caps[belly.B.cap] = { vertices: belly.pv.length, triangles: belly.tr.length };
+  }
   if (ibm) { // inverse binds absorb Q^-1 (see above)
     const arr = new Float32Array(joints.length * 16);
     for (let i = 0; i < joints.length; i++) arr.set(mul4(ibm.getElement(i, new Array(16)), Qinv), i * 16);
@@ -919,14 +1128,14 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // ---- watertight check: every piece with the caps that belong to it
   const watertight = {};
   let allClosed = true, openTotal = 0, cutOpenTotal = 0, nativeTotal = 0, nonManifoldTotal = 0;
-  const onAnyPlane = (p) => planeOrder.some((id) => Math.abs(fns[id].d(p)) <= 3 * eps);
-  for (const R of REGIONS) {
+  for (const R of regions) {
     const parts = piecePos[R.id].map((p, k) => ({ positions: p, indices: pieceIdx[R.id][k] }));
-    for (const C of CAPS) if (C.region === R.id && capGeom[C.id]) parts.push(capGeom[C.id]);
+    for (const C of capsAll) if (C.region === R.id && capGeom[C.id]) parts.push(capGeom[C.id]);
     const rep = weldReport(parts, 1e-5, true);
     // an open edge is "at a cut" when both its ends lie on a cut plane; the rest are open edges the source mesh already had (hair cards, eye sockets...)
+    const onAnyPlane = (p) => regionPlanes(R).some((id) => Math.abs(fns[id].d(p)) <= 3 * eps);
     const atCut = rep.boundary_list.filter(([a, b]) => onAnyPlane(a) && onAnyPlane(b));
-    watertight[R.id] = { boundary_edges: rep.boundary_edges, open_edges_at_cuts: atCut.length, open_edges_native: rep.boundary_edges - atCut.length, non_manifold_edges: rep.non_manifold_edges, degenerate_triangles: rep.degenerate, at_cuts: atCut.slice(0, 4).map((e) => ({ from: e[0].map(r6), planes: planeOrder.filter((id) => Math.abs(fns[id].d(e[0])) <= 3 * eps && Math.abs(fns[id].d(e[1])) <= 3 * eps) })) };
+    watertight[R.id] = { boundary_edges: rep.boundary_edges, open_edges_at_cuts: atCut.length, open_edges_native: rep.boundary_edges - atCut.length, non_manifold_edges: rep.non_manifold_edges, degenerate_triangles: rep.degenerate, at_cuts: atCut.slice(0, 4).map((e) => ({ from: e[0].map(r6), planes: regionPlanes(R).filter((id) => Math.abs(fns[id].d(e[0])) <= 3 * eps && Math.abs(fns[id].d(e[1])) <= 3 * eps) })) };
     if (!rep.watertight) allClosed = false;
     openTotal += rep.boundary_edges; cutOpenTotal += atCut.length; nativeTotal += rep.boundary_edges - atCut.length; nonManifoldTotal += rep.non_manifold_edges;
   }
@@ -940,24 +1149,44 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // the internal hip bisector is not a cut: kept out of `planes` (readers match plane names loosely) and listed apart
   const internalPlanes = { hip_split: { point: sub(fns.hip_split.point, offset).map(r6), normal: fns.hip_split.n.map(r6), source: fns.hip_split.source } };
   let verticesOut = 0, capVerts = 0;
-  for (const R of REGIONS) verticesOut += outStats.pieces[R.id].vertices;
+  for (const R of regions) verticesOut += outStats.pieces[R.id].vertices;
   for (const k of Object.keys(outStats.caps)) capVerts += outStats.caps[k].vertices;
+  // optional cuts: additive manifest fields (cut-pieces/1 readers ignore them); absent when both are off
+  const optionalUnits = {}, optionalPlanes = {};
+  const planeRow = (f) => ({ point: sub(f.point, offset).map(r6), normal: f.n.map(r6), source: f.source });
+  if (headSplit) {
+    optionalPlanes.head_split = planeRow(fns.head_split);
+    optionalUnits.head_split = { enabled: true, kind: "split", unit: headSplit.unit, plane: headSplit.plane, replaces: "piece_" + headSplit.replaces, regions: headSplit.regions.map((r) => r.id), caps: headSplit.caps.map((c) => c.id),
+      about: "piece_head is cut at a sagittal plane into piece_head_left (+ side of the plane) and piece_head_right; both are detached by the unit head and separated by the unit head_split. Hair cards go whole to the half they lie mostly in", stats: splitInfo };
+  }
+  if (belly) {
+    optionalPlanes.belly_open = planeRow(fns.belly_open);
+    const B = belly.B;
+    optionalUnits.belly_open = { enabled: true, kind: "opening", unit: B.unit, plane: B.plane, cap: B.cap, region: B.region, removes_geometry: false, detaches: null,
+      about: "a wound patch (flesh rim + cap_inner core) standing in front of the torso skin; the skin under it is not removed, so it reads as an opening only as a decal: hide or replace the skin under it at runtime for a true hole",
+      frame: { centre: sub(belly.c0, offset).map(r6), forward: belly.f.map(r6), lateral: belly.lat.map(r6), up: belly.up.map(r6), half_width: r6(belly.a), half_height: r6(belly.b) },
+      params: { rim_lift: B.rim_lift, bulge: B.bulge, rings: B.rings, segments: B.segments, core_rings: belly.coreRings },
+      materials: { rim: FLESH.name, core: FLESH_INNER.name },
+      stats: { vertices: belly.pv.length, triangles: belly.tr.length, area: r6(belly.area), ellipse_area: r6(belly.ellipseArea), triangles_rewound: belly.flipped, waist_clearance: r6(belly.waistClearance), torso_triangles_seen: belly.torsoTrianglesSeen } };
+  }
   const manifest = {
     schema: "cut-pieces/1",
     body: opts.body || row.id || "body",
     rig: opts.rig || "rig",
     source: opts.source || "body.glb",
-    regions: REGIONS.map((r) => ({ id: r.id, mesh: r.mesh, detached_by: r.detached_by })),
-    caps: CAPS.filter((c) => capGeom[c.id]).map((c) => ({ id: c.id, mesh: c.id, region: c.region, shown_when_cut: c.shown_when_cut })),
+    regions: regions.map((r) => ({ id: r.id, mesh: r.mesh, detached_by: r.detached_by, ...(r.separated_by ? { separated_by: r.separated_by } : {}) })),
+    caps: capsAll.filter((c) => capGeom[c.id]).map((c) => ({ id: c.id, mesh: c.id, region: c.region, shown_when_cut: c.shown_when_cut }))
+      .concat(belly ? [{ id: belly.B.cap, mesh: belly.B.cap, region: belly.B.region, shown_when_cut: belly.B.unit, kind: "opening" }] : []),
     planes,
     internal_planes: internalPlanes,
+    ...(Object.keys(optionalUnits).length ? { optional_units: optionalUnits, optional_planes: optionalPlanes } : {}),
     plane_frame: { about: "plane points are in the measure row's coordinates (floor-lifted bind pose, metres); add bind_offset to get the GLB's bind-pose world space; vertex_to_world is the identity in the cut GLB (written in metres); source_vertex_to_world is the matrix the source GLB's stored vertex space needed", bind_offset: offset.map(r6), crotch_apex: apex ? sub(apex, offset).map(r6) : null, vertex_to_world: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], source_vertex_to_world: Q.map((x) => Math.round(x * 1e9) / 1e9) },
     stats: {
       vertices_in: verticesIn,
       vertices_out: verticesOut,
       cap_vertices: capVerts,
       triangles_in: tris.length,
-      triangles_out: REGIONS.reduce((s, r) => s + outStats.pieces[r.id].triangles, 0),
+      triangles_out: regions.reduce((s, r) => s + outStats.pieces[r.id].triangles, 0),
       triangles_split: trianglesSplit,
       split_vertices_created: V.pos.length - verticesIn,
       watertight: allClosed,
@@ -994,7 +1223,10 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   };
   const hairNames = [...new Set(hairTris.map((t) => srcPrims[t[3]].material.getName()))].sort();
   if (hairNames.length) {
-    manifest.plane_exempt = { piece_head: hairNames };
+    if (headSplit) { // each half names the hair materials it actually carries
+      manifest.plane_exempt = {};
+      for (const r of headSplit.regions) { const m = [...new Set(hairFor[r.id].map((t) => srcPrims[t[3]].material.getName()))].sort(); if (m.length) manifest.plane_exempt[r.mesh] = m; }
+    } else manifest.plane_exempt = { piece_head: hairNames };
     manifest.plane_exempt_reason = "hair, hair cards and eyelashes belong to the head: a severed head carries its hair whole, so these materials are not cut at any plane (they reach below the neck plane) and are bound rigidly to the Head bone; cut-validate skips the planes check for them only";
   }
   return { glb, manifest, report };
@@ -1007,12 +1239,12 @@ async function main() {
   let bodyName = null;
   if (bi >= 0) { bodyName = args[bi + 1]; args.splice(bi, 2); }
   const [glbPath, rowPath, mapPath, outDir] = args;
-  if (!outDir) { console.error("usage: node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name]"); process.exit(2); }
+  if (!outDir) { console.error("usage: node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name] [--head-split] [--belly-open]"); process.exit(2); }
   const row = JSON.parse(readFileSync(rowPath, "utf8"));
   const rigMap = JSON.parse(readFileSync(mapPath, "utf8"));
   const name = bodyName || row.id || basename(glbPath, ".glb");
   const debug = args.includes("--debug") || process.env.CUT_DEBUG === "1";
-  const { glb, manifest, report } = await cutGlb(readFileSync(glbPath), row, rigMap, { body: name, rig: basename(mapPath, ".json"), source: basename(glbPath), debug });
+  const { glb, manifest, report } = await cutGlb(readFileSync(glbPath), row, rigMap, { body: name, rig: basename(mapPath, ".json"), source: basename(glbPath), debug, headSplit: args.includes("--head-split"), bellyOpen: args.includes("--belly-open") });
   if (debug) console.log(JSON.stringify(report, null, 1));
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, name + ".cut.glb"), glb);

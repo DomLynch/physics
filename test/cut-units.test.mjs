@@ -473,6 +473,192 @@ test("ear clipping a polygon that crosses itself terminates and uses every verte
   assert.equal(simple.length, 9);
 });
 
+// ---------------------------------------------------------------- optional cuts: head_split and belly_open (opt-in, default off)
+const cutWith = (b, o) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", ...o });
+const validateAll = (b, r, manifest = r.manifest) => validate(Buffer.from(r.glb), manifest, { source: Buffer.from(b.bytes), planeOffset: r.manifest.plane_frame.bind_offset });
+const failing = (v) => v.checks.filter((c) => !c.ok).map((c) => c.name);
+const why = (v) => v.checks.filter((c) => !c.ok).map((c) => c.name + ": " + c.details.slice(0, 3).join(" | "));
+const HALF_OWN = ["Head", "HeadTop_End"];
+const BELLY = { half_width_frac: 0.15 }; // the synthetic column is 0.2 m wide (the real rows' 0.3 of the shoulder span is for real torsos)
+
+test("with both optional cuts off the manifest has no optional fields and the pieces are the plain seven", async () => {
+  const { r } = await run();
+  assert.equal(r.manifest.optional_units, undefined);
+  assert.equal(r.manifest.optional_planes, undefined);
+  assert.ok(r.manifest.regions.every((x) => x.separated_by === undefined));
+  const off = await cutWith(await buildBody(), { headSplit: false, bellyOpen: false });
+  assert.ok(Buffer.compare(Buffer.from(off.glb), Buffer.from(r.glb)) === 0, "explicit false is the same file as the default");
+});
+
+test("head_split: piece_head becomes two halves that meet on the sagittal plane, each with a neck cap and a cut face", async () => {
+  const b = await buildBody();
+  const base = await cut(b), baseOut = await readOut(base.glb);
+  const r = await cutWith(b, { headSplit: true });
+  const out = await readOut(r.glb), m = r.manifest;
+  // manifest: additive, schema unchanged
+  assert.equal(m.schema, "cut-pieces/1");
+  assert.deepEqual(m.regions.map((x) => x.id).sort(), ["arm_left", "arm_right", "head_left", "head_right", "leg_left", "leg_right", "root", "upper_torso"]);
+  for (const id of ["head_left", "head_right"]) { const x = m.regions.find((q) => q.id === id); assert.equal(x.mesh, "piece_" + id); assert.equal(x.detached_by, "head"); assert.equal(x.separated_by, "head_split"); }
+  const capUnit = Object.fromEntries(m.caps.map((c) => [c.id, c.shown_when_cut]));
+  assert.equal(m.caps.length, 15);
+  assert.equal(capUnit.cap_split_head_left, "head_split"); assert.equal(capUnit.cap_split_head_right, "head_split");
+  assert.equal(capUnit.cap_neck_head_left, "head"); assert.equal(capUnit.cap_neck_head_right, "head"); assert.equal(capUnit.cap_neck_head, undefined);
+  assert.equal(m.caps.find((c) => c.id === "cap_split_head_left").region, "head_left");
+  assert.equal(m.optional_units.head_split.enabled, true);
+  const pl = m.optional_planes.head_split;
+  assert.ok(Math.abs(pl.normal[0] - 1) < 1e-6 && Math.abs(pl.normal[1]) < 1e-9, "the left-right axis: +x is the body's left (LeftArm at +x)");
+  assert.ok(Math.abs(pl.point[0]) < 1e-6 && Math.abs(pl.point[1] - (1.5 - FLOOR)) < 1e-4, "on the Neck to Head midline, in the measure row's frame");
+  assert.deepEqual(Object.keys(out.meshes).sort(), [...REGIONS.filter((x) => x.id !== "head").map((x) => x.mesh), "piece_head_left", "piece_head_right", ...CAPS.filter((c) => c.region !== "head").map((c) => c.id), "cap_neck_head_left", "cap_neck_head_right", "cap_split_head_left", "cap_split_head_right"].sort());
+  for (const [name, mm] of Object.entries(out.meshes)) assert.ok(mm.node.getSkin(), name + " is skinned");
+  // everything that is not the head is the same bytes of geometry as the plain cut
+  for (const R of REGIONS) if (R.id !== "head") assert.deepEqual(out.meshes[R.mesh].prims.map((p) => [...p.positions]), baseOut.meshes[R.mesh].prims.map((p) => [...p.positions]), R.id + " unchanged");
+  // area conserved: the two halves are the old head
+  const area = (o, names) => names.reduce((s, n) => s + o.meshes[n].prims.reduce((t, p) => t + areaOf(p.positions, p.indices), 0), 0);
+  const was = area(baseOut, ["piece_head"]), now = area(out, ["piece_head_left", "piece_head_right"]);
+  assert.ok(Math.abs(now - was) / was < 1e-7, `head area ${was} -> ${now}`);
+  // each half on its own side of x = 0 (the lashes carry exempt materials and are whole in one half), pieces and caps
+  const eps = 1e-4;
+  for (const [id, sign] of [["head_left", 1], ["head_right", -1]]) for (const p of out.meshes["piece_" + id].prims) if (p.material !== "lash") for (let i = 0; i < p.positions.length; i += 3) assert.ok(p.positions[i] * sign >= -eps, `${id} vertex at x ${p.positions[i]}`);
+  // conservation of area on the cut face: column (0.16 deep x 0.25 high above the neck plane) + the tube's two walls (2 x 0.03 x 0.2)
+  const faceL = area(out, ["cap_split_head_left"]), faceR = area(out, ["cap_split_head_right"]);
+  assert.ok(Math.abs(faceL - (0.16 * 0.25 + 2 * 0.03 * 0.2)) < 1e-6, "cut face area " + faceL);
+  assert.ok(Math.abs(faceL - faceR) < 1e-9);
+  // the cut faces are flat on x = 0 and face away from their half (left: -x, right: +x)
+  for (const [cap, sign] of [["cap_split_head_left", -1], ["cap_split_head_right", 1]]) for (const p of out.meshes[cap].prims) {
+    for (let i = 0; i < p.positions.length; i += 3) assert.ok(Math.abs(p.positions[i]) < eps, cap + " flat");
+    for (const n of p.nor) assert.ok(n[0] * sign > 0.99, cap + " normal");
+    for (let t = 0; t < p.indices.length; t += 3) { const q = (k) => p.indices[t + k] * 3, P = p.positions; const u = [0, 1, 2].map((c) => P[q(1) + c] - P[q(0) + c]), v = [0, 1, 2].map((c) => P[q(2) + c] - P[q(0) + c]); if (Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]) < 1e-12) continue; /* collinear boundary vertices are kept, as in every cap */ assert.ok((u[1] * v[2] - u[2] * v[1]) * sign > 0, cap + " winding of triangle " + t / 3 + " of " + p.indices.length / 3 + ": " + JSON.stringify([u, v])); }
+  }
+  // every half with its caps is watertight
+  for (const id of ["head_left", "head_right"]) {
+    const parts = out.meshes["piece_" + id].prims.map((p) => ({ positions: p.positions, indices: p.indices }));
+    for (const c of m.caps) if (c.region === id) for (const p of out.meshes[c.id].prims) parts.push({ positions: p.positions, indices: p.indices });
+    const rep = weldReport(parts, 1e-5);
+    assert.equal(rep.boundary_edges + rep.non_manifold_edges + rep.degenerate, 0, `${id}: open ${rep.boundary_edges}, non-manifold ${rep.non_manifold_edges}, degenerate ${rep.degenerate} at ${JSON.stringify(rep.boundary_sample)}`);
+    assert.equal(m.stats.watertight_by_region[id].boundary_edges, 0);
+  }
+  // bone side: both halves and their caps use only the head's bones
+  for (const id of ["head_left", "head_right"]) for (const name of ["piece_" + id, ...m.caps.filter((c) => c.region === id).map((c) => c.id)]) for (const p of out.meshes[name].prims) p.jj.forEach((j, i) => j.forEach((ji, k) => { if (p.ww[i][k] > 0) assert.ok(HALF_OWN.includes(out.joints[ji]), `${name} vertex ${i} on ${out.joints[ji]}`); }));
+  assert.equal(m.stats.orphan_weights, 0);
+  // the independent validator agrees, and runs its extra check
+  const v = validateAll(b, r);
+  assert.deepEqual(why(v), []);
+  assert.ok(v.checks.some((c) => c.name === "head_split" && c.ok));
+  assert.match(v.checks[0].summary, /8 pieces \+ 15 caps/);
+  // determinism
+  assert.ok(Buffer.compare(Buffer.from((await cutWith(b, { headSplit: true })).glb), Buffer.from(r.glb)) === 0);
+});
+
+test("head_split: hair cards go whole to one half, bound to Head only, declared per half as plane_exempt; the validator passes and checks the seam", async () => {
+  const b = await buildBody({ hair: true });
+  const base = await cut(b), baseOut = await readOut(base.glb);
+  const r = await cutWith(b, { headSplit: true });
+  const out = await readOut(r.glb), m = r.manifest;
+  const cardTris = (o, n) => o.meshes[n].prims.filter((p) => p.material === "hair_cards").reduce((s, p) => s + p.indices.length / 3, 0);
+  const l = cardTris(out, "piece_head_left"), rr = cardTris(out, "piece_head_right");
+  assert.equal(l + rr, 28, "the card is not cut");
+  assert.ok(l === 0 || rr === 0, "and it lies wholly in one half");
+  const head = out.joints.indexOf("Head");
+  for (const n of ["piece_head_left", "piece_head_right"]) for (const p of out.meshes[n].prims.filter((q) => q.material === "hair_cards" || q.material === "lash")) p.jj.forEach((j, i) => { assert.equal(j[0], head); assert.equal(p.ww[i][0], 1); });
+  assert.ok(m.plane_exempt.piece_head_left || m.plane_exempt.piece_head_right);
+  assert.equal(m.plane_exempt.piece_head, undefined);
+  assert.match(m.plane_exempt_reason, /hair/);
+  // total area unchanged against the plain cut
+  const sum = (o, names) => names.reduce((s, n) => s + o.meshes[n].prims.reduce((t, p) => t + areaOf(p.positions, p.indices), 0), 0);
+  assert.ok(Math.abs(sum(out, ["piece_head_left", "piece_head_right"]) - sum(baseOut, ["piece_head"])) < 1e-7);
+  const v = validateAll(b, r);
+  assert.deepEqual(why(v), []);
+  assert.match(v.checks.find((c) => c.name === "planes").summary, /plane_exempt/);
+  assert.match(v.checks.find((c) => c.name === "head_split").summary, /meet along one seam/);
+  // the validator fails what is wrong: the plane moved off the midline puts half a head on the wrong side; a missing cut face fails the structure
+  const moved = JSON.parse(JSON.stringify(m)); moved.optional_planes.head_split.point[0] += 0.05;
+  assert.ok(failing(validateAll(b, r, moved)).includes("planes"), "moved plane");
+  const noCap = JSON.parse(JSON.stringify(m)); noCap.caps = noCap.caps.filter((c) => c.id !== "cap_split_head_left");
+  assert.ok(failing(validateAll(b, r, noCap)).includes("structure"), "cap missing from the manifest");
+  const noSep = JSON.parse(JSON.stringify(m)); delete noSep.regions.find((x) => x.id === "head_left").separated_by;
+  assert.ok(failing(validateAll(b, r, noSep)).includes("structure"), "separated_by missing");
+  const asPlain = JSON.parse(JSON.stringify(m)); delete asPlain.optional_units; // the GLB has halves, the manifest claims the plain seven: structure fails
+  assert.ok(failing(validateAll(b, r, asPlain)).includes("structure"), "halves in a plain manifest");
+});
+
+test("belly_open: a patch on the front of the torso above the waist; nothing is removed or detached", async () => {
+  const b = await buildBody();
+  const base = await cut(b), baseOut = await readOut(base.glb);
+  const r = await cutWith(b, { bellyOpen: BELLY });
+  const out = await readOut(r.glb), m = r.manifest;
+  const cap = m.caps.find((c) => c.id === "cap_belly_opening");
+  assert.deepEqual(cap, { id: "cap_belly_opening", mesh: "cap_belly_opening", region: "upper_torso", shown_when_cut: "belly_open", kind: "opening" });
+  assert.equal(m.caps.length, 13);
+  assert.deepEqual(m.regions, base.manifest.regions, "no region changes");
+  const u = m.optional_units.belly_open;
+  assert.equal(u.removes_geometry, false); assert.equal(u.detaches, null);
+  assert.ok(Math.abs(u.frame.forward[2] - 1) < 1e-6, "forward is +z (toes ahead of the feet)");
+  // nothing removed: every piece is the plain cut's geometry
+  for (const R of REGIONS) assert.deepEqual(out.meshes[R.mesh].prims.map((p) => [...p.positions]), baseOut.meshes[R.mesh].prims.map((p) => [...p.positions]), R.id + " unchanged");
+  for (const c of CAPS) assert.deepEqual(out.meshes[c.id].prims.map((p) => [...p.positions]), baseOut.meshes[c.id].prims.map((p) => [...p.positions]), c.id + " unchanged");
+  // the patch: skinned, two materials (flesh rim, dark core), in front of the column's skin (z 0.08), inside the ellipse, above the waist plane (y 1.05)
+  const mesh = out.meshes.cap_belly_opening;
+  assert.ok(mesh.node.getSkin());
+  assert.deepEqual(mesh.prims.map((p) => p.material).sort(), ["cap_flesh", "cap_inner"]);
+  let n = 0;
+  for (const p of mesh.prims) {
+    for (let i = 0; i < p.positions.length; i += 3) {
+      n++;
+      const [x, y, z] = [p.positions[i], p.positions[i + 1], p.positions[i + 2]];
+      assert.ok(z >= 0.08 + 0.0015 - 1e-6 && z <= 0.08 + 0.0015 + 0.008 + 1e-6, "lift in front of the skin: z " + z);
+      assert.ok((x / u.frame.half_width) ** 2 + ((y - u.frame.centre[1] - FLOOR) / u.frame.half_height) ** 2 <= 1 + 1e-6, "inside the ellipse");
+      assert.ok(y > 1.05 + 0.03, "above the waist plane: y " + y);
+    }
+    p.jj.forEach((j, i) => j.forEach((ji, k) => { if (p.ww[i][k] > 0) assert.ok(OWN.upper_torso.includes(out.joints[ji]), "bone " + out.joints[ji]); }));
+    for (const nn of p.nor) assert.ok(nn[2] > 0.9, "normals face forward");
+    for (let t = 0; t < p.indices.length; t += 3) { const q = (k) => p.indices[t + k] * 3, P = p.positions; const a = [0, 1, 2].map((c) => P[q(1) + c] - P[q(0) + c]), c2 = [0, 1, 2].map((c) => P[q(2) + c] - P[q(0) + c]); assert.ok(a[0] * c2[1] - a[1] * c2[0] > 0, "winding faces forward"); }
+  }
+  assert.equal(n, u.stats.vertices + u.params.segments, "the ring where the two materials meet is stored in both primitives");
+  const area = mesh.prims.reduce((s, p) => s + areaOf(p.positions, p.indices), 0);
+  assert.ok(area >= Math.PI * u.frame.half_width * u.frame.half_height * 0.99);
+  const v = validateAll(b, r);
+  assert.deepEqual(why(v), []);
+  assert.ok(v.checks.some((c) => c.name === "belly_open" && c.ok));
+  assert.match(v.checks[0].summary, /cap_belly_opening/);
+  // the validator fails what is wrong
+  const small = JSON.parse(JSON.stringify(m)); small.optional_units.belly_open.frame.half_width *= 0.5;
+  assert.ok(failing(validateAll(b, r, small)).includes("belly_open"), "ellipse smaller than the patch");
+  const removes = JSON.parse(JSON.stringify(m)); removes.optional_units.belly_open.removes_geometry = true;
+  assert.ok(failing(validateAll(b, r, removes)).includes("belly_open"), "claims to remove geometry");
+  const lifted = JSON.parse(JSON.stringify(m)); lifted.optional_units.belly_open.params.rim_lift = 0.02; lifted.optional_units.belly_open.params.bulge = 0;
+  assert.ok(failing(validateAll(b, r, lifted)).includes("belly_open"), "lift declared differently from the mesh");
+  const wrongUnit = JSON.parse(JSON.stringify(m)); wrongUnit.caps.find((c) => c.id === "cap_belly_opening").shown_when_cut = "torso_waist";
+  assert.ok(failing(validateAll(b, r, wrongUnit)).includes("structure"), "wrong unit");
+  assert.ok(failing(validate(Buffer.from(base.glb), m, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset })).includes("structure"), "manifest claims a patch the GLB lacks");
+});
+
+test("belly_open: an ellipse that does not fit the torso is refused with the reason", async () => {
+  const b = await buildBody();
+  await assert.rejects(() => cutWith(b, { bellyOpen: { ...BELLY, centre_frac: 0.05 } }), /clearance/);
+  await assert.rejects(() => cutWith(b, { bellyOpen: { half_width_frac: 1 } }), /no torso skin behind the patch/);
+});
+
+test("both optional cuts together, with hair: the validator passes all ten checks; the CLI flags do the same", async () => {
+  const b = await buildBody({ hair: true });
+  const r = await cutWith(b, { headSplit: true, bellyOpen: BELLY });
+  const v = validateAll(b, r);
+  assert.deepEqual(why(v), []);
+  assert.deepEqual(v.checks.map((c) => c.name), ["structure", "watertight", "orientation", "weights", "bone_side", "caps", "conservation", "planes", "head_split", "belly_open"]);
+  assert.deepEqual(Object.keys(r.manifest.optional_units).sort(), ["belly_open", "head_split"]);
+  assert.ok(r.manifest.caps.some((c) => c.id === "cap_belly_opening") && r.manifest.caps.some((c) => c.id === "cap_split_head_right"));
+  // the CLI: --head-split --belly-open (the real rows' ellipse is too wide for this thin synthetic column, so only --head-split goes through the CLI here)
+  const dir = mkdtempSync(join(tmpdir(), "cut-units-opt-"));
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(join(dir, "syn.glb"), b.bytes); writeFileSync(join(dir, "syn.measure.json"), JSON.stringify(b.row));
+  const args = (extra) => [new URL("../tools/cut-units.mjs", import.meta.url).pathname, join(dir, "syn.glb"), join(dir, "syn.measure.json"), new URL("../data/rig-maps/mixamo-106.json", import.meta.url).pathname, join(dir, "out"), "--body", "syn", ...extra];
+  const res = spawnSync(process.execPath, args(["--head-split"]), { encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8")).regions.map((x) => x.id).filter((x) => x.startsWith("head")).sort(), ["head_left", "head_right"]);
+  const bad = spawnSync(process.execPath, args(["--belly-open"]), { encoding: "utf8" });
+  assert.notEqual(bad.status, 0, "the default ellipse is wider than the synthetic column: refused");
+  assert.match(bad.stderr, /no torso skin/);
+});
+
 // ---------------------------------------------------------------- the real bodies (V3 rig/106-default GLBs), when present
 const DIR = process.env.CUT_BODIES_DIR || "/root/bodies";
 for (const name of ["minotaur-106", "psyche-106"]) {
