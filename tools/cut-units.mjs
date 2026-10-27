@@ -511,7 +511,13 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     r === "arm_left" ? !!(b & 2) : r === "arm_right" ? !!(b & 4) : r === "leg_left" ? !!(b & 8) && (!(b & 16) || !!(b & 64)) : !!(b & 16) && (!(b & 8) || !(b & 64));
   const cellTris = []; // [a, b, c, prim, cell bits]
   let trianglesSplit = 0;
+  // Hair (Physics Dev ruling, docs/CUT-CONTRACT.md): hair-card and eyelash materials belong to the head, so a severed head carries its hair whole.
+  // Those triangles are not cut at any plane and go to piece_head, re-bound rigidly to the Head bone (manifest `plane_exempt`).
+  const isHairMaterial = (name) => (Array.isArray(opts.hairMaterials) ? opts.hairMaterials.includes(name) : /hair|lash|brow/i.test(name || ""));
+  const hairPrim = srcPrims.map((p) => !!p.material && isHairMaterial(p.material.getName()));
+  const hairTris = [], hairVerts = new Set();
   for (const [a, b, c, pi] of tris) {
+    if (hairPrim[pi]) { hairTris.push([a, b, c, pi]); hairVerts.add(a); hairVerts.add(b); hairVerts.add(c); continue; }
     let polys = [{ v: [a, b, c], bits: 0 }];
     for (const fn of sequence) {
       const nx = [];
@@ -531,7 +537,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const seen = new Set();
     for (const t of cellTris) { seen.add(t[0]); seen.add(t[1]); seen.add(t[2]); }
     const lost = new Map();
-    for (const t of tris) for (let k = 0; k < 3; k++) if (!seen.has(t[k])) lost.set(t[k], t[3]);
+    for (const t of tris) for (let k = 0; k < 3; k++) if (!seen.has(t[k]) && !hairVerts.has(t[k])) lost.set(t[k], t[3]);
     report.lostAfterSplit = { count: lost.size, sample: [...lost.entries()].slice(0, 5).map(([v, p]) => [v, p, V.pos[v].map(r6)]) };
   }
   // fragments = connected pieces (welded positions) of one cell. A fragment goes to the region its cell names, unless its bones say otherwise:
@@ -585,6 +591,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   let weightsRebound = 0, weightsTruncated = 0, orphan = 0;
   const bindCache = new Map();
   const bindWeights = (v, region) => {
+    // hair travels with the head as one rigid piece: Head bone only (renormalised weights of a single bone)
+    if (region === "head" && hairVerts.has(v)) return { j: [roleJoint.Head, 0, 0, 0], w: [1, 0, 0, 0] };
     const key = v * 8 + REGIONS.findIndex((r) => r.id === region);
     if (bindCache.has(key)) return bindCache.get(key);
     const acc = new Map();
@@ -613,7 +621,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const outPieces = {}; // region -> { prims: [{ pi, gv: [vertex ids], indices }], positionsAll }
   for (const R of REGIONS) {
     const byPrim = new Map();
-    for (const [a, b, c, pi] of pieceTris[R.id]) {
+    for (const [a, b, c, pi] of R.id === "head" ? pieceTris.head.concat(hairTris) : pieceTris[R.id]) {
       if (!byPrim.has(pi)) byPrim.set(pi, { pi, gv: [], map: new Map(), indices: [] });
       const P = byPrim.get(pi);
       for (const v of [a, b, c]) {
@@ -804,7 +812,12 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       for (let t = 0; t < capTris.length; t += 3) {
         const ia = capTris[t], ib = capTris[t + 1], ic = capTris[t + 2];
         const a = V.pos[all[ia]], b = V.pos[all[ib]], c = V.pos[all[ic]];
-        if (dot(cross(sub(b, a), sub(c, a)), nOut) < -1e-18) capStats.inward_triangles++;
+        // Ear clipping winds every triangle of a simple loop to the outward normal. A loop that crosses itself (the plane cuts a folded or overlapping
+        // layer of the source mesh) has regions of negative winding that no consistent triangulation can cover with outward triangles: those triangles
+        // (folded slivers) are kept, so the cap stays closed and oriented with its piece, but each gets its own vertices carrying the normal of its
+        // winding, so that every triangle's winding agrees with its stored normals (CUT-VALIDATE `caps`).
+        const folded = dot(cross(sub(b, a), sub(c, a)), nOut) < -1e-14;
+        if (folded) capStats.inward_triangles++;
         let cap = targets[0];
         if (targets.length > 1) {
           const cen3 = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
@@ -815,7 +828,9 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
         if (!locals.has(cap.id)) locals.set(cap.id, new Map());
         const lm = locals.get(cap.id);
         for (const gi of [ia, ib, ic]) {
-          if (!lm.has(gi)) { lm.set(gi, rec.verts.length); const v = all[gi]; rec.verts.push(v); rec.uv.push([(dot(V.pos[v], u) - umin) / S, (dot(V.pos[v], vv) - vmin) / S]); rec.nrm.push(nOut); }
+          const v = all[gi], uv = [(dot(V.pos[v], u) - umin) / S, (dot(V.pos[v], vv) - vmin) / S];
+          if (folded) { rec.tris.push(rec.verts.length); rec.verts.push(v); rec.uv.push(uv); rec.nrm.push(nOut.map((x) => -x)); continue; }
+          if (!lm.has(gi)) { lm.set(gi, rec.verts.length); rec.verts.push(v); rec.uv.push(uv); rec.nrm.push(nOut); }
           rec.tris.push(lm.get(gi));
         }
       }
@@ -954,6 +969,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       source_non_manifold_edges: srcRep.non_manifold_edges,
       non_manifold_edges: nonManifoldTotal,
       orphan_weights: orphan,
+      hair_triangles: hairTris.length,
+      hair_vertices: hairVerts.size,
       fragments: fragStats.fragments,
       fragments_reassigned_by_bones: fragStats.reassigned,
       triangles_reassigned_by_bones: fragStats.reassigned_triangles,
@@ -975,6 +992,11 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       watertight_by_region: watertight,
     },
   };
+  const hairNames = [...new Set(hairTris.map((t) => srcPrims[t[3]].material.getName()))].sort();
+  if (hairNames.length) {
+    manifest.plane_exempt = { piece_head: hairNames };
+    manifest.plane_exempt_reason = "hair, hair cards and eyelashes belong to the head: a severed head carries its hair whole, so these materials are not cut at any plane (they reach below the neck plane) and are bound rigidly to the Head bone; cut-validate skips the planes check for them only";
+  }
   return { glb, manifest, report };
 }
 

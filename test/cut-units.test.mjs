@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Document, NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { cutGlb, weldReport, triangulateLoops, REGIONS, CAPS } from "../tools/cut-units.mjs";
+import { cutGlb, decompressGlb, weldReport, triangulateLoops, REGIONS, CAPS } from "../tools/cut-units.mjs";
+import { validate } from "../tools/cut-validate.mjs";
 
 const rigMap = JSON.parse(readFileSync(new URL("../data/rig-maps/mixamo-106.json", import.meta.url), "utf8"));
 const FLOOR = 0.05; // the toes sit 5 cm above y = 0 in the synthetic GLB, like the real bodies sit above their measure row's floor
@@ -89,7 +90,27 @@ function tube(cx, cz, ho, hi, y0, y1, k, lv, weights) {
   return m;
 }
 
-async function buildBody() {
+// a prism whose section is a bow-tie (a quadrilateral whose two long edges cross): a closed, edge-consistent surface that folds through itself, so the
+// plane cuts it in a loop that crosses itself. Faces are wound by the ring order: top P0 P1 P2 P3 (fan), bottom reversed, side i = P(i+1)@top P(i)@top P(i)@bottom P(i+1)@bottom.
+function bowtie(cx, cz, y0, y1, weights) {
+  const R = [[0.04, -0.04], [-0.08, 0.04], [-0.08, -0.04], [0.04, 0.08]].map(([x, z]) => [cx + x, cz + z]); // P0P1 and P2P3 cross; the lobes differ in size
+  const m = { pos: [], nor: [], uv: [], wts: [], idx: [] };
+  const add = (p) => { m.pos.push(p); m.nor.push([0, 1, 0]); m.uv.push([0, 0]); m.wts.push(weights(p)); return m.pos.length - 1; };
+  const T = R.map(([x, z]) => [x, y1, z]), B = R.map(([x, z]) => [x, y0, z]);
+  const poly = (pts) => { const ids = pts.map(add); for (let k = 1; k + 1 < ids.length; k++) m.idx.push(ids[0], ids[k], ids[k + 1]); };
+  poly(T); poly(B.slice().reverse());
+  for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; poly([T[j], T[i], B[i], B[j]]); }
+  return m;
+}
+// an open hair card (a vertical strip, n quads high) bound to the spine chain, so re-binding it to the Head bone is a real change
+function hairCard(x0, x1, y0, y1, z, n, weights) {
+  const m = { pos: [], nor: [], uv: [], wts: [], idx: [] };
+  for (let j = 0; j <= n; j++) for (const x of [x0, x1]) { const p = [x, y0 + (y1 - y0) * j / n, z]; m.pos.push(p); m.nor.push([0, 0, 1]); m.uv.push([x === x0 ? 0 : 1, j / n]); m.wts.push(weights(p)); }
+  for (let j = 0; j < n; j++) { const a = j * 2, b = a + 1, c = a + 2, d = a + 3; m.idx.push(a, b, d, a, d, c); }
+  return m;
+}
+
+async function buildBody(variant = {}) {
   const doc = new Document();
   const buffer = doc.createBuffer();
   const scene = doc.createScene("Scene");
@@ -123,6 +144,7 @@ async function buildBody() {
       .setAttribute("JOINTS_0", acc("VEC4", new Uint16Array(jj))).setAttribute("WEIGHTS_0", acc("VEC4", new Float32Array(ww))).setIndices(acc("SCALAR", new Uint32Array(idx)));
   };
   const bodyParts = [
+    ...(variant.bowtie ? [bowtie(0, 0.3, 1.3, 1.7, wSpine)] : []), // a prism that folds through itself across the neck plane: the cut loop crosses itself
     box([0, 1.35, 0], [0.1, 0.4, 0.08], 12, wSpine), // the column: hips to head top across the waist and neck planes
     box([0.07, 1.52, 0.1], [0.01, 0.13, 0.01], 3, wSpine), box([-0.07, 1.52, 0.1], [0.01, 0.13, 0.01], 3, wSpine), // two strands across the neck plane
     tube(0, -0.25, 0.06, 0.03, 1.3, 1.7, 3, 10, wSpine), // hollow tube across the neck plane: the cut has a hole
@@ -130,13 +152,15 @@ async function buildBody() {
   ];
   const armParts = [box([0.435, 1.4, 0], [0.315, 0.05, 0.05], 12, wArm("Left")), box([-0.435, 1.4, 0], [0.315, 0.05, 0.05], 12, wArm("Right"))]; // arms across the shoulder planes
   const lashParts = [box([0, 1.62, 0.12], [0.03, 0.005, 0.005], 2, wHead)];
+  const hairParts = variant.hair ? [hairCard(0, 0.12, 0.6, 1.9, -0.12, 14, wSpine)] : []; // an open card from above the neck plane down across the waist and hip planes
   const skin = mkSkin(), skin2 = mkSkin();
   const mesh = doc.createMesh("Body").addPrimitive(prim(bodyParts, matBody)).addPrimitive(prim(armParts, matHorn));
+  if (hairParts.length) mesh.addPrimitive(prim(hairParts, doc.createMaterial("hair_cards")));
   scene.addChild(doc.createNode("Body").setMesh(mesh).setSkin(skin));
   scene.addChild(doc.createNode("Lashes").setMesh(doc.createMesh("Lashes").addPrimitive(prim(lashParts, matLash))).setSkin(skin2));
   const bytes = await new NodeIO().writeBinary(doc);
   const row = { id: "synthetic", joints: Object.fromEntries(Object.keys(rigMap.joints).map((r) => [r, [W[r][0], W[r][1] - FLOOR, W[r][2]]])) };
-  return { bytes, row, source: { body: bodyParts, arm: armParts, lash: lashParts } };
+  return { bytes, row, source: { body: bodyParts, arm: armParts, lash: lashParts, hair: hairParts } };
 }
 const cut = async (b) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb" });
 
@@ -358,6 +382,97 @@ test("ear clipping with a hole bridge covers the polygon exactly, using every ve
   assert.equal(new Set(t2).size, 6);
 });
 
+// ---------------------------------------------------------------- hair goes whole to the head (Physics Dev ruling)
+test("hair and eyelash materials go whole to piece_head, uncut, bound to Head only, declared as plane_exempt", async () => {
+  const b = await buildBody({ hair: true });
+  const r = await cut(b);
+  const out = await readOut(r.glb);
+  const m = r.manifest;
+  assert.deepEqual(m.plane_exempt, { piece_head: ["hair_cards", "lash"] });
+  assert.match(m.plane_exempt_reason, /hair/);
+  assert.equal(m.stats.hair_triangles, 28 + 48, "the 14-quad card (28 triangles) and the eyelash box (6 faces of 2 x 2 quads)");
+  const head = out.joints.indexOf("Head");
+  for (const mat of ["hair_cards", "lash"]) {
+    const prims = out.meshes.piece_head.prims.filter((p) => p.material === mat);
+    assert.equal(prims.length, 1, mat);
+    for (let i = 0; i < prims[0].jj.length; i++) { assert.equal(prims[0].jj[i][0], head, mat + " vertex " + i + " bound to Head"); assert.equal(prims[0].ww[i][0], 1); assert.equal(prims[0].ww[i][1] + prims[0].ww[i][2] + prims[0].ww[i][3], 0); }
+  }
+  const card = out.meshes.piece_head.prims.find((p) => p.material === "hair_cards");
+  assert.equal(card.indices.length / 3, 28, "the card is not cut: its 28 triangles stay 28");
+  assert.equal(card.jj.length, 30, "and no vertex is added");
+  let ymin = Infinity; for (let i = 1; i < card.positions.length; i += 3) ymin = Math.min(ymin, card.positions[i]);
+  assert.ok(ymin < 0.7, "the card still hangs to y 0.6, far below the neck plane (1.5)");
+  for (const R of REGIONS) if (R.id !== "head") assert.ok(!out.meshes[R.mesh].prims.some((p) => p.material === "hair_cards" || p.material === "lash"), R.id + " has no hair");
+  // the rest of the body is cut as before: area is conserved with the hair in
+  const src = sourceArea([...b.source.body, ...b.source.arm, ...b.source.lash, ...b.source.hair]);
+  let got = 0;
+  for (const R of REGIONS) for (const p of out.meshes[R.mesh].prims) got += areaOf(p.positions, p.indices);
+  assert.ok(Math.abs(got - src) / src < 1e-7, `area ${got} vs ${src}`);
+  // the validator agrees: hair across the neck plane is exempt from the planes check only, its open card edges are native, everything else passes
+  const v = validate(Buffer.from(r.glb), m, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset });
+  assert.deepEqual(v.checks.filter((c) => !c.ok).map((c) => c.name + ": " + c.details.slice(0, 3).join(" | ")), []);
+  assert.match(v.checks.find((c) => c.name === "planes").summary, /plane_exempt/);
+  // without the declaration the same GLB fails planes: the hair really is across the plane
+  const bare = { ...m }; delete bare.plane_exempt; delete bare.plane_exempt_reason;
+  assert.ok(validate(Buffer.from(r.glb), bare, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset }).checks.find((c) => c.name === "planes").ok === false);
+});
+
+test("a body with no hair material declares no plane_exempt but the eyelashes", async () => {
+  const { r } = await run();
+  assert.deepEqual(r.manifest.plane_exempt, { piece_head: ["lash"] });
+  const b = await buildBody();
+  const none = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", hairMaterials: [] });
+  assert.equal(none.manifest.plane_exempt, undefined);
+  assert.equal(none.manifest.stats.hair_triangles, 0);
+});
+
+// ---------------------------------------------------------------- cap winding
+test("a cut loop that crosses itself: the cap stays closed and oriented with its piece, and every triangle's winding agrees with its stored normals", async () => {
+  const b = await buildBody({ bowtie: true });
+  const r = await cut(b);
+  const out = await readOut(r.glb);
+  const s = r.manifest.stats;
+  assert.equal(s.cap_fallback_loops, 0);
+  assert.ok(s.cap_inward_triangles >= 2, `the bow-tie section folds: ${s.cap_inward_triangles} folded triangles`);
+  for (const R of REGIONS) { // closed and consistently oriented (the weld report counts a flipped edge as an open one)
+    const parts = out.meshes[R.mesh].prims.map((p) => ({ positions: p.positions, indices: p.indices }));
+    for (const c of CAPS) if (c.region === R.id) for (const p of out.meshes[c.id].prims) parts.push({ positions: p.positions, indices: p.indices });
+    const rep = weldReport(parts, 1e-5);
+    assert.equal(rep.boundary_edges, 0, `${R.id}: ${rep.boundary_edges} open or flipped edges at ${JSON.stringify(rep.boundary_sample)}`);
+  }
+  // the neck plane is level: the head cap faces down, the torso cap faces up. A triangle against that is a folded sliver (the lobe of the bow-tie whose
+  // winding the loop's crossing reverses): it carries the flipped normal, so its winding agrees with its own normals like every other triangle
+  let total = 0, folded = 0;
+  for (const c of CAPS) for (const p of out.meshes[c.id].prims) for (let t = 0; t < p.indices.length; t += 3) {
+    const [ia, ib, ic] = [p.indices[t], p.indices[t + 1], p.indices[t + 2]], q = (i) => Array.from(p.positions.slice(i * 3, i * 3 + 3));
+    const A = q(ia), B = q(ib), C = q(ic), u = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], v = [C[0] - A[0], C[1] - A[1], C[2] - A[2]];
+    const gn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const avg = [0, 1, 2].map((k) => p.nor[ia][k] + p.nor[ib][k] + p.nor[ic][k]);
+    if (!(Math.hypot(...gn) > 1e-14)) continue; // a flat sliver between collinear loop vertices has no winding
+    total++;
+    assert.ok(gn[0] * avg[0] + gn[1] * avg[1] + gn[2] * avg[2] > 0, `${c.id} triangle ${t / 3}: winding against its normals`);
+    if (c.plane === "neck") { const up = c.region === "head" ? -1 : 1; if (gn[1] * up < -1e-14) { folded++; assert.ok(avg[1] * up < 0, "a folded sliver carries the flipped normal"); } else assert.ok(avg[1] * up > 0, "every other triangle carries the outward normal"); }
+  }
+  assert.ok(total > 50);
+  assert.equal(folded, s.cap_inward_triangles, "the manifest counts the folded slivers");
+  assert.ok(folded >= 2, "one per neck cap at least");
+  // the validator agrees on the caps and on closure
+  const v = validate(Buffer.from(r.glb), r.manifest, { source: Buffer.from(b.bytes), planeOffset: r.manifest.plane_frame.bind_offset });
+  for (const name of ["caps", "watertight", "orientation"]) assert.equal(v.checks.find((c) => c.name === name).ok, true, name + ": " + v.checks.find((c) => c.name === name).details.slice(0, 3).join(" | "));
+});
+
+test("ear clipping a polygon that crosses itself terminates and uses every vertex; a simple one never needs a forced ear", () => {
+  // a square with a curl on its bottom edge that crosses the edge again (a loop of opposite winding)
+  const P = [[0, 0], [1, 0], [2, 1], [3, 0], [2, -1], [1.5, 0.5], [4, 0], [4, 4], [0, 4]].map(([x, y], i) => ({ x, y, i }));
+  const tris = triangulateLoops(P, [], { forced: 0, bridgeFallback: 0 });
+  assert.equal(tris.length, 3 * (P.length - 2));
+  assert.equal(new Set(tris).size, P.length);
+  const stats = { forced: 0, bridgeFallback: 0 };
+  const simple = triangulateLoops([[0, 0], [2, 0], [2, 2], [1, 3], [0, 2]].map(([x, y], i) => ({ x, y, i })), [], stats);
+  assert.equal(stats.forced, 0, "a simple polygon never needs a forced ear");
+  assert.equal(simple.length, 9);
+});
+
 // ---------------------------------------------------------------- the real bodies (V3 rig/106-default GLBs), when present
 const DIR = process.env.CUT_BODIES_DIR || "/root/bodies";
 for (const name of ["minotaur-106", "psyche-106"]) {
@@ -390,14 +505,17 @@ for (const name of ["minotaur-106", "psyche-106"]) {
       if (e) { checkedBones++; assert.equal(e, R.id, `${nme} vertex ${i} is bound to ${out.joints[ji]}`); }
     }));
     assert.ok(checkedBones > 10000);
-    // Caps close every cut but two known cases (docs/CUT-TOOL.md): a hairline slit in the source mesh at the neck (one open edge each side after the
-    // gap is bridged), and the hair cards of Psyche's head, open surfaces that cross the neck plane.
+    // Caps close every cut but one known case (docs/CUT-TOOL.md): a hairline slit in the Minotaur's source mesh at the neck (one open edge each side
+    // after the gap is bridged). Hair (Psyche's cards) goes whole to the head, uncut, so it adds none.
     for (const [id, w] of Object.entries(s.watertight_by_region)) {
-      // Psyche's hair cards (open surfaces, hanging to her knees) are cut by every plane they cross and rebound to that piece's bones: thousands of open edges
-      const limit = name.startsWith("psyche") ? 4000 : id === "head" || id === "upper_torso" ? 2 : 0;
+      const limit = name.startsWith("minotaur") && (id === "head" || id === "upper_torso") ? 2 : 0;
       assert.ok(w.open_edges_at_cuts <= limit, `${name} ${id}: ${w.open_edges_at_cuts} open edges at the cuts (limit ${limit}), first at ${JSON.stringify(w.at_cuts)}`);
     }
-    assert.equal(s.cap_inward_triangles <= 40, true, "cap triangles facing inward: " + s.cap_inward_triangles);
+    if (name.startsWith("psyche")) { assert.deepEqual(r.manifest.plane_exempt, { piece_head: ["Ch22_hair"] }); assert.ok(s.hair_triangles > 10000); } else assert.equal(r.manifest.plane_exempt, undefined, "the Minotaur has no hair material");
+    // the independent validator: every check passes, defects native to the source (open hair cards, the slit) separated from the cut's
+    const plain = Buffer.from(await decompressGlb(bytes));
+    const v = validate(Buffer.from(r.glb), r.manifest, { source: plain, planeOffset: r.manifest.plane_frame.bind_offset });
+    assert.deepEqual(v.checks.filter((c) => !c.ok).map((c) => c.name + ": " + c.details.slice(0, 3).join(" | ")), []);
     const again = await cutGlb(bytes, row, rigMap, { body: name, rig: "mixamo-106", source: name + ".glb" });
     assert.ok(Buffer.compare(Buffer.from(r.glb), Buffer.from(again.glb)) === 0, "not deterministic");
   });
