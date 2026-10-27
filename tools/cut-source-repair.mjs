@@ -1,5 +1,5 @@
 // Makes a CLEANED COPY of a body GLB for cutting only (docs/CUT-SOURCE-REPAIR.md). The original is never touched; the copy goes to a new file.
-//   node tools/cut-source-repair.mjs <in.glb> <out.glb> --mesh CreatureBody[,Other] [--json]
+//   node tools/cut-source-repair.mjs <in.glb> <out.glb> --mesh CreatureBody[,Other] [--keep-over-used]   (--keep-over-used: winding only, delete nothing)
 // Works on triangle indices only: every vertex, normal, UV, joint and weight stays byte-identical (decompressGlb's plain float32 metres), so the
 // skin, the joint set and the look of every kept triangle are unchanged. Two repairs, both on the named meshes and judged with the welder the
 // validator uses (tools/cut-validate.mjs, WELD 1e-5, all meshes welded together):
@@ -62,7 +62,7 @@ function defects(tris, alive) {
   return { open, over, flipped };
 }
 
-export async function repairSource(glbBytes, meshNames) {
+export async function repairSource(glbBytes, meshNames, opts = {}) {
   const plain = await decompressGlb(glbBytes);
   const { NodeIO } = await import("@gltf-transform/core");
   const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
@@ -123,7 +123,7 @@ export async function repairSource(glbBytes, meshNames) {
   const deleted = [];
   for (const [key, list] of [...em]) {
     const live = list.filter(([t]) => alive[t]);
-    if (live.length <= 2) continue;
+    if (live.length <= 2 || opts.keepOver) continue;
     const must = live.filter(([t]) => !tris[t].p.fix), free = live.filter(([t]) => tris[t].p.fix);
     let best = null, bestScore = -Infinity;
     const pairs = [];
@@ -188,10 +188,10 @@ export async function repairSource(glbBytes, meshNames) {
 
 async function main() {
   const args = process.argv.slice(2), pos = [], opt = {};
-  for (let i = 0; i < args.length; i++) { if (args[i] === "--mesh") opt.mesh = args[++i]; else if (args[i] === "--json") opt.json = true; else pos.push(args[i]); }
-  if (pos.length !== 2 || !opt.mesh) { console.error("usage: node tools/cut-source-repair.mjs <in.glb> <out.glb> --mesh Name[,Name] [--json]"); process.exit(2); }
+  for (let i = 0; i < args.length; i++) { if (args[i] === "--mesh") opt.mesh = args[++i]; else if (args[i] === "--keep-over-used") opt.keepOver = true; else pos.push(args[i]); }
+  if (pos.length !== 2 || !opt.mesh) { console.error("usage: node tools/cut-source-repair.mjs <in.glb> <out.glb> --mesh Name[,Name] [--keep-over-used]"); process.exit(2); }
   if (pos[0] === pos[1]) { console.error("refusing to overwrite the input"); process.exit(2); }
-  const { glb, report } = await repairSource(readFileSync(pos[0]), opt.mesh.split(","));
+  const { glb, report } = await repairSource(readFileSync(pos[0]), opt.mesh.split(","), opt);
   writeFileSync(pos[1], glb);
   console.log(JSON.stringify(report, null, 1));
 }
