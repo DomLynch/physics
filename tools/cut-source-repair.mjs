@@ -147,7 +147,7 @@ export async function repairSource(glbBytes, meshNames) {
     const fwd = (a === u && b === v) || (b === u && c === v) || (c === u && a === v); return f ? -(fwd ? 1 : -1) : (fwd ? 1 : -1); };
   for (const s of order) {
     if (seen[s]) continue;
-    seen[s] = 1; const stack = [s];
+    seen[s] = 1; const stack = [s], members = [s];
     while (stack.length) {
       const t = stack.pop(); const [a, b, c] = tris[t].w;
       for (const [u, v] of [[a, b], [b, c], [c, a]]) {
@@ -156,11 +156,16 @@ export async function repairSource(glbBytes, meshNames) {
         for (const [o] of e) {
           if (o === t || seen[o] || !tris[o].p.fix) continue;
           seen[o] = 1;
-          if (dirOf(t, u, v) === dirOf(o, u, v)) { flip[o] = 1; flipped.push(o); } // both traverse u->v the same way: o disagrees
-          stack.push(o);
+          if (dirOf(t, u, v) === dirOf(o, u, v)) flip[o] = 1; // both traverse u->v the same way: o disagrees
+          stack.push(o); members.push(o);
         }
       }
     }
+    // the seed is arbitrary: keep the orientation the larger part of the surface already has (flip the smaller side)
+    let fa = 0, ta = 0;
+    for (const t of members) { ta += tris[t].area; if (flip[t]) fa += tris[t].area; }
+    if (fa > ta / 2) for (const t of members) flip[t] ^= 1;
+    for (const t of members) if (flip[t]) flipped.push(t);
   }
 
   // write the indices back
