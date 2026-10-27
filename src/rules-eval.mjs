@@ -100,7 +100,19 @@ export function rollFinisher(rules, ctx, rand) {
     if (typeof rand !== "function") fail("rollFinisher needs a rand() function");
     finisher = rand() * 100 < chancePct;
   }
-  return { finisher, chancePct, killsSinceFinisher: finisher ? 0 : since + 1 };
+  const out = { finisher, chancePct, killsSinceFinisher: finisher ? 0 : since + 1 };
+  if (finisher && Array.isArray(f.pool) && f.pool.length) out.kind = pickFinisher(f.pool, ctx, rand);
+  return out;
+}
+
+// rotation: the pool entries that fit the struck part and hit kind (all of them if none fit), minus the last kind played when another remains;
+// one draw from the caller's seeded rand (the first entry when there is no rand), so a replay picks the same list.
+function pickFinisher(pool, ctx, rand) {
+  const fits = pool.filter((p) => (!ctx.part || !p.parts || p.parts.includes(ctx.part)) && (!ctx.hitKind || !p.kinds || p.kinds.includes(ctx.hitKind)));
+  let ok = fits.length ? fits : pool;
+  const rest = ok.filter((p) => p.id !== ctx.lastKind);
+  if (rest.length) ok = rest;
+  return ok[typeof rand === "function" ? Math.min(ok.length - 1, Math.floor(rand() * ok.length)) : 0].id;
 }
 
 // ---- evaluator ----------------------------------------------------------------------------------------
@@ -324,7 +336,7 @@ export function createEvaluator(rules = loadRules()) {
     // outcome ladder: kill > cut > knockdown > stick > hit
     result.outcome = !state.alive && !dead ? "kill" : result.cut ? "cut" : result.knockdown ? "knockdown" : strength >= rungStick ? "stick" : "hit";
     if (result.outcome === "kill" && opts.rand) {
-      const r = rollFinisher(rules, { ...(opts.finisher || {}), overkillPct }, opts.rand);
+      const r = rollFinisher(rules, { part: result.part === "head" ? "head" : "torso", hitKind: hit.kind, ...(opts.finisher || {}), overkillPct }, opts.rand);
       result.finisher = r;
       if (state.bleed) state.bleed = null;
       events.push({ type: "finisher_roll", ...r });
