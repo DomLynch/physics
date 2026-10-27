@@ -1,0 +1,21 @@
+{"query":"rules=v1","N":"20","swingsWithHit":15,"falls":0,"maxdropAll":76}
+{"a":0,"ro":"","states":"alive","maxdrop":28,"ev":""}
+{"a":1,"ro":"","states":"alive","maxdrop":28,"ev":""}
+{"a":2,"ro":"","states":"alive|stagger","maxdrop":53,"ev":"31:Hit:heavy_overhead@torso"}
+{"a":3,"ro":"","states":"alive|stagger","maxdrop":76,"ev":"32:Hit:heavy_overhead@torso 68:Hit:heavy_overhead@torso 68:Staggered"}
+{"a":4,"ro":"","states":"alive|stagger","maxdrop":59,"ev":"40:Hit:heavy_overhead@torso 62:Hit:light_right@torso 62:Staggered"}
+{"a":5,"ro":"","states":"stagger|alive","maxdrop":37,"ev":"24:Hit:light_left@torso 24:Staggered 24:PostureBroken 76:Hit:critical@legs 76:Staggered"}
+{"a":6,"ro":"","states":"alive","maxdrop":35,"ev":""}
+{"a":7,"ro":"","states":"alive|stagger","maxdrop":37,"ev":"31:Hit:heavy_overhead@torso"}
+{"a":8,"ro":"","states":"alive|stagger","maxdrop":27,"ev":"32:Hit:heavy_overhead@torso 32:PostureBroken"}
+{"a":9,"ro":"","states":"alive|stagger","maxdrop":21,"ev":"20:Hit:critical@legs"}
+{"a":10,"ro":"","states":"alive|stagger","maxdrop":38,"ev":"31:Hit:heavy_overhead@torso 81:Hit:heavy_overhead@torso 81:Staggered"}
+{"a":11,"ro":"","states":"alive","maxdrop":44,"ev":""}
+{"a":12,"ro":"","states":"alive|stagger","maxdrop":64,"ev":"32:Hit:heavy_overhead@torso"}
+{"a":13,"ro":"","states":"alive|stagger","maxdrop":48,"ev":"38:Hit:heavy_overhead@torso 83:Hit:light_right@torso 83:Staggered"}
+{"a":14,"ro":"","states":"stagger|alive","maxdrop":35,"ev":"45:Hit:light_left@torso 45:Staggered"}
+{"a":15,"ro":"","states":"alive|stagger","maxdrop":41,"ev":"31:Hit:heavy_overhead@torso 54:Hit:light_right@torso 54:Staggered"}
+{"a":16,"ro":"","states":"alive","maxdrop":37,"ev":"17:Hit:light_left@torso 17:Staggered 17:PostureBroken"}
+{"a":17,"ro":"","states":"alive","maxdrop":34,"ev":""}
+{"a":18,"ro":"","states":"alive|stagger","maxdrop":39,"ev":"31:Hit:heavy_overhead@torso 32:Hit:heavy_overhead@torso"}
+{"a":19,"ro":"","states":"alive|stagger","maxdrop":24,"ev":"31:Hit:heavy_overhead@torso"}
