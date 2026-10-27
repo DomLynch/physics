@@ -139,6 +139,9 @@ export function createEvaluator(rules = loadRules()) {
   const zoneUnit = need(rules, "evaluator.zone_cut_unit");
   const unitBone = need(rules, "evaluator.unit_bone_mult");
   const killRule = need(rules, "evaluator.kill");
+  // a LIGHT swing never takes an undamaged kill part (evaluator.kill.any_part_gone: head, torso) to zero: it cannot cut it and its damage stops at
+  // light_floor_pct of that part's budget. A heavy swing, or a light one on a part already at or under the floor, kills as before. 0 = off.
+  const lightFloorPct = num(killRule.light_floor_pct, "evaluator.kill.light_floor_pct");
 
   const fill = (tpl, side, state) => {
     if (tpl === null) return null;
@@ -224,7 +227,7 @@ export function createEvaluator(rules = loadRules()) {
     result.cutThreshold = cutThreshold;
     result.boneGateSpeed = boneGate;
     const overRung = strength >= cutThreshold;
-    const canCut = kind.can_sever && unit !== null && overRung && tip >= boneGate;
+    let canCut = kind.can_sever && unit !== null && overRung && tip >= boneGate;
     if (kind.can_sever && unit !== null && overRung && !canCut && tip < boneGate) events.push({ type: "bone_gate_not_met", tipSpeed: tip, gate: boneGate });
 
     // damage = strength x zone x global x armour column (x 0.3 if the attacker lost his sword arm)
@@ -232,14 +235,22 @@ export function createEvaluator(rules = loadRules()) {
     const dealt = strength * num(zoneRow.body_part_mult, `zones.${hit.zone}.body_part_mult`) * globalScale
       * num(tier.damage_taken_mult[kind.armour_column], `armour_tiers.${tierId}.damage_taken_mult.${kind.armour_column}`) * atk;
     const dead = !state.alive;
-    result.damage = dead ? 0 : dealt;
+    // light-swing floor (see lightFloorPct): the cut is refused and the damage that reaches the part is capped; `dealt` (the blow's force) still feeds the knockdown counter
+    let applied = dealt;
+    const floorHp = ps.max * lightFloorPct / 100;
+    if (!dead && swingType === "light" && lightFloorPct > 0 && killRule.any_part_gone.includes(part) && ps.hp > floorHp && (canCut || dealt >= ps.hp - floorHp)) {
+      applied = Math.min(dealt, ps.hp - floorHp);
+      events.push({ type: "light_floor", part, cutRefused: canCut, floorHp, floorPct: lightFloorPct });
+      canCut = false;
+    }
+    result.damage = dead ? 0 : applied;
     if (dead) events.push({ type: "dead_target" });
 
     // apply to the part budget (a living target only; a corpse is only cut)
     let overkillPct = 0;
     if (!dead) {
       const before = ps.hp;
-      ps.hp = canCut ? 0 : Math.max(0, ps.hp - dealt);
+      ps.hp = canCut ? 0 : Math.max(0, ps.hp - applied);
       if (ps.hp === 0) { ps.gone = true; events.push({ type: "part_down", part, budgetBefore: before }); }
       overkillPct = (Math.max(0, strength - rungCut) / ps.max) * 100;
     }

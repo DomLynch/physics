@@ -229,8 +229,10 @@
         "zone_cut_unit": { "type": "object", "additionalProperties": { "type": ["string", "null"] }, "minProperties": 1 },
         "unit_bone_mult": { "type": "object", "additionalProperties": { "type": "number", "exclusiveMinimum": 0 }, "minProperties": 1 },
         "kill": {
-          "type": "object", "additionalProperties": false, "required": ["any_part_gone", "all_parts_gone"],
+          "type": "object", "additionalProperties": false, "required": ["any_part_gone", "all_parts_gone", "light_floor_pct"],
           "properties": {
+            "light_floor_pct": { "type": "number", "minimum": 0, "exclusiveMaximum": 100 },
+            "light_floor_note": { "type": "string" },
             "any_part_gone": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
             "all_parts_gone": { "type": "array", "items": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }
           }
