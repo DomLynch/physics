@@ -248,7 +248,19 @@
           "type": "object", "additionalProperties": false, "required": ["base_pct", "per_overkill_pct", "cap_pct", "pity_after_kills"],
           "properties": {
             "base_pct": { "type": "number", "minimum": 0 }, "per_overkill_pct": { "type": "number", "minimum": 0 },
-            "cap_pct": { "type": "number", "minimum": 0 }, "pity_after_kills": { "type": "integer", "minimum": 1 }
+            "cap_pct": { "type": "number", "minimum": 0 }, "pity_after_kills": { "type": "integer", "minimum": 1 },
+            "note": { "type": "string" },
+            "pool": {
+              "type": "array", "minItems": 1,
+              "items": {
+                "type": "object", "additionalProperties": false, "required": ["id"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "parts": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+                  "kinds": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+                }
+              }
+            }
           }
         },
         "source": { "type": "string" }
