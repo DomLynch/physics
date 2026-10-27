@@ -96,7 +96,9 @@ for (const mesh of targets) for (const prim of mesh.listPrimitives()) {
     }
     capped++;
   }
-  report.primitives.push({ vertices: n, triangles_before: idx.length / 3, boundary_loops: loops.length + skipped.length, capped_loops: capped, left_open_small: loops.filter((r) => r.length < minEdges).length, skipped_not_simple: skipped.length, cap_triangles: added.length / 3, cap_area_m2: Number(area.toFixed(6)), forced_ears: stats.forced, bridge_fallback: stats.bridgeFallback });
+  const where = (ring, capped) => { const c = [0, 1, 2].map((a) => Number((ring.reduce((s, w) => s + P[rep[w]][a], 0) / ring.length).toFixed(4))); return { edges: ring.length, centre: c, capped }; };
+  const detail = loops.map((r) => where(r, r.length >= minEdges)).sort((a, b) => b.edges - a.edges);
+  report.primitives.push({ loops: detail, vertices: n, triangles_before: idx.length / 3, boundary_loops: loops.length + skipped.length, capped_loops: capped, left_open_small: loops.filter((r) => r.length < minEdges).length, skipped_not_simple: skipped.length, cap_triangles: added.length / 3, cap_area_m2: Number(area.toFixed(6)), forced_ears: stats.forced, bridge_fallback: stats.bridgeFallback });
   if (added.length) {
     const Arr = idxAcc.getArray().constructor, max = Math.max(...added);
     const next = new (max > 65535 && Arr === Uint16Array ? Uint32Array : Arr)(idx.length + added.length);
