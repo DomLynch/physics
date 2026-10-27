@@ -75,9 +75,8 @@ test("(2b) heavy damage is UNCHANGED: strength x zone x global, no light multipl
 
 test("(3) no single light swing, counter-hit or not, at any real speed, kills or cuts a fresh head or torso", () => {
   let sawOverCut = false;
-  // Minotaur scale (head 40, torso 76) for both zones; the default man (torso 60) for the torso. The default man's head (20) is NOT covered:
-  // a strong light counter-hit (24 damage) can finish a 20-point head by damage (see the PR).
-  for (const [mk, zone] of [[minotaur, "head"], [minotaur, "torso"], [man, "torso"]]) for (const handSpeed of SPEEDS) for (const counterHit of [false, true]) {
+  // Strategy ruling on #54: a fresh part, man (head 20, torso 60) or Minotaur (head 40, torso 76), survives ANY one light, up to the fastest counter-hit
+  for (const [mk, zone] of [[minotaur, "head"], [minotaur, "torso"], [man, "head"], [man, "torso"]]) for (const handSpeed of [...SPEEDS, 13, 16]) for (const counterHit of [false, true]) {
     const st = mk();
     const r = ev.evaluateHit(hit({ zone, handSpeed, swing: "light", counterHit }), st);
     sawOverCut ||= r.strength >= rules.strength_scale.rung_cut;
@@ -141,4 +140,35 @@ test("a consumer rules file that still carries the removed floor rows loads and 
   let killed = false;
   for (let i = 0; i < 60 && !killed; i++) killed = e.evaluateHit(mixedLight("torso", i), st).outcome === "kill";
   assert.ok(killed, "no floor even if the row is present");
+});
+
+// Strategy ruling on #54: evaluator.kill.light_part_cap_pct. A light's damage to a head or torso is capped at that percent of the part's FULL budget,
+// per blow (not on total), so a fresh part always survives one light, man or boss; cumulative damage still kills.
+test("light_part_cap_pct: one light never kills or cuts a fresh man head (20), Minotaur head (40) or either torso, even at 13 m/s counter-hit; N lights still kill", () => {
+  const pct = rules.evaluator.kill.light_part_cap_pct;
+  assert.ok(pct > 0 && pct < 100, `row light_part_cap_pct ${pct}`);
+  for (const [mk, zone] of [[man, "head"], [minotaur, "head"], [man, "torso"], [minotaur, "torso"]]) {
+    const st = mk();
+    const max = st.parts[zone].max;
+    const r = ev.evaluateHit(hit({ zone, handSpeed: 13, swing: "light", counterHit: true }), st);
+    assert.notEqual(r.outcome, "kill", `${mk.name} ${zone}`);
+    assert.equal(r.cut, null);
+    assert.ok(r.damage <= max * pct / 100 + 1e-9, `${mk.name} ${zone}: ${r.damage} of ${max}`);
+    assert.ok(st.parts[zone].hp >= max * (1 - pct / 100) - 1e-9);
+    let n = 1;
+    while (st.alive && n < 60) { ev.evaluateHit(hit({ zone, handSpeed: 13, swing: "light", counterHit: true }), st); n++; }
+    assert.equal(st.alive, false, `${mk.name} ${zone}: cumulative lights still kill (${n})`);
+    assert.ok(n >= 2, `${mk.name} ${zone}: at least 2 lights`);
+  }
+});
+
+test("light_part_cap_pct: a light with remaining hp <= its capped damage still kills; heavy and limbs are not capped", () => {
+  const st = man(); st.parts.head.hp = 1;
+  assert.equal(ev.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light" }), st).outcome, "kill");
+  const h = ev.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "heavy" }), man());
+  assert.equal(h.outcome, "kill");
+  const want = h.strength * rules.zones.head.body_part_mult * rules.global.damage_scale;
+  assert.ok(Math.abs(h.damage - want) < 1e-9, "heavy damage uncapped");
+  const arm = ev.evaluateHit(hit({ zone: "arm_off", side: "right", handSpeed: 13, swing: "light", counterHit: true }), man());
+  assert.equal(arm.outcome, "cut", "limb light counter-hit unchanged");
 });
