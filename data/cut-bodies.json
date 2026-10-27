@@ -31,10 +31,12 @@
     },
     {
       "name": "veteran-65",
-      "source": "v3/veteran-cutsrc.glb",
+      "source": "v3/veteran.glb",
       "rig_map": "data/rig-maps/v1-65.json",
       "measure": "data/bodies/veteran.measure.json",
-      "note": "the Centurion, cut from a cleaned copy of V3's veteran.glb (tools/cut-source-repair.mjs, docs/CUT-SOURCE-REPAIR.md)"
+      "note": "the Centurion",
+      "blocked_checks": ["watertight", "orientation"],
+      "blocked": "the body mesh CreatureBody (47,360 vertices) is a non-manifold sculpt: the source already has 2,003 open and 1,765 over-used edges and 49 flipped-winding edges (cut-validate --self), six skinned meshes overlap each other, and the section loops through them are tangled (117 loops, 38 holes, 44 forced ears, 50 inward cap triangles). The cut then introduces open edges (watertight: 6 root, 14 torso, 12 head, 2+2 legs, 15 + 2 + 3 + 2 over-used) and 1,054 flipped-winding edges in piece_root (orientation). The cut is geometrically complete (conservation, weights, bone side, planes, caps all PASS). A triangle-level cleaned copy was tried (tools/cut-source-repair.mjs, docs/CUT-SOURCE-REPAIR.md) and does not close it: fixing the source winding to 0 flipped edges leaves the same 1,054 in piece_root, and deleting the over-used triangles makes it worse (about 900 introduced open edges at the hips). The defects sit where the hip plane (y about 1.0) slices the overlapping pelvis and thigh shells, and at the neck (12 open edges, y 1.53). Needs the overlapping shells merged into one manifold body (a boolean union plus weight transfer, which redraws the surface: an art decision) before the caps can close."
     },
     {
       "name": "minotaur-65",
