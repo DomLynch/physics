@@ -32,7 +32,8 @@ node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--ou
 | `overrides.crotch_planes` | `false` for plain thigh-normal hip planes |
 | `overrides.head_split`, `overrides.belly_open` | opt-in cuts (`docs/CUT-CONTRACT.md` "Optional cuts"), true or a row that overrides fields |
 | `expect_sha256` | the cut GLB must hash to this: the published bodies carry it, so a tool change that moves their bytes fails the batch |
-| `blocked` | the cause, when the body is known not to validate: it is still run and reported as BLOCKED with the cause, does not fail the run, and a blocked body that passes is UNBLOCKED (fails the run: delete the row's `blocked`) |
+| `blocked` | the cause, when the body is known not to validate: it is still run and reported as BLOCKED with the cause. It needs `blocked_checks`; the body is BLOCKED (does not fail the run) only when there is no error and exactly those checks fail. Any other failure (an exception, a missing source, a hash mismatch, an extra or missing failing check) is FAIL and fails the run, and a blocked body that passes is UNBLOCKED (fails the run: delete the row's `blocked` and `blocked_checks`) |
+| `blocked_checks` | with `blocked`: the names of the validator checks the body is expected to fail, for example `["watertight"]`; refused without `blocked` |
 | `note` | free text |
 
 Other rows the cut tool now reads instead of hard-coding: `PLANE_ROWS` (above), `HEAD_SPLIT` and `BELLY_OPEN` (already rows), and the ragdoll's elbow and knee flexion direction, `hinge_flex_z` in `data/world.json` (`forearm` +1, `shin` -1, was hard-coded in `engine.mjs buildDefinition`). The solver sample count for a cut edge was already a row (`states.json` `cut.edge.samples`).
@@ -64,4 +65,4 @@ Both Minotaur-106 and Psyche-106 regenerate byte-identical (sha256 below; `cmp` 
 
 ## Tests
 
-`test/cut-batch.test.mjs` (synthetic bodies only, no real body in the repo): two bodies through measure, cut, validate and the receipt (8 PASS each, props and a one-sided `TEXCOORD_1` in the source), the per-body plane row, explicit default rows giving the same bytes as no rows, two runs giving the same bytes, a failing hash and a missing source failing the run, a blocked row reported and an unblocked one flagged, and the row checks.
+`test/cut-batch.test.mjs` (synthetic bodies only, no real body in the repo): two bodies through measure, cut, validate and the receipt (8 PASS each, props and a one-sided `TEXCOORD_1` in the source), the per-body plane row, explicit default rows giving the same bytes as no rows, two runs giving the same bytes, a failing hash and a missing source failing the run, a blocked row reported only when exactly its `blocked_checks` fail (an error or a different failing set is FAIL) and an unblocked one flagged, a missing COLOR_0 filled with white and a missing NORMAL or TANGENT refused, and the row checks.

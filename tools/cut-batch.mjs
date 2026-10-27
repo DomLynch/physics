@@ -1,6 +1,6 @@
 // The batch cut pipeline (M9b): for every body in a row file, measure, cut, validate, and write one receipt. Fails loudly (exit 1) on any body that does not
 // validate, unless its row says it is `blocked` (a known, explained failure: still run and reported, never hidden).
-//   node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure] [--keep-going-on-error]
+//   node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure]
 // Per body: tools/glb-measure.mjs (rig map -> measure row), tools/cut-units.mjs's cutGlb (rig map, row overrides), tools/cut-validate.mjs's validate
 // (--plane-offset = the manifest's plane_frame.bind_offset, --source = the plain source). Outputs in <out>: <name>.cut.glb, <name>.cut.manifest.json,
 // <name>.source-plain.glb (when the source was compressed), <name>.measure.json, <name>.validate.txt, RECEIPT.md, receipt.json.
@@ -67,7 +67,7 @@ export async function runBody(row, ctx) {
   const res = { name: row.name, rig_map: row.rig_map, source: row.source, blocked: row.blocked || null, blocked_checks: row.blocked ? row.blocked_checks : null, stages: {}, checks: [], ok: false, error: null, sha256: null, source_sha256: null };
   try {
     const srcPath = rel(ctx.sources, row.source);
-    if (!existsSync(srcPath)) throw new Error(`source not found: ${srcPath}`);
+    if (!existsSync(srcPath)) throw new Error(`source not found: ${row.source}`);
     const rigPath = rel(ctx.root, row.rig_map);
     const rigMap = JSON.parse(readFileSync(rigPath, "utf8"));
     const srcBytes = readFileSync(srcPath);
@@ -186,7 +186,7 @@ export async function runBatch({ bodiesPath, sources, out, only = null, updateMe
   }
   let git = null;
   try { git = execFileSync("git", ["-C", ROOT, "rev-parse", "--short", "HEAD"], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { /* not a checkout */ }
-  const meta = { rows: basename(bodiesPath), sources, git };
+  const meta = { rows: basename(bodiesPath), sources: basename(sources), git }; // the folder name only: an absolute path would make the receipt depend on where it ran
   writeFileSync(join(out, "RECEIPT.md"), receiptMarkdown(results, meta));
   writeFileSync(join(out, "receipt.json"), JSON.stringify({ schema: "cut-batch-receipt/1", ...meta, bodies: results.map((r) => ({ ...r, verdict: verdict(r) })) }, null, 1) + "\n");
   const failed = results.filter((r) => ["FAIL", "UNBLOCKED"].includes(verdict(r)));
