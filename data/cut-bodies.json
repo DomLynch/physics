@@ -1,0 +1,52 @@
+{
+  "schema": "cut-bodies/1",
+  "about": "Body rows for tools/cut-batch.mjs (docs/CUT-BATCH.md). One row per body; every per-body number lives here, never in the tool. `source` is relative to --sources (or $CUT_SOURCES). Bodies are confidential: the sources are never committed, only these rows.",
+  "defaults": {},
+  "bodies": [
+    {
+      "name": "minotaur-106",
+      "source": "minotaur-106.source-plain.glb",
+      "plain": true,
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/minotaur-106.measure.json",
+      "expect_sha256": "e409cd5088b773a580ba714f419c48190931af23fe77a428981f7b80d7ad45d7",
+      "note": "published 2026-10-27 (hair-fix 3f3bfe6); the cut must stay byte-identical"
+    },
+    {
+      "name": "psyche-106",
+      "source": "psyche-106.source-plain.glb",
+      "plain": true,
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/psyche-106.measure.json",
+      "expect_sha256": "b684b455188cad8e2e46742ea16b40faa6357d1b260fb427bdf61fe1d7798477",
+      "note": "published 2026-10-27 (hair-fix 3f3bfe6); hair goes whole to piece_head (plane_exempt); the cut must stay byte-identical"
+    },
+    {
+      "name": "warrior-65",
+      "source": "v3/warrior.glb",
+      "rig_map": "data/rig-maps/v1-65.json",
+      "measure": "data/bodies/warrior.measure.json",
+      "blocked": "the skin shell EXO_BrowsLashes (material Exo_MAT, 9,352 vertices, the body under the Steel suit) is open geometry: 195 section chains at the cut planes do not close, so 696 cap-loop edges stay open (166 root, 234 torso, 89 + 89 arms, 58 + 58 legs). Dropping that mesh from the cut gives 0 introduced open edges (measured on the VPS), but it holds the visible face, hands and neck skin, so it cannot be dropped. Needs a closed (or hand-capped) skin shell in the source; a cut tool bridge across the hidden gaps would draw caps over geometry that is not there."
+    },
+    {
+      "name": "veteran-65",
+      "source": "v3/veteran.glb",
+      "rig_map": "data/rig-maps/v1-65.json",
+      "measure": "data/bodies/veteran.measure.json",
+      "note": "the Centurion",
+      "blocked": "the body mesh CreatureBody (47,360 vertices) is a non-manifold sculpt: the source already has 2,003 open and 1,765 over-used edges and 49 flipped-winding edges (cut-validate --self), six skinned meshes overlap each other, and the section loops through them are tangled (117 loops, 38 holes, 44 forced ears, 50 inward cap triangles). The cut then introduces open edges (watertight: 6 root, 14 torso, 12 head, 2+2 legs, 15 + 2 + 3 + 2 over-used) and 1,054 flipped-winding edges in piece_root (orientation). The cut is geometrically complete (conservation, weights, bone side, planes, caps all PASS). Needs a cleaned body mesh (merge the overlapping shells, fix the non-manifold edges) before the caps can close."
+    },
+    {
+      "name": "minotaur-65",
+      "source": "v3/minotaur.glb",
+      "rig_map": "data/rig-maps/v1-65.json",
+      "measure": "data/bodies/minotaur.measure.json"
+    },
+    {
+      "name": "psyche-65",
+      "source": "v3/psyche.glb",
+      "rig_map": "data/rig-maps/v1-65.json",
+      "measure": "data/bodies/psyche.measure.json"
+    }
+  ]
+}

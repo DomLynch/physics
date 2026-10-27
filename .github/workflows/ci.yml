@@ -29,7 +29,9 @@ jobs:
         run: node --test test/rules-eval.test.mjs
       - name: cut-units (synthetic skinned body, hair whole to the head, cap winding on a self-crossing loop, opt-in head_split and belly_open, real V3 bodies only where their GLBs exist)
         run: node --test test/cut-units.test.mjs
+      - name: cut-batch (two synthetic bodies through measure, cut, validate and the receipt; row checks; blocked rows; props and a second UV set in the source)
+        run: node --test test/cut-batch.test.mjs
       - name: visual-only cut units (head_split and belly_open known to the ragdoll, nothing detaches, hash unchanged, cut rig caps)
         run: node --test test/visual-cuts.test.mjs
-      - name: cut-validate(plane_exempt hair, native versus introduced open and flipped edges, --self; the head_split and belly_open checks run in the cut-units step)
+      - name: cut-validate (plane_exempt hair, native versus introduced open and flipped edges, --self; the head_split and belly_open checks run in the cut-units step)
         run: node --test test/cut-validate.test.mjs

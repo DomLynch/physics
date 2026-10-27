@@ -25,7 +25,9 @@ export function mulberry32(seed) {
 const FLOATS = 10; // per part in readPose: px py pz qx qy qz qw vx vy vz
 
 // A role-table ragdoll row -> the body definition the engine builds: capsules at their rest pose, lifted to stand on the floor at `position`.
-export function buildDefinition(row, position = [0, 0, 0]) {
+// `flex`: the hinge flexion direction as a row (data/world.json hinge_flex_z): per role, +1 when flexing moves the bone toward +z (the body faces +z: an
+// elbow), -1 toward -z (a knee). A role not named there keeps +1. A body whose facing or hinge axes differ passes its own row in createWorld rows.
+export function buildDefinition(row, position = [0, 0, 0], flex = WORLD.hinge_flex_z) {
   const roles = row.roles, idx = Object.fromEntries(roles.map((r, i) => [r.id, i]));
   const def = roles.map((r) => ({ id: r.id, role: r.role, parent: r.parent ? idx[r.parent] : -1, joint: r.joint, r: r.radius_m, halfH: r.half_height_m, mass: r.mass_kg }));
   let low = Infinity;
@@ -44,7 +46,7 @@ export function buildDefinition(row, position = [0, 0, 0]) {
       // a knee backward. The generator's hinge axis is the same side-less world axis on both arms, so the left elbow's flexion is the NEGATIVE angle.
       const hax = qrot(roles[i].rest.quat, [1, 0, 0]);
       const moved = [d[0] + (hax[1] * d[2] - hax[2] * d[1]) * 0.2, d[1] + (hax[2] * d[0] - hax[0] * d[2]) * 0.2, d[2] + (hax[0] * d[1] - hax[1] * d[0]) * 0.2];
-      const want = roles[i].role === "shin" ? -1 : 1, flipped = (moved[2] - d[2]) * want < 0;
+      const want = (flex && flex[roles[i].role]) || (roles[i].role === "shin" ? -1 : 1), flipped = (moved[2] - d[2]) * want < 0;
       return flipped ? { hingeMin: bend - rad(j.hinge_max_deg), hingeMax: bend - rad(j.hinge_min_deg) } : { hingeMin: rad(j.hinge_min_deg) - bend, hingeMax: rad(j.hinge_max_deg) - bend };
     }
     return { swing: rad(j.swing_deg), twist: rad(j.twist_deg) };

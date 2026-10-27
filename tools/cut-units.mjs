@@ -87,16 +87,26 @@ function makeFn(id, point, normal, source) {
 // apex: the crotch point (where the two inner thighs meet), or null for the contract's plain thigh-normal hip planes. With an apex each hip plane
 // keeps its point (the UpLeg joint) and is turned about its line to the apex, as little as possible away from the thigh normal, so the two
 // hip planes meet below the pelvis, no mesh sits in the wedge under both, and the legs need no wall between them.
-export function buildPlanes(J, apex = null) {
+// PLANE_ROWS: where each plane sits, as a fraction of the way along a joint pair (a body row can override any of them: data/cut-bodies.json "planes").
+// The defaults are the contract's start values, so a body with no override cuts exactly as before. A fraction of 0 is the first joint itself, 1 the second.
+export const PLANE_ROWS = {
+  neck_frac: 0.5, // Neck -> Head: half way
+  waist_frac: 1, // Hips -> Spine: at the Spine joint
+  shoulder_frac: 0, // Arm -> ForeArm: at the Arm joint
+  hip_frac: 0, // UpLeg -> Leg: at the UpLeg joint
+};
+const alongPair = (a, b, f) => (f === 0 ? a : f === 1 ? b : lerp3(a, b, f));
+export function buildPlanes(J, apex = null, planeRows = PLANE_ROWS) {
+  const PR = { ...PLANE_ROWS, ...planeRows };
   const need = ["Hips", "Spine", "Neck", "Head", "LeftArm", "LeftForeArm", "RightArm", "RightForeArm", "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg"];
   for (const r of need) if (!J[r]) throw new Error("measure row has no joint " + r);
   const fns = {};
-  fns.neck = makeFn("neck", lerp3(J.Neck, J.Head, 0.5), sub(J.Head, J.Neck), "half way from the Neck joint to the Head joint, normal along Neck to Head");
+  fns.neck = makeFn("neck", alongPair(J.Neck, J.Head, PR.neck_frac), sub(J.Head, J.Neck), (PR.neck_frac === 0.5 ? "half way" : PR.neck_frac + " of the way") + " from the Neck joint to the Head joint, normal along Neck to Head");
   // the upper arm bone with its vertical part dropped: a plane square to a drooping arm tilts into the flank and gives the arm a slab of ribs
   const shoulderNormal = (A, B) => { const d = sub(B, A), h = [d[0], 0, d[2]]; return vlen(h) >= 0.5 * vlen(d) ? h : d; };
   const shSrc = "joint, normal along the upper arm bone with its vertical part dropped (a plane square to a drooping arm would cut into the flank)";
-  fns.shoulder_left = makeFn("shoulder_left", J.LeftArm, shoulderNormal(J.LeftArm, J.LeftForeArm), "LeftArm " + shSrc);
-  fns.shoulder_right = makeFn("shoulder_right", J.RightArm, shoulderNormal(J.RightArm, J.RightForeArm), "RightArm " + shSrc);
+  fns.shoulder_left = makeFn("shoulder_left", alongPair(J.LeftArm, J.LeftForeArm, PR.shoulder_frac), shoulderNormal(J.LeftArm, J.LeftForeArm), "LeftArm " + shSrc);
+  fns.shoulder_right = makeFn("shoulder_right", alongPair(J.RightArm, J.RightForeArm, PR.shoulder_frac), shoulderNormal(J.RightArm, J.RightForeArm), "RightArm " + shSrc);
   const hipNormal = (H, K) => {
     const t = norm(sub(K, H));
     if (!apex) return t;
@@ -105,9 +115,9 @@ export function buildPlanes(J, apex = null) {
     return dot(n, t) > 0.3 ? n : t; // never turn the plane more than about 70 degrees from the thigh normal
   };
   const hipSrc = apex ? "UpLeg joint, normal along the thigh turned the least that puts the plane through the crotch apex" : "UpLeg joint, normal along the thigh";
-  fns.hip_left = makeFn("hip_left", J.LeftUpLeg, hipNormal(J.LeftUpLeg, J.LeftLeg), "LeftUpLeg joint, " + hipSrc.replace("UpLeg joint, ", ""));
-  fns.hip_right = makeFn("hip_right", J.RightUpLeg, hipNormal(J.RightUpLeg, J.RightLeg), "RightUpLeg joint, " + hipSrc.replace("UpLeg joint, ", ""));
-  fns.waist = makeFn("waist", J.Spine, sub(J.Spine, J.Hips), "Spine joint, normal along Hips to Spine");
+  fns.hip_left = makeFn("hip_left", alongPair(J.LeftUpLeg, J.LeftLeg, PR.hip_frac), hipNormal(J.LeftUpLeg, J.LeftLeg), "LeftUpLeg joint, " + hipSrc.replace("UpLeg joint, ", ""));
+  fns.hip_right = makeFn("hip_right", alongPair(J.RightUpLeg, J.RightLeg, PR.hip_frac), hipNormal(J.RightUpLeg, J.RightLeg), "RightUpLeg joint, " + hipSrc.replace("UpLeg joint, ", ""));
+  fns.waist = makeFn("waist", alongPair(J.Hips, J.Spine, PR.waist_frac), sub(J.Spine, J.Hips), "Spine joint, normal along Hips to Spine");
   // internal, not a cut: where the two hip half-spaces overlap below the crotch, the side with the larger distance wins (a wall only if mesh sits there)
   const bn = sub(fns.hip_left.n, fns.hip_right.n);
   const bp = lerp3(fns.hip_left.point, fns.hip_right.point, 0.5);
@@ -422,7 +432,17 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // ---- source vertices and triangles (all skinned primitives of all skinned mesh nodes)
   const V = { pos: [], raw: [], attr: {}, skin: [] }; // pos = world (metres, bind pose), raw = the vertex space the GLB stores
   const srcPrims = [], tris = [];
-  let semantics = null;
+  // The attribute set of the output is the union over all skinned primitives (a body whose face mesh has a second UV set and whose skin does not,
+  // like the Centurion's, is not refused): a primitive without one gets zeros, which is what it would sample anyway. Sorted, so equal sets give equal bytes.
+  const semSize = {};
+  for (const node of skinNodes) for (const prim of node.getMesh().listPrimitives()) for (const s of prim.listSemantics()) {
+    if (/^(POSITION|JOINTS_0|WEIGHTS_0)$/.test(s)) continue;
+    const sz = prim.getAttribute(s).getElementSize();
+    if (semSize[s] !== undefined && semSize[s] !== sz) throw new Error(`attribute ${s} has element size ${semSize[s]} on one primitive and ${sz} on another`);
+    semSize[s] = sz;
+  }
+  const semantics = Object.keys(semSize).sort();
+  for (const s of semantics) V.attr[s] = [];
   const oldMeshes = new Set(), oldSkins = new Set(), oldNodes = [];
   for (const node of skinNodes) {
     const skin = node.getSkin();
@@ -435,16 +455,13 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       if (prim.getMode() !== 4) throw new Error("only triangle primitives are supported");
       if (prim.listTargets().length) throw new Error("morph targets are not supported");
       if (prim.getAttribute("JOINTS_1")) throw new Error("JOINTS_1 (more than four influences per vertex) is not supported");
-      const sems = prim.listSemantics().filter((s) => !/^(POSITION|JOINTS_0|WEIGHTS_0)$/.test(s)).sort();
-      if (semantics === null) { semantics = sems; for (const s of sems) V.attr[s] = []; } else if (sems.join() !== semantics.join()) throw new Error("primitives carry different attribute sets: " + sems + " vs " + semantics);
       const pa = prim.getAttribute("POSITION"), ja = prim.getAttribute("JOINTS_0"), wa = prim.getAttribute("WEIGHTS_0");
       if (!ja || !wa) throw new Error("a primitive has no JOINTS_0 / WEIGHTS_0");
       const base = V.pos.length, n = pa.getCount();
-      const sizes = Object.fromEntries(sems.map((s) => [s, prim.getAttribute(s).getElementSize()]));
       for (let i = 0; i < n; i++) {
         const rawp = pa.getElement(i, [0, 0, 0]);
         V.raw.push(rawp); V.pos.push(toWorld(rawp));
-        for (const s of sems) V.attr[s].push(prim.getAttribute(s).getElement(i, new Array(sizes[s]).fill(0)));
+        for (const s of semantics) { const at = prim.getAttribute(s); V.attr[s].push(at ? at.getElement(i, new Array(semSize[s]).fill(0)) : new Array(semSize[s]).fill(0)); }
         const jj = ja.getElement(i, [0, 0, 0, 0]), ww = wa.getElement(i, [0, 0, 0, 0]);
         const sp = [];
         for (let k = 0; k < 4; k++) if (ww[k] > 0) sp.push([jmap[jj[k]], ww[k]]);
@@ -509,7 +526,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     if (apex) report.crotch_apex = apex.map(r6);
     else report.notes.push("no crotch apex found: hip planes are the plain thigh-normal planes");
   }
-  const fns = buildPlanes(J, apex);
+  const fns = buildPlanes(J, apex, opts.planes || PLANE_ROWS);
   // optional cuts (rows above): off unless asked for
   const headSplit = opts.headSplit ? rowOf(HEAD_SPLIT, opts.headSplit) : null, bellyOpen = opts.bellyOpen ? rowOf(BELLY_OPEN, opts.bellyOpen) : null;
   if (headSplit) fns.head_split = buildHeadSplitPlane(J, headSplit);
@@ -627,7 +644,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     for (const v of set) for (const [j, w] of V.skin[v]) score[regionIdx[owner[j]]] += w;
     const total = score.reduce((s, x) => s + x, 0);
     let region = home;
-    if (total > 0 && score[regionIdx[home]] / total < 0.2) {
+    if (total > 0 && score[regionIdx[home]] / total < (opts.homeMinWeight ?? 0.2)) {
       // only a region the cell's planes allow can take it (a piece's vertices stay on its side of every plane that bounds it)
       let best = -1;
       for (let k = 0; k < score.length; k++) if (feasible(REGIONS[k].id, cellOfFrag.get(f)) && score[k] > 0 && (best < 0 || score[k] > score[best])) best = k;
