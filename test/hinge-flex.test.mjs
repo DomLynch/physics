@@ -5,7 +5,11 @@ import { readFileSync } from "node:fs";
 import { buildDefinition } from "../src/engine.mjs";
 import { createPhysics } from "../src/index.mjs";
 
-const body = JSON.parse(readFileSync(new URL("../data/bodies/minotaur.measure.json", import.meta.url), "utf8"));
+const measure = JSON.parse(readFileSync(new URL("../data/bodies/minotaur.measure.json", import.meta.url), "utf8"));
+// the ragdoll row buildDefinition takes (the measure row turned into roles by createRagdoll)
+const probe = await createPhysics({ seed: 1 });
+const body = probe.createRagdoll(measure).row;
+probe.destroy();
 const forearm = body.roles.findIndex((r) => r.role === "forearm");
 
 test("flipping a role's hinge_flex_z flips that hinge's limits", () => {
@@ -27,6 +31,6 @@ test("a row value other than 1 or -1 is refused, 0 is not treated as unset", () 
 
 test("createPhysics({ rows: { hinge_flex_z } }) reaches the ragdoll it builds (a bad world row is refused at createRagdoll)", async () => {
   const p = await createPhysics({ seed: 1, rows: { hinge_flex_z: { forearm: 0 } } });
-  assert.throws(() => p.createRagdoll(body), /hinge_flex_z\.forearm must be 1 or -1/);
+  assert.throws(() => p.createRagdoll(measure), /hinge_flex_z\.forearm must be 1 or -1/);
   p.destroy();
 });
