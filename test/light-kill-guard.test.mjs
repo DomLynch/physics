@@ -109,3 +109,15 @@ test("heavy_kill_floor_pct: a light swing on a part strictly under the floor may
   const bare = JSON.parse(JSON.stringify(rules)); delete bare.evaluator.kill.heavy_kill_floor_pct;
   assert.throws(() => createEvaluator(bare));
 });
+
+// Cleanup (#164 review nit): light_floor_pct is KEPT on purpose as the first layer / the #49 behaviour when the heavy-kill floor is 0; with both on at the
+// same percent, the heavy-kill floor decides. Each row is an independent switch.
+test("the two floors are independent switches: heavy alone never kills; light alone only defers the kill (#49); both on = heavy decides", () => {
+  const two = (st, e) => ["a", "b"].map(() => e.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light", counterHit: true }), st).outcome);
+  const heavyOnly = JSON.parse(JSON.stringify(rules)); heavyOnly.evaluator.kill.light_floor_pct = 0;
+  assert.ok(two(minotaur(heavyOnly), createEvaluator(heavyOnly)).every((o) => o !== "kill"), "heavy_kill_floor alone: no light kill");
+  const lightOnly = JSON.parse(JSON.stringify(rules)); lightOnly.evaluator.kill.heavy_kill_floor_pct = 0;
+  const [first, second] = two(minotaur(lightOnly), createEvaluator(lightOnly));
+  assert.notEqual(first, "kill"); assert.equal(second, "kill", "light_floor alone only defers it: the #49 behaviour");
+  assert.ok(two(minotaur(), ev).every((o) => o !== "kill"), "both on (shipped): no light kill");
+});
