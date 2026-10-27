@@ -224,9 +224,16 @@ function segIndex(segs, cell = 0.05) {
   };
 }
 // The whole mesh surface of a GLB as one welded group: the numbers a source has before any cut (`--self`), and the defects the output may inherit.
+// The mesh nodes of a SOURCE the cut tool works on: the skinned ones. A source that also carries rigid props (V3 bodies ship their drawn weapon as
+// unskinned mesh nodes) keeps those untouched in the cut file, outside the pieces, so they are not part of the body surface the pieces must conserve.
+// A source with no skinned node at all (a hand-made test file) counts whole.
+export function sourceMeshes(g) {
+  const nodes = g.json.nodes || [], skinned = nodes.some((n) => n.mesh !== undefined && n.skin !== undefined);
+  return nodes.map((n, i) => (n.mesh !== undefined && (!skinned || n.skin !== undefined) ? extractMesh(g, i) : null)).filter(Boolean);
+}
 export function surfaceReport(glbBuf) {
   const g = parseGlb(glbBuf);
-  const meshes = (g.json.nodes || []).map((n, i) => (n.mesh !== undefined ? extractMesh(g, i) : null)).filter(Boolean);
+  const meshes = sourceMeshes(g);
   const d = edgeDefects(meshes);
   return {
     meshes: meshes.length, vertices: d.verts, triangles: d.tris, degenerate: d.degenerate, open_edges: d.open.length, over_used_edges: d.over.length, flipped_edges: d.flipped.length,
@@ -512,7 +519,7 @@ export function validate(glbBuf, manifest, opts = {}) {
   if (!opts.source) add("conservation", true, "skipped (no --source)");
   else {
     const sg = parseGlb(opts.source), bad = [];
-    const sm = (sg.json.nodes || []).map((n, i) => (n.mesh !== undefined ? extractMesh(sg, i) : null)).filter(Boolean);
+    const sm = sourceMeshes(sg);
     let srcArea = 0, pieceArea = 0;
     const sbox = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]], pbox = [[Infinity, Infinity, Infinity], [-Infinity, -Infinity, -Infinity]];
     const area = (m) => { let a = 0; for (let t = 0; t + 2 < m.idx.length; t += 3) a += 0.5 * Math.hypot(...triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2])); return a; };
