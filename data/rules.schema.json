@@ -229,11 +229,15 @@
         "zone_cut_unit": { "type": "object", "additionalProperties": { "type": ["string", "null"] }, "minProperties": 1 },
         "unit_bone_mult": { "type": "object", "additionalProperties": { "type": "number", "exclusiveMinimum": 0 }, "minProperties": 1 },
         "kill": {
-          "type": "object", "additionalProperties": false, "required": ["any_part_gone", "all_parts_gone", "light_floor_pct", "heavy_kill_floor_pct"],
+          "type": "object", "additionalProperties": false, "required": ["any_part_gone", "all_parts_gone", "light_damage_mult", "light_part_cap_pct"],
           "properties": {
-            "heavy_kill_floor_pct": { "type": "number", "minimum": 0, "exclusiveMaximum": 100 },
+            "light_damage_mult": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+            "light_damage_note": { "type": "string" },
+            "light_part_cap_pct": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 100 },
+            "light_part_cap_note": { "type": "string" },
+            "heavy_kill_floor_pct": { "type": "number", "description": "REMOVED 2026-10-27 (damage is cumulative); accepted and ignored so older consumer rules files still load" },
             "heavy_kill_floor_note": { "type": "string" },
-            "light_floor_pct": { "type": "number", "minimum": 0, "exclusiveMaximum": 100 },
+            "light_floor_pct": { "type": "number", "description": "REMOVED 2026-10-27 (damage is cumulative); accepted and ignored so older consumer rules files still load" },
             "light_floor_note": { "type": "string" },
             "any_part_gone": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
             "all_parts_gone": { "type": "array", "items": { "type": "array", "items": { "type": "string" }, "minItems": 1 } }

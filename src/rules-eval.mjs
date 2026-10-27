@@ -139,12 +139,14 @@ export function createEvaluator(rules = loadRules()) {
   const zoneUnit = need(rules, "evaluator.zone_cut_unit");
   const unitBone = need(rules, "evaluator.unit_bone_mult");
   const killRule = need(rules, "evaluator.kill");
-  // a LIGHT swing never takes an undamaged kill part (evaluator.kill.any_part_gone: head, torso) to zero: it cannot cut it and its damage stops at
-  // light_floor_pct of that part's budget. A heavy swing, or a light one on a part already at or under the floor, kills as before. 0 = off.
-  const lightFloorPct = num(killRule.light_floor_pct, "evaluator.kill.light_floor_pct");
-  // heavy-kill floor: while a kill part's hp is AT OR ABOVE this percent of its budget a LIGHT swing cannot cut it or take it to zero (its damage stops at the floor);
-  // only a heavy blow finishes it. A light swing on a part strictly under the floor may still finish it. Closes the 2-light-counter-hit kill. 0 = off.
-  const heavyKillFloorPct = num(killRule.heavy_kill_floor_pct, "evaluator.kill.heavy_kill_floor_pct");
+  // Damage is CUMULATIVE (Strategy+Dom 2026-10-27): zero health is dead, light or heavy; there is NO floor (the old light_floor_pct and
+  // heavy_kill_floor_pct rows are gone; a rules file that still carries them loads and they are ignored). A LIGHT swing on a head or torso
+  // (evaluator.kill.any_part_gone) deals strength x zone x global x light_damage_mult (heavy and limbs are unchanged), and it never CUTS that part
+  // while the part's hp is above the damage the blow itself deals; once hp <= that damage the blow kills normally by damage.
+  const lightDamageMult = num(killRule.light_damage_mult, "evaluator.kill.light_damage_mult");
+  // per-blow cap (Strategy ruling on #54): a light swing's damage to a head or torso is at most this percent of the part's FULL budget (ps.max), so a
+  // fresh part (man or boss) always survives one light. Cumulative damage still kills; the cap is per blow, not on the total.
+  const lightPartCapPct = num(killRule.light_part_cap_pct, "evaluator.kill.light_part_cap_pct");
 
   const fill = (tpl, side, state) => {
     if (tpl === null) return null;
@@ -238,19 +240,15 @@ export function createEvaluator(rules = loadRules()) {
     const dealt = strength * num(zoneRow.body_part_mult, `zones.${hit.zone}.body_part_mult`) * globalScale
       * num(tier.damage_taken_mult[kind.armour_column], `armour_tiers.${tierId}.damage_taken_mult.${kind.armour_column}`) * atk;
     const dead = !state.alive;
-    // light-swing floor (see lightFloorPct): the cut is refused and the damage that reaches the part is capped; `dealt` (the blow's force) still feeds the knockdown counter
+    // light swing on a kill part (see lightDamageMult): damage is scaled, and a cut is refused while the part still has more hp than this blow removes.
+    // `dealt` (the blow's force) still feeds the knockdown counter.
     let applied = dealt;
-    const floorHp = ps.max * lightFloorPct / 100;
-    if (!dead && swingType === "light" && lightFloorPct > 0 && killRule.any_part_gone.includes(part) && ps.hp > floorHp && (canCut || dealt >= ps.hp - floorHp)) {
-      applied = Math.min(dealt, ps.hp - floorHp);
-      events.push({ type: "light_floor", part, cutRefused: canCut, floorHp, floorPct: lightFloorPct });
-      canCut = false;
-    }
-    const heavyHp = ps.max * heavyKillFloorPct / 100;
-    if (!dead && swingType === "light" && heavyKillFloorPct > 0 && killRule.any_part_gone.includes(part) && ps.hp >= heavyHp && (canCut || applied >= ps.hp - heavyHp)) {
-      applied = Math.min(applied, ps.hp - heavyHp);
-      events.push({ type: "heavy_kill_floor", part, cutRefused: canCut, floorHp: heavyHp, floorPct: heavyKillFloorPct });
-      canCut = false;
+    if (!dead && swingType === "light" && killRule.any_part_gone.includes(part)) {
+      applied = Math.min(dealt * lightDamageMult, ps.max * lightPartCapPct / 100);
+      if (canCut && ps.hp > applied) {
+        events.push({ type: "light_cut_refused", part, hp: ps.hp, damage: applied });
+        canCut = false;
+      }
     }
     result.damage = dead ? 0 : applied;
     if (dead) events.push({ type: "dead_target" });
