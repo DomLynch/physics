@@ -142,6 +142,9 @@ export function createEvaluator(rules = loadRules()) {
   // a LIGHT swing never takes an undamaged kill part (evaluator.kill.any_part_gone: head, torso) to zero: it cannot cut it and its damage stops at
   // light_floor_pct of that part's budget. A heavy swing, or a light one on a part already at or under the floor, kills as before. 0 = off.
   const lightFloorPct = num(killRule.light_floor_pct, "evaluator.kill.light_floor_pct");
+  // heavy-kill floor: while a kill part's hp is AT OR ABOVE this percent of its budget a LIGHT swing cannot cut it or take it to zero (its damage stops at the floor);
+  // only a heavy blow finishes it. A light swing on a part strictly under the floor may still finish it. Closes the 2-light-counter-hit kill. 0 = off.
+  const heavyKillFloorPct = num(killRule.heavy_kill_floor_pct, "evaluator.kill.heavy_kill_floor_pct");
 
   const fill = (tpl, side, state) => {
     if (tpl === null) return null;
@@ -241,6 +244,12 @@ export function createEvaluator(rules = loadRules()) {
     if (!dead && swingType === "light" && lightFloorPct > 0 && killRule.any_part_gone.includes(part) && ps.hp > floorHp && (canCut || dealt >= ps.hp - floorHp)) {
       applied = Math.min(dealt, ps.hp - floorHp);
       events.push({ type: "light_floor", part, cutRefused: canCut, floorHp, floorPct: lightFloorPct });
+      canCut = false;
+    }
+    const heavyHp = ps.max * heavyKillFloorPct / 100;
+    if (!dead && swingType === "light" && heavyKillFloorPct > 0 && killRule.any_part_gone.includes(part) && ps.hp >= heavyHp && (canCut || applied >= ps.hp - heavyHp)) {
+      applied = Math.min(applied, ps.hp - heavyHp);
+      events.push({ type: "heavy_kill_floor", part, cutRefused: canCut, floorHp: heavyHp, floorPct: heavyKillFloorPct });
       canCut = false;
     }
     result.damage = dead ? 0 : applied;
