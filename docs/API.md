@@ -48,6 +48,15 @@ const rig = createThreeRig(THREE, rd, { hips: pelvisBone, spine: spine01, ..., t
 - `createPhysics({ states: { stagger: { ... } } })`: game data rows override `data/states.json` key by key (death, stagger, knockdown).
 - `createThreeRig(THREE, rd, bones, root, { bind: { bones, root } })`: read the bind pose from an untouched copy of the model when the live rig is already animated at build time.
 
+## Visual-only units: `head_split`, `belly_open`
+
+`rd.row.severable` lists eight units: the six above plus `head_split` and `belly_open`, rows in `data/ragdoll-role-table.json` flagged `visual_only: true` (`cut_role: null`, `joint: null`, `mass_kg: 0`, `carries_roles: []`, `cap_role` = the part the event points at: `head` and `spine1`). They exist for cut GLBs made with `tools/cut-units.mjs --head-split --belly-open` (docs/CUT-CONTRACT.md, Optional cuts).
+
+- `rd.cut("head_split")` / `rd.cut("belly_open")` return `{ unit, mass_kg: 0, carries_roles: [], gear_slots: [], cap: { part, position }, props: [], visual_only: true }` and put the unit in `rd.cuts`. Nothing detaches: no capsule or joint is removed, no mass moves, no helmet prop (the `helmet` and `impulse` options are ignored), the 120 Hz window is not started, the ragdoll stays alive and its per-tick hash is identical to a run without the call. A second cut of the same unit returns `null`. They can be cut in any order with `head` (`head` after `head_split`, or the reverse), on a living or a frozen body.
+- `createCutRig(...).update()` shows `cap_split_head_left` / `cap_split_head_right` once `head_split` is in `rd.cuts` and `cap_belly_opening` once `belly_open` is; a manifest region may carry `separated_by: "head_split"` (checked against the known units, like `detached_by`).
+- `rd.reset()` still returns false after a detaching cut, but works after visual-only cuts alone (it clears them, so the caps hide again).
+- A `ragdoll-row/2` generated before these units existed is accepted: `createRagdoll` adds the visual-only units from the role table to its `severable` list (the row you passed in is not touched). The two head halves do NOT move independently yet: both follow the `head` capsule (a separate step, not done).
+
 ## Cuts (M5)
 
 - `rd.cut(unit, { helmet, impulse })` detaches `head`, `arm_left`, `arm_right`, `leg_left`, `leg_right` or `torso_waist` and returns `{ unit, mass_kg, carries_roles, gear_slots, cap: { part, position }, props }`. `gear_slots` is the six-unit contract (the gear on the severed unit goes with it); `cap` is where the stump is now (attach your cap mesh to the parent part and follow it); `helmet: true` (head only) spawns the helmet as a rigid prop (`data/states.json` `cut.helmet`) with the head's velocity plus a pop. `impulse` pushes the severed piece. Works on a frozen corpse (the corpse cut on tap): the severed piece wakes, the rest stays asleep. After a cut the world steps at 120 Hz for `cut_high_rate_ticks`.

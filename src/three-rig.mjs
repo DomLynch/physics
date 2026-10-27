@@ -56,7 +56,7 @@ export function createThreeRig(THREE, rd, bones, root, opts = {}) {
     // capsules -> bones (parents first; roles are in parent-first order)
     applyPose() {
       const p = rd.readPose();
-      const cutRoles = new Set(rd.cuts.map((u) => rd.row.severable.find((s) => s.id === u).cut_role));
+      const cutRoles = new Set(rd.cuts.map((u) => rd.row.severable.find((s) => s.id === u).cut_role).filter(Boolean)); // visual-only units have no cut role
       for (let i = 0; i < n; i++) {
         const o = i * 10, delta = qmul([p[o + 3], p[o + 4], p[o + 5], p[o + 6]], qconj(roles[i].rest.quat)), bw = qmul(delta, restQ[i]);
         const b = objs[i];

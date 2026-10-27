@@ -265,7 +265,8 @@ export async function createWorld(opts = {}) {
       },
       // back to the spawn pose, alive, full strength. Only before any cut (a cut removes joints): returns false then, destroy and recreate instead.
       reset() {
-        if (cut.size) return false;
+        if (api.cuts.some((c) => !row.severable.find((s) => s.id === c).visual_only)) return false;
+        cut.clear(); // visual-only cuts (head_split, belly_open) removed nothing: the caps hide again with the empty set
         const zero = new Jolt.Vec3(0, 0, 0);
         for (let i = 0; i < n; i++) {
           const pp = new Jolt.RVec3(...D.spawn[i].c), qq = new Jolt.Quat(...D.spawn[i].q);
@@ -352,6 +353,16 @@ export async function createWorld(opts = {}) {
       cut(unit, copts = {}) {
         const u = row.severable.find((s) => s.id === unit);
         if (!u) throw new Error("unknown severable unit " + unit);
+        if (u.visual_only) {
+          // visual-only unit (head_split, belly_open): nothing detaches. No joint or capsule is removed, no mass moves, no high-rate window, no props; the unit only
+          // enters rd.cuts so the cut rig shows its cap. `cap` points at the part the cut sits on (its capsule centre now). A second cut returns null.
+          if (cut.has(unit)) return null;
+          const vi = D.idx[u.cap_role];
+          if (vi === undefined) throw new Error(`severable unit ${unit}: cap_role "${u.cap_role}" is not a part`);
+          const vp = bodies[vi].GetPosition();
+          cut.add(unit);
+          return { unit, mass_kg: 0, carries_roles: [], gear_slots: u.gear_slots || [], cap: { part: u.cap_role, position: [vp.GetX(), vp.GetY(), vp.GetZ()] }, props: [], visual_only: true };
+        }
         const ci = D.idx[u.cut_role], k = cons.findIndex((c) => c.i === ci);
         if (k < 0) return null;
         // where the stump is now: the cut joint's pivot carried by the parent capsule's current pose
