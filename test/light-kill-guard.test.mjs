@@ -67,3 +67,44 @@ test("limbs still cut on a light counter-hit (the guard is for the kill parts on
   const r = ev.evaluateHit(hit({ zone: "arm_off", handSpeed: 9.74, swing: "light", counterHit: true }), minotaur());
   assert.equal(r.outcome, "cut");
 });
+
+// Follow-up (reviewer gap on #49): the light floor only DEFERRED the kill, because the second light counter-hit saw hp <= floor and killed.
+// Row evaluator.kill.heavy_kill_floor_pct: a LIGHT swing never takes a kill part to zero (no cut, damage stops at the floor) while the part's
+// hp is AT OR ABOVE this percent of its budget; only a heavy blow finishes it. A light swing on a part already strictly under the floor may still finish it.
+const heavyFloorPct = () => rules.evaluator.kill.heavy_kill_floor_pct;
+
+test("heavy_kill_floor_pct: any number of light counter-hits and light swings never kill a full Minotaur, then a heavy blow does", () => {
+  assert.ok(heavyFloorPct() > 0, "the row exists and is on");
+  for (const zone of ["head", "torso"]) {
+    const st = minotaur();
+    for (let i = 0; i < 60; i++) {
+      const r = ev.evaluateHit(hit({ zone, handSpeed: SPEEDS[i % SPEEDS.length], swing: "light", counterHit: i % 2 === 0 }), st);
+      assert.notEqual(r.outcome, "kill", `${zone} light hit #${i + 1}: ${JSON.stringify(r.events)}`);
+      assert.equal(r.cut, null);
+      assert.equal(st.alive, true);
+      assert.ok(st.parts[zone].hp >= st.parts[zone].max * heavyFloorPct() / 100 - 1e-9, `${zone} stays at or above the floor`);
+    }
+    const heavy = ev.evaluateHit(hit({ zone, handSpeed: 9.74, swing: "heavy" }), st);
+    assert.equal(heavy.outcome, "kill", `${zone}: a heavy blow finishes the chipped part`);
+  }
+});
+
+test("heavy_kill_floor_pct: two light counter-hits in a row on a full Minotaur do not kill (the reviewer's repro)", () => {
+  const st = minotaur();
+  const a = ev.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light", counterHit: true }), st);
+  const b = ev.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light", counterHit: true }), st);
+  assert.notEqual(a.outcome, "kill"); assert.notEqual(b.outcome, "kill", JSON.stringify(b.events));
+  assert.equal(st.alive, true);
+});
+
+test("heavy_kill_floor_pct: a light swing on a part strictly under the floor may still finish it; the row is a row (0 = off)", () => {
+  const st = minotaur();
+  st.parts.torso.hp = st.parts.torso.max * heavyFloorPct() / 100 * 0.5;
+  assert.equal(ev.evaluateHit(hit({ zone: "torso", handSpeed: 9.74, swing: "light" }), st).outcome, "kill");
+  const off = JSON.parse(JSON.stringify(rules)); off.evaluator.kill.heavy_kill_floor_pct = 0;
+  const s2 = minotaur(off); const e2 = createEvaluator(off);
+  e2.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light", counterHit: true }), s2);
+  assert.equal(e2.evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light", counterHit: true }), s2).outcome, "kill", "0 = the #49 behaviour");
+  const bare = JSON.parse(JSON.stringify(rules)); delete bare.evaluator.kill.heavy_kill_floor_pct;
+  assert.throws(() => createEvaluator(bare));
+});
