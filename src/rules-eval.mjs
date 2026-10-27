@@ -144,6 +144,9 @@ export function createEvaluator(rules = loadRules()) {
   // (evaluator.kill.any_part_gone) deals strength x zone x global x light_damage_mult (heavy and limbs are unchanged), and it never CUTS that part
   // while the part's hp is above the damage the blow itself deals; once hp <= that damage the blow kills normally by damage.
   const lightDamageMult = num(killRule.light_damage_mult, "evaluator.kill.light_damage_mult");
+  // per-blow cap (Strategy ruling on #54): a light swing's damage to a head or torso is at most this percent of the part's FULL budget (ps.max), so a
+  // fresh part (man or boss) always survives one light. Cumulative damage still kills; the cap is per blow, not on the total.
+  const lightPartCapPct = num(killRule.light_part_cap_pct, "evaluator.kill.light_part_cap_pct");
 
   const fill = (tpl, side, state) => {
     if (tpl === null) return null;
@@ -241,7 +244,7 @@ export function createEvaluator(rules = loadRules()) {
     // `dealt` (the blow's force) still feeds the knockdown counter.
     let applied = dealt;
     if (!dead && swingType === "light" && killRule.any_part_gone.includes(part)) {
-      applied = dealt * lightDamageMult;
+      applied = Math.min(dealt * lightDamageMult, ps.max * lightPartCapPct / 100);
       if (canCut && ps.hp > applied) {
         events.push({ type: "light_cut_refused", part, hp: ps.hp, damage: applied });
         canCut = false;
