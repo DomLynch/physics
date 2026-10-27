@@ -1,0 +1,1260 @@
+{
+ "build": "8973bb44fb69c7bdce7dda9d8def9534890fd0b1",
+ "base": "https://v3.frankendom.com",
+ "wallSec": 51.046,
+ "afterEnd": {
+  "foeHP": 0,
+  "foePhase": "dead",
+  "down": null,
+  "ragdoll": "frozen"
+ },
+ "hud": {
+  "text": [
+   "Light attack",
+   "Kick",
+   "Skull Crack",
+   "Whirlwind",
+   "Roll · tap to step back",
+   "Hold guard",
+   "THE MINOTAUR",
+   "YOUR HEALTH",
+   "STAMINA",
+   "MANA",
+   "8973bb4",
+   "ARM",
+   "LEG",
+   "LEG",
+   "WAIST",
+   "stab",
+   "slash",
+   "slash"
+  ],
+  "defeated": false,
+  "v3Picked": null
+ },
+ "S": {
+  "tick": 2687,
+  "presses": 46,
+  "end": {
+   "tick": 2404,
+   "foeHP": 0,
+   "foePhase": "dead",
+   "down": null,
+   "ragdoll": "dying",
+   "over": null
+  },
+  "log": [
+   {
+    "t": 600,
+    "foeHP": 112,
+    "hits": 5,
+    "presses": 9,
+    "gap": 0.95
+   },
+   {
+    "t": 1200,
+    "foeHP": 73,
+    "hits": 13,
+    "presses": 21,
+    "gap": 0.85
+   },
+   {
+    "t": 1800,
+    "foeHP": 36,
+    "hits": 23,
+    "presses": 34,
+    "gap": 0.85
+   },
+   {
+    "t": 2400,
+    "foeHP": 3,
+    "hits": 33,
+    "presses": 46,
+    "gap": 0.85
+   }
+  ],
+  "gaps": [
+   [
+    30,
+    8.62,
+    "draw",
+    "ready"
+   ],
+   [
+    60,
+    7.61,
+    "ready",
+    "ready"
+   ],
+   [
+    90,
+    5.29,
+    "ready",
+    "ready"
+   ],
+   [
+    120,
+    2.97,
+    "ready",
+    "ready"
+   ],
+   [
+    150,
+    1.89,
+    "attack",
+    "ready"
+   ],
+   [
+    180,
+    1.85,
+    "attack",
+    "ready"
+   ],
+   [
+    210,
+    1.56,
+    "attack",
+    "ready"
+   ],
+   [
+    240,
+    1.35,
+    "attack",
+    "ready"
+   ],
+   [
+    270,
+    1.13,
+    "attack",
+    "ready"
+   ],
+   [
+    300,
+    0.92,
+    "attack",
+    "guard"
+   ],
+   [
+    330,
+    0.85,
+    "attack",
+    "attack"
+   ],
+   [
+    360,
+    0.95,
+    "hurt",
+    "attack"
+   ],
+   [
+    390,
+    0.95,
+    "hurt",
+    "attack"
+   ],
+   [
+    420,
+    0.95,
+    "hurt",
+    "attack"
+   ],
+   [
+    450,
+    0.95,
+    "hurt",
+    "attack"
+   ],
+   [
+    480,
+    0.92,
+    "attack",
+    "ready"
+   ],
+   [
+    510,
+    1.43,
+    "ready",
+    "ready"
+   ],
+   [
+    540,
+    1.02,
+    "attack",
+    "attack"
+   ],
+   [
+    570,
+    1,
+    "hurt",
+    "attack"
+   ],
+   [
+    600,
+    0.95,
+    "attack",
+    "ready"
+   ],
+   [
+    630,
+    1.45,
+    "attack",
+    "ready"
+   ],
+   [
+    660,
+    1.31,
+    "attack",
+    "ready"
+   ],
+   [
+    690,
+    0.96,
+    "attack",
+    "ready"
+   ],
+   [
+    720,
+    0.94,
+    "attack",
+    "hurt"
+   ],
+   [
+    750,
+    0.85,
+    "attack",
+    "hurt"
+   ],
+   [
+    780,
+    0.85,
+    "attack",
+    "hurt"
+   ],
+   [
+    810,
+    1.33,
+    "attack",
+    "ready"
+   ],
+   [
+    840,
+    1.37,
+    "attack",
+    "ready"
+   ],
+   [
+    870,
+    0.94,
+    "attack",
+    "ready"
+   ],
+   [
+    900,
+    0.91,
+    "attack",
+    "guard"
+   ],
+   [
+    930,
+    0.85,
+    "attack",
+    "guard"
+   ],
+   [
+    960,
+    1.36,
+    "attack",
+    "ready"
+   ],
+   [
+    990,
+    1.24,
+    "attack",
+    "attack"
+   ],
+   [
+    1020,
+    1.31,
+    "hurt",
+    "attack"
+   ],
+   [
+    1050,
+    1.46,
+    "attack",
+    "ready"
+   ],
+   [
+    1080,
+    1.8,
+    "attack",
+    "ready"
+   ],
+   [
+    1110,
+    0.99,
+    "attack",
+    "attack"
+   ],
+   [
+    1140,
+    1,
+    "attack",
+    "hurt"
+   ],
+   [
+    1170,
+    0.85,
+    "attack",
+    "hurt"
+   ],
+   [
+    1200,
+    0.85,
+    "attack",
+    "hurt"
+   ]
+  ],
+  "hits": [
+   {
+    "tick": 250,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 129,
+    "foeMax": 137,
+    "foeSta": 92,
+    "parts": {
+     "head": 1,
+     "torso": 0.8336968344501429,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 1.19,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 3.99,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 305,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 126,
+    "foeMax": 137,
+    "foeSta": 84,
+    "parts": {
+     "head": 1,
+     "torso": 0.6271214323852604,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "guard",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.96,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 478,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 123,
+    "foeMax": 137,
+    "foeSta": 25.7,
+    "parts": {
+     "head": 1,
+     "torso": 0.44972528924359195,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "guard",
+    "gap": 0.88,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 527,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 115,
+    "foeMax": 137,
+    "foeSta": 48.7,
+    "parts": {
+     "head": 1,
+     "torso": 0.24319129280344556,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "guard",
+    "gap": 1.37,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.96,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 595,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 112,
+    "foeMax": 137,
+    "foeSta": 36,
+    "parts": {
+     "head": 1,
+     "torso": 0.06583272525370043,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "guard",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 644,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 104,
+    "foeMax": 137,
+    "foeSta": 52,
+    "parts": {
+     "head": 1,
+     "torso": 1,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 1.31,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "kill",
+     "damage": 4.98,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 692,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 101,
+    "foeMax": 137,
+    "foeSta": 44,
+    "parts": {
+     "head": 1,
+     "torso": 0.8226367320593481,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.94,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 737,
+    "move": "slash_riposte",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 95,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.6390511756257583,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.41,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 784,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 92,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.4726997397843801,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 3.99,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 880,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 89,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.29537702816109096,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.87,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 929,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 86,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.08881594184472523,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "guard",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.96,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 977,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 83,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 1,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 1.38,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "kill",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1113,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": true,
+    "foeHP": 73,
+    "foeMax": 137,
+    "foeSta": 22,
+    "parts": {
+     "head": 1,
+     "torso": 0.6817270174997215,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 1.05,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 7.64,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1205,
+    "move": "slash_riposte",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 67,
+    "foeMax": 137,
+    "foeSta": 10.2,
+    "parts": {
+     "head": 1,
+     "torso": 0.4979732775990396,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.41,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1252,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 64,
+    "foeMax": 137,
+    "foeSta": 10.2,
+    "parts": {
+     "head": 1,
+     "torso": 0.3205642248636737,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1301,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 61,
+    "foeMax": 137,
+    "foeSta": 34.7,
+    "parts": {
+     "head": 1,
+     "torso": 0.11399382665695423,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.96,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1349,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 58,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 1,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "kill",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1404,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 55,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.7936586068811388,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.97,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.95,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1501,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": true,
+    "foeHP": 51,
+    "foeMax": 137,
+    "foeSta": 22,
+    "parts": {
+     "head": 1,
+     "torso": 0.4320384209791936,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 1.16,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 8.68,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1549,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 48,
+    "foeMax": 137,
+    "foeSta": 27.9,
+    "parts": {
+     "head": 1,
+     "torso": 0.2547026924818302,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 1.01,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1594,
+    "move": "slash_riposte",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 42,
+    "foeMax": 137,
+    "foeSta": 27.9,
+    "parts": {
+     "head": 1,
+     "torso": 0.07173553382797382,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.39,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1641,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 39,
+    "foeMax": 137,
+    "foeSta": 27.9,
+    "parts": {
+     "head": 1,
+     "torso": 1,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "kill",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1769,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 36,
+    "foeMax": 137,
+    "foeSta": 30.5,
+    "parts": {
+     "head": 1,
+     "torso": 0.7990424152861918,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.82,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1818,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 33,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.6171044896830747,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.37,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1866,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 30,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.4162495400082877,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.82,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 1922,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 27,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.23428261740372794,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 1.12,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.37,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2015,
+    "move": "slash_riposte",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 21,
+    "foeMax": 137,
+    "foeSta": 25,
+    "parts": {
+     "head": 1,
+     "torso": 0.05314878267309161,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.35,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2061,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 18,
+    "foeMax": 137,
+    "foeSta": 25,
+    "parts": {
+     "head": 1,
+     "torso": 1,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "kill",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2158,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 15,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.8226125067516481,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 0.87,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2207,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 12,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.6160443326579932,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "guard",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.96,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2255,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 9,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.43871265250429237,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 1.08,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2304,
+    "move": "light_left",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 6,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.23221875016174834,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "ready",
+    "gap": 1.01,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "stick",
+     "damage": 4.96,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2352,
+    "move": "light_right",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 3,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0.054815627122730214,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "stagger",
+    "foePhase": "hurt",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "hit",
+     "damage": 4.26,
+     "part": "torso"
+    }
+   },
+   {
+    "tick": 2404,
+    "marker": "Killed",
+    "actor": 0,
+    "foeHP": 0
+   },
+   {
+    "tick": 2404,
+    "move": "slash_riposte",
+    "loc": "torso",
+    "ctr": false,
+    "foeHP": 0,
+    "foeMax": 137,
+    "foeSta": 40,
+    "parts": {
+     "head": 1,
+     "torso": 0,
+     "arm_left": 1,
+     "arm_right": 1,
+     "leg_left": 1,
+     "leg_right": 1
+    },
+    "ragdoll": "dying",
+    "foePhase": "dead",
+    "gap": 0.85,
+    "rule": {
+     "swing": "light",
+     "zone": "torso",
+     "outcome": "kill",
+     "damage": 4.4,
+     "part": "torso"
+    }
+   }
+  ]
+ },
+ "R": {
+  "hits": 34,
+  "byOutcome": {
+   "hit": 11,
+   "stick": 17,
+   "kill": 6
+  },
+  "deferredKills": 5
+ },
+ "foe": {
+  "health": 0,
+  "maxHealth": 137,
+  "phase": "dead",
+  "stamina": 40
+ }
+}
