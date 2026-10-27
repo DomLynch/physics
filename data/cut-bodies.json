@@ -23,11 +23,11 @@
     },
     {
       "name": "warrior-65",
-      "source": "v3/warrior.glb",
+      "source": "v3/warrior-cutsrc.glb",
+      "plain": true,
       "rig_map": "data/rig-maps/v1-65.json",
       "measure": "data/bodies/warrior.measure.json",
-      "blocked_checks": ["watertight"],
-      "blocked": "the skin shell EXO_BrowsLashes (material Exo_MAT, 9,352 vertices, the body under the Steel suit) is open geometry: 195 section chains at the cut planes do not close, so 696 cap-loop edges stay open (166 root, 234 torso, 89 + 89 arms, 58 + 58 legs). Dropping that mesh from the cut gives 0 introduced open edges (measured on the VPS), but it holds the visible face, hands and neck skin, so it cannot be dropped. Needs a closed (or hand-capped) skin shell in the source; a cut tool bridge across the hidden gaps would draw caps over geometry that is not there."
+      "note": "cut source is a repaired COPY of V3's warrior.glb (sha256 da6e3fa7...), made by tools/cut-src-close.mjs --mesh EXO_BrowsLashes: index-only caps on the open skin-shell loops, see docs/CUT-BATCH.md; V3 ships the original"
     },
     {
       "name": "veteran-65",
