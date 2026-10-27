@@ -1,6 +1,6 @@
 // @frankendom/physics: Jolt WASM, deterministic fixed step, ragdolls from body measure rows. See docs/API.md.
 import { createWorld, mulberry32 } from "./engine.mjs";
-import { generateRow, loadTable, lintNoBlock } from "./generate.mjs";
+import { generateRow, loadTable, lintNoBlock, severableRow } from "./generate.mjs";
 
 // const physics = await createPhysics({ seed });
 // const rd = physics.createRagdoll(bodyMeasureRow, { position: [0, 0, 0] });
@@ -11,7 +11,12 @@ export async function createPhysics(opts = {}) {
   const table = loadTable(opts.roleTable);
   const make = world.createRagdoll;
   world.createRagdoll = (input, ropts = {}) => {
-    const row = input && input.schema === "ragdoll-row/2" ? input : generateRow(ropts.id || input.id || "body", input, table);
+    let row = input && input.schema === "ragdoll-row/2" ? input : generateRow(ropts.id || input.id || "body", input, table);
+    // a ragdoll-row/2 generated before the visual-only units existed: add them from the role table (the row passed in is not changed)
+    if (row === input) {
+      const have = new Set(row.severable.map((s) => s.id)), add = table.severable.units.filter((u) => u.visual_only && !have.has(u.id));
+      if (add.length) row = { ...row, severable: [...row.severable, ...add.map((u) => severableRow(u, row.roles))] };
+    }
     return make(row, ropts);
   };
   return world;
