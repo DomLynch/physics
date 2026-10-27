@@ -48,7 +48,9 @@ test("sensitivity: leaving out clip-edge fragments (peaks under 3 m/s) puts hit 
 });
 
 test("labelled clips do not support heavy_mult 1.92: heavy clips are not faster than light ones (the charge is a game mechanic, not a clip speed)", () => {
-  const d = deriveRungs(sample, rules);
-  assert.ok(d.heavy_over_light_p50 > 1 && d.heavy_over_light_p50 < 1.2, String(d.heavy_over_light_p50));
+  // clip_106 only: the dump's classes are a duration proxy, not labels
+  const d = deriveRungs({ swings: sample.swings.filter((s) => s.source === "clip_106") }, rules);
+  assert.deepEqual([d.classes.heavy.n, d.classes.light.n], [7, 21]);
+  assert.ok(d.heavy_over_light_p50 > 1.03 && d.heavy_over_light_p50 < 1.07, String(d.heavy_over_light_p50));
   assert.equal(rules.swing.heavy_mult, 1.92);
 });

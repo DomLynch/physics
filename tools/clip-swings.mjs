@@ -1,5 +1,5 @@
 // M4 calibration sample from the 106-rig clips baked in a body GLB (V3 src/assets/{psyche,minotaur}-106.glb): hand-end speed per swing, with the clip's own label.
-//   node tools/clip-swings.mjs <body.glb> <rig-map.json> <out.json> [--start 2.0] [--gap 0.15] [--window 3] [--snap 0.3] [--hz 60]
+//   node tools/clip-swings.mjs <body.glb> <rig-map.json> [out.json] [--start 2.0] [--gap 0.15] [--window 3] [--snap 0.3] [--hz 60]
 // Same method as tools/tip-speed.mjs: hand end speed = backward difference over --window ticks (3 ticks at 60 Hz = 0.05 s), a swing = one run above --start m/s
 // (runs closer than --gap s joined), its value the PEAK of the run, a run whose speed three ticks before the peak was under --snap x peak is a pose snap and is
 // counted apart. Differences: the clips are sampled at --hz from the GLB's own tracks (linear / slerp, like three.js), so the hips (root motion) move the hand
@@ -14,7 +14,7 @@ const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf("--" + n); return i < 0 ? d : args.splice(i, 2)[1]; };
 const startV = Number(opt("start", 2.0)), gapS = Number(opt("gap", 0.15)), win = Number(opt("window", 3)), snapRise = Number(opt("snap", 0.3)), hz = Number(opt("hz", 60));
 const [glbFile, mapFile, outFile] = args;
-if (!glbFile || !mapFile) { console.error("usage: node tools/clip-swings.mjs <body.glb> <rig-map.json> [out.json]"); process.exit(1); }
+if (!glbFile || !mapFile) { console.error("usage: node tools/clip-swings.mjs <body.glb> <rig-map.json> [out.json] [--start m/s] [--gap s] [--window ticks] [--snap x] [--hz n]"); process.exit(1); }
 
 // clip label -> swing class. Labels are the V3 clip names; the hero and the foe share them. Special swings are measured but kept apart.
 export const CLASSES = {
@@ -95,6 +95,7 @@ function handPositions(anim) {
   const tracks = {}; // node -> { translation, rotation, scale }
   for (const ch of anim.channels) {
     const sm = anim.samplers[ch.sampler], node = ch.target.node, path = ch.target.path;
+    if ((sm.interpolation || "LINEAR") !== "LINEAR") throw new Error(`clip ${anim.name}: ${sm.interpolation} sampler on node ${node}; only LINEAR is sampled`);
     if (path === "weights") continue;
     const tIn = acc(sm.input), tOut = acc(sm.output);
     (tracks[node] ||= {})[path] = { times: tIn.data, vals: tOut.data, n: tOut.n };
