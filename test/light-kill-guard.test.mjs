@@ -57,7 +57,7 @@ test("a heavy blow on a damaged Minotaur still kills, and a light one does not o
 });
 
 test("the guard is a row: 0 turns it off (the old behaviour), and a missing row throws", () => {
-  const off = JSON.parse(JSON.stringify(rules)); off.evaluator.kill.light_floor_pct = 0;
+  const off = JSON.parse(JSON.stringify(rules)); off.evaluator.kill.light_floor_pct = 0; off.evaluator.kill.heavy_kill_floor_pct = 0; // (both rows off = pre-#49; the heavy-kill floor test below covers its own row)
   const r = createEvaluator(off).evaluateHit(hit({ zone: "head", handSpeed: 9.74, swing: "light", counterHit: true }), minotaur(off));
   assert.equal(r.outcome, "kill", "the pre-fix result, from the row alone");
   const bare = JSON.parse(JSON.stringify(rules)); delete bare.evaluator.kill.light_floor_pct;
