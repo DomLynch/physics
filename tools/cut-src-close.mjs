@@ -6,10 +6,10 @@
 //  - on every primitive of the named mesh (node or mesh name), welds positions (--tol), finds the open boundary loops (a pinched boundary is split
 //    into simple rings), and closes every ring of at least --min-edges edges. Smaller rings stay open. Original vertices are never moved or
 //    re-weighted: the copy's first N vertices, indices and every attribute are the original's, byte for byte; the repair only appends.
-//  - --fill pole (default): one new vertex per loop, a "pole" a little below the hole (the loop's centre pushed against the mean vertex normal, by the
-//    loop's middle standard deviation), and a fan of triangles from each loop edge to it. The cap is a shallow tent under the hole, so it stays
-//    inside the body instead of bridging across a concave back as a flat sheet. The pole takes the loop's summed skin weights (top 4 joints,
-//    renormalised), its mean normal, and the UVs and any other attribute of the loop vertex nearest the centre.
+//  - --fill pole (default): one new vertex per loop, a "pole" at the loop's centre (--depth k moves it against the mean vertex normal by k times the
+//    loop's middle standard deviation; default 0: measured on warrior, 0 changes the fewest rendered pixels, deeper poles poke out the far side), and
+//    a fan of triangles from each loop edge to it, instead of a flat sheet bridging across a concave back. The pole takes the loop's summed skin
+//    weights (top 4 joints, renormalised), its mean normal, and the UVs and any other attribute of the loop vertex nearest the centre.
 //  - --fill flat: no new vertex, ear-clipped flat patch on the loop's best-fit plane (a loop that wraps a curve shows up as a sheet; kept for tests).
 // The cap winding is the reverse of the loop's boundary edges, so every capped edge gets its opposite and the surface stays consistently oriented.
 // Body sources are confidential: run this where they live (the VPS); only the tool and the report numbers are committed.
@@ -19,7 +19,7 @@ import { decompressGlb, triangulateLoops, weldCluster } from "./cut-units.mjs";
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const [inPath, outPath] = args.filter((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--")));
-const meshName = opt("--mesh"), minEdges = Number(opt("--min-edges", 10)), tol = Number(opt("--tol", 1e-5)), reportPath = opt("--report"), fill = opt("--fill", "pole"), depthK = Number(opt("--depth", 1));
+const meshName = opt("--mesh"), minEdges = Number(opt("--min-edges", 10)), tol = Number(opt("--tol", 1e-5)), reportPath = opt("--report"), fill = opt("--fill", "pole"), depthK = Number(opt("--depth", 0));
 if (!inPath || !outPath || !meshName || !["pole", "flat"].includes(fill)) { console.error("usage: cut-src-close.mjs <in.glb> <out.glb> --mesh <name> [--min-edges 10] [--fill pole|flat] [--tol 1e-5] [--report f.json]"); process.exit(2); }
 
 const { NodeIO } = await import("@gltf-transform/core");
