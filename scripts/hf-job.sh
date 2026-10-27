@@ -9,6 +9,16 @@
 # Not in the repo, so not on the job: the real body sources (/root/cut-out/*.source-plain.glb). Runs that need them (cut-units / cut-validate on Psyche and Minotaur) stay on the VPS.
 set -euo pipefail
 
+# scripts/hf-job.sh status|logs|cancel <job id>: the same hf call with the same token pattern (only this script touches /root/.hf)
+case "${1:-}" in
+  status|logs|cancel)
+    SUB="$1"; ID="${2:-}"; [ -n "$ID" ] || { echo "usage: $0 $SUB <job id>" >&2; exit 2; }
+    TOKEN_FILE="${HF_TOKEN_FILE:-/root/.hf/token}"
+    [ -r "$TOKEN_FILE" ] || { echo "hf-job: no readable token file at $TOKEN_FILE (run this on the VPS as root)" >&2; exit 3; }
+    export HF_TOKEN="$(cat "$TOKEN_FILE")"
+    case "$SUB" in status) exec hf jobs inspect "$ID" ;; logs) exec hf jobs logs "$ID" ;; cancel) exec hf jobs cancel "$ID" ;; esac ;;
+esac
+
 SHA="${1:-}"
 [ -n "$SHA" ] || { echo "usage: $0 <sha> -- <cmd...>" >&2; exit 2; }
 shift
@@ -26,8 +36,12 @@ CMD="$*"   # passed through the environment, so quotes in it need no escaping he
 
 INNER='set -euo pipefail; git clone -q "$HF_JOB_REPO" /w && cd /w && git checkout -q "$HF_JOB_SHA" && echo "hf-job: at $(git rev-parse --short HEAD)" && npm ci --no-audit --no-fund >/dev/null && echo "hf-job: running: $HF_JOB_CMD" && bash -c "$HF_JOB_CMD"'
 
-ARGS=(jobs run --detach --timeout "$TIMEOUT" --flavor "$FLAVOR" --label lane=physics --label "sha=$SHA"
+ARGS=(jobs run --detach --timeout "$TIMEOUT" --flavor "$FLAVOR" --label lane=physics
   -e "HF_JOB_REPO=$REPO" -e "HF_JOB_SHA=$SHA" -e "HF_JOB_CMD=$CMD" node:22 bash -c "$INNER")
 
 if [ "${HF_JOB_DRY:-}" = "1" ]; then printf 'hf'; printf ' %q' "${ARGS[@]}"; printf '\n'; exit 0; fi
+# The sanctioned token pattern (Strategy, from Dom 2026-10-21): the token file is /root/.hf/token on the VPS, read only here, exported for the hf call, never echoed, never on a command line.
+TOKEN_FILE="${HF_TOKEN_FILE:-/root/.hf/token}"
+[ -r "$TOKEN_FILE" ] || { echo "hf-job: no readable token file at $TOKEN_FILE (run this on the VPS as root)" >&2; exit 3; }
+export HF_TOKEN="$(cat "$TOKEN_FILE")"
 exec hf "${ARGS[@]}"
