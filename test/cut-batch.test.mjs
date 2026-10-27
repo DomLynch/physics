@@ -254,6 +254,56 @@ test("a missing NORMAL is refused, not zero-filled", async () => {
   const { r } = await cutWithOnly("NORMAL");
   assert.match(r.error, /NORMAL/);
 });
+// finding 4: override values are checked, not just keys
+test("override values are type and range checked: a typo never cuts with defaults", () => {
+  const dir = tmp();
+  const ok = { name: "a", source: "a.glb", rig_map: "r.json", measure: "m.json" };
+  const load = (overrides) => { const p = join(dir, "r.json"); writeFileSync(p, JSON.stringify({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides }] })); return loadRows(p); };
+  assert.ok(load({ planes: { neck_frac: 0.4 }, home_min_weight: 0.3, hair_materials: ["h"], crotch_planes: false, head_split: true, belly_open: { x: 1 } }));
+  for (const bad of [
+    [{ planes: { neck_frac: "0.4" } }, /planes\.neck_frac/], [{ planes: { neck_frac: null } }, /planes\.neck_frac/], [{ planes: { neck_frac: 2 } }, /planes\.neck_frac/],
+    [{ planes: { neck_frac: -0.1 } }, /planes\.neck_frac/], [{ planes: { neck_frac: NaN } }, /planes\.neck_frac/],
+    [{ home_min_weight: "0.3" }, /home_min_weight/], [{ home_min_weight: 3 }, /home_min_weight/],
+    [{ hair_materials: "h" }, /hair_materials/], [{ hair_materials: [1] }, /hair_materials/],
+    [{ crotch_planes: "false" }, /crotch_planes/], [{ crotch_planes: 0 }, /crotch_planes/],
+    [{ head_split: "yes" }, /head_split/], [{ belly_open: [] }, /belly_open/],
+  ]) assert.throws(() => load(bad[0]), bad[1], JSON.stringify(bad[0]));
+});
+
+// finding 5: committed measure rows and --update-measure
+test("a committed measure row that disagrees with the source's own measure fails the body", async () => {
+  const f = await fixture();
+  const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
+  rows.bodies = [rows.bodies[0]];
+  const committed = join(f.dir, "committed.measure.json");
+  writeFileSync(committed, JSON.stringify({ joints: [] }));
+  rows.bodies[0].measure = committed; // absolute: read as is, never written (no --update-measure)
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const { results } = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out") });
+  assert.equal(verdict(results[0]), "FAIL");
+  assert.match(results[0].error, /different joints/);
+});
+test("--update-measure refuses a path outside data/ and writes nothing for a body that fails", async () => {
+  const f = await fixture();
+  const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
+  rows.bodies = [rows.bodies[0]];
+  const outside = join(f.dir, "outside.measure.json");
+  rows.bodies[0].measure = outside;
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const r1 = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out1"), updateMeasure: true });
+  assert.equal(verdict(r1.results[0]), "FAIL");
+  assert.match(r1.results[0].error, /must be inside data\//);
+  assert.ok(!existsSync(outside), "nothing was written outside data/");
+  // a body that fails validation does not overwrite its committed row
+  const inRepo = "data/bodies/synth-failing-tmp.measure.json";
+  rows.bodies[0].measure = inRepo;
+  rows.bodies[0].expect_sha256 = "0".repeat(64);
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const r2 = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out2"), updateMeasure: true });
+  assert.equal(verdict(r2.results[0]), "FAIL");
+  assert.ok(!existsSync(new URL("../" + inRepo, import.meta.url)), "a failing body's committed row was not written");
+});
+
 test("a missing TEXCOORD_1 is still zero-filled (the fixture's arms-only second UV set)", async () => {
   const { r } = await cutWithOnly(undefined);
   assert.equal(r.error, null);

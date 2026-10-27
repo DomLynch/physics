@@ -6,7 +6,7 @@
 // <name>.source-plain.glb (when the source was compressed), <name>.measure.json, <name>.validate.txt, RECEIPT.md, receipt.json.
 // Row format and the receipt: docs/CUT-BATCH.md. Same inputs, same bytes (no clocks in the outputs; the receipt carries none either).
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { basename, dirname, join, resolve, isAbsolute } from "node:path";
+import { basename, dirname, join, resolve, isAbsolute, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { cutGlb, decompressGlb } from "./cut-units.mjs";
@@ -34,6 +34,13 @@ export function loadRows(path) {
     for (const k of Object.keys(row)) if (!BODY_KEYS.has(k)) throw new Error(`${where}: unknown key ${k}`);
     for (const k of Object.keys(row.overrides)) if (!OVERRIDE_KEYS.has(k)) throw new Error(`${where}: unknown override ${k}`);
     for (const k of Object.keys(row.overrides.planes || {})) if (!PLANE_KEYS.has(k)) throw new Error(`${where}: unknown plane row ${k}`);
+    // override values: a typo in a value must not silently cut with defaults either
+    const ov = row.overrides, isFrac = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
+    for (const [k, v] of Object.entries(ov.planes || {})) if (!isFrac(v)) throw new Error(`${where}: overrides.planes.${k} must be a number from 0 to 1, got ${JSON.stringify(v)}`);
+    if (ov.home_min_weight !== undefined && !isFrac(ov.home_min_weight)) throw new Error(`${where}: overrides.home_min_weight must be a number from 0 to 1, got ${JSON.stringify(ov.home_min_weight)}`);
+    if (ov.hair_materials !== undefined && !(Array.isArray(ov.hair_materials) && ov.hair_materials.every((m) => typeof m === "string" && m))) throw new Error(`${where}: overrides.hair_materials must be a list of material names`);
+    if (ov.crotch_planes !== undefined && typeof ov.crotch_planes !== "boolean") throw new Error(`${where}: overrides.crotch_planes must be true or false, got ${JSON.stringify(ov.crotch_planes)}`);
+    for (const k of ["head_split", "belly_open"]) if (ov[k] !== undefined && typeof ov[k] !== "boolean" && !(ov[k] && typeof ov[k] === "object" && !Array.isArray(ov[k]))) throw new Error(`${where}: overrides.${k} must be true, false or a row object`);
     for (const k of ["name", "source", "rig_map", "measure"]) if (typeof row[k] !== "string" || !row[k]) throw new Error(`${where}: needs ${k}`);
     if (!/^[A-Za-z0-9._-]+$/.test(row.name)) throw new Error(`${where}: name must be a plain file stem`);
     if (seen.has(row.name)) throw new Error(`${where}: duplicate name`);
@@ -81,7 +88,8 @@ export async function runBody(row, ctx) {
     const committed = existsSync(committedPath) ? JSON.parse(readFileSync(committedPath, "utf8")) : null;
     const same = committed && JSON.stringify(committed.joints) === JSON.stringify(measured.joints);
     res.stages.measure = { ok: true, committed: committed ? (same ? "same joints" : "DIFFERENT joints") : "none yet", height_m: measured.height_m };
-    if (ctx.updateMeasure) { writeFileSync(committedPath, readFileSync(measureOut)); res.stages.measure.written = row.measure; }
+    // --update-measure only ever writes inside this repo's data/ (a row path like ../../x or an absolute path is refused), and only after the body passes (below)
+    if (ctx.updateMeasure && !resolve(committedPath).startsWith(join(ROOT, "data") + sep)) throw new Error(`--update-measure refuses ${row.measure}: the committed row must be inside data/`);
     // the measure row the cut uses: the fresh one (the row on disk is what this body measures to today)
     const mrow = measured;
 
@@ -112,6 +120,9 @@ export async function runBody(row, ctx) {
       res.stages.expect = { ok: res.sha256 === row.expect_sha256, expected: row.expect_sha256 };
       if (!res.stages.expect.ok) { res.ok = false; res.error = `sha256 ${res.sha256} is not the expected ${row.expect_sha256}`; }
     }
+    // the ragdoll consumes the committed measure row while the cut used the fresh one: if they disagree the body is not consistent, whatever the validator says
+    if (committed && !same && !ctx.updateMeasure) { res.ok = false; res.error = res.error || `committed measure row ${row.measure} has different joints from what the source measures to today (rerun with --update-measure)`; }
+    if (ctx.updateMeasure && res.ok) { writeFileSync(committedPath, readFileSync(measureOut)); res.stages.measure.written = row.measure; }
   } catch (e) {
     res.ok = false;
     res.error = e && e.message ? e.message : String(e);
