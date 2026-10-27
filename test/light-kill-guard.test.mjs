@@ -41,7 +41,7 @@ test("a heavy blow on an undamaged Minotaur still kills (the guard is for light 
   assert.equal(r.outcome, "kill");
 });
 
-test("a heavy blow on a damaged Minotaur still kills, and so does a light one once the part is at the floor", () => {
+test("a heavy blow on a damaged Minotaur still kills, and a light one does not once the part is at the floor", () => {
   const st = minotaur();
   let n = 0;
   while (st.parts.torso.hp > st.parts.torso.max * floorPct() / 100 && n++ < 100) {
@@ -51,8 +51,9 @@ test("a heavy blow on a damaged Minotaur still kills, and so does a light one on
   assert.ok(st.parts.torso.hp > 0 && st.alive, "worn down, alive");
   const heavy = ev.evaluateHit(hit({ zone: "torso", handSpeed: 9.74, swing: "heavy" }), JSON.parse(JSON.stringify(st)));
   assert.equal(heavy.outcome, "kill", "heavy on the damaged part");
+  // changed from #49 (which asserted a light counter-hit at the floor kills = the 2-hit kill): at the floor a light blow no longer finishes it (heavy_kill_floor_pct)
   const light = ev.evaluateHit(hit({ zone: "torso", handSpeed: 9.74, swing: "light", counterHit: true }), st);
-  assert.equal(light.outcome, "kill", "light counter-hit on a part already at the floor");
+  assert.notEqual(light.outcome, "kill", "light counter-hit on a part at the floor does not finish it");
 });
 
 test("the guard is a row: 0 turns it off (the old behaviour), and a missing row throws", () => {
