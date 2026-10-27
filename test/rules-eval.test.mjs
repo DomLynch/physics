@@ -27,7 +27,8 @@ test("each outcome is reachable from a table of hits", () => {
     ["stick", { tipSpeed: tipFor(S.rung_stick + 1, "stab"), kind: "stab", zone: "arm_off" }, "stick"],
     ["cut", { tipSpeed: tipFor(S.rung_cut * 1.05), zone: "arm_off" }, "cut"],
     ["knockdown (push force)", { kind: "blunt", tipSpeed: S.rung_hit + 1, zone: "legs", side: "right", force: rules.knockdown.push_force_over + 1 }, "knockdown"],
-    ["kill (head budget)", { kind: "stab", tipSpeed: 30, zone: "head" }, "kill"],
+    // a kill from full budget needs a heavy swing (evaluator.kill.light_floor_pct: a light swing leaves the head at its floor; test/light-kill-guard.test.mjs)
+    ["kill (head budget)", { kind: "stab", tipSpeed: 30, zone: "head", swing: "heavy" }, "kill"],
   ];
   for (const [name, h, want] of table) {
     const r = ev.evaluateHit(hit(h), fresh());
@@ -189,11 +190,11 @@ test("kill rules: head budget empty, torso budget empty, both legs gone (one leg
   const ev = createEvaluator(rules);
   // head
   let st = fresh();
-  let r = ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 40, zone: "head" }), st);
+  let r = ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 40, zone: "head", swing: "heavy" }), st);
   assert.equal(r.outcome, "kill"); assert.equal(st.alive, false); assert.equal(st.cause_of_death, "head");
   // torso: stab hard until the budget goes
   st = fresh();
-  for (let i = 0; i < 50 && st.alive; i++) r = ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 30, zone: "torso" }), st);
+  for (let i = 0; i < 50 && st.alive; i++) r = ev.evaluateHit(hit({ kind: "blunt", tipSpeed: 30, zone: "torso", swing: "heavy" }), st);
   assert.equal(st.alive, false); assert.equal(st.parts.torso.hp, 0); assert.equal(r.outcome, "kill");
   // legs
   st = fresh();
@@ -206,7 +207,7 @@ test("kill rules: head budget empty, torso budget empty, both legs gone (one leg
   assert.equal(st.cause_of_death, "leg_left+leg_right");
   // a cut through the head is a kill that names its unit
   st = fresh();
-  r = ev.evaluateHit(hit({ tipSpeed: tipFor(S.rung_cut * 1.1), zone: "head" }), st);
+  r = ev.evaluateHit(hit({ tipSpeed: tipFor(S.rung_cut * 1.1), zone: "head", swing: "heavy" }), st);
   assert.equal(r.outcome, "kill"); assert.equal(r.cut.unit, "head");
 });
 
@@ -255,9 +256,9 @@ test("finisher roll: caller rand, base + overkill capped, sure on match win, bos
   assert.equal(rollFinisher(rules, { overkillPct: 0, killsSinceFinisher: f.pity_after_kills }, () => 0.99).finisher, true);
   // wired into a kill
   const ev = createEvaluator(rules);
-  const r = ev.evaluateHit(hit({ tipSpeed: tipFor(S.rung_cut * 1.1), zone: "head" }), fresh(), { rand: () => 0, finisher: {} });
+  const r = ev.evaluateHit(hit({ tipSpeed: tipFor(S.rung_cut * 1.1), zone: "head", swing: "heavy" }), fresh(), { rand: () => 0, finisher: {} });
   assert.equal(r.outcome, "kill"); assert.equal(r.finisher.finisher, true);
-  assert.equal(ev.evaluateHit(hit({ kind: "stab", tipSpeed: 30, zone: "head" }), fresh()).finisher, null, "no rand, no roll");
+  assert.equal(ev.evaluateHit(hit({ kind: "stab", tipSpeed: 30, zone: "head", swing: "heavy" }), fresh()).finisher, null, "no rand, no roll");
 });
 
 test("fails loudly on a missing or null row", () => {
