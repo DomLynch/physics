@@ -5,16 +5,21 @@ import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { MeshoptEncoder } from 'meshoptimizer';
 import { losslessJpeg } from './lossless-jpeg.mjs';
+import { BOUNDS, repackCut, unpackMeshopt } from './cut-glb-pack.mjs';
 
 // `quantize` (build default): vertex normals go to int8 normalized and skin weights to uint8 normalized with each vertex's weights
 // still summing to exactly 255 — the two attributes the runtime never reads back as numbers. Positions, joints, UVs (they tile
 // beyond 0..1 on the fighters), indices and animation stay bit-exact. KHR_mesh_quantization is declared for the int8 normals.
-/** @param {Uint8Array} raw @param {(bytes: Uint8Array, mime: string) => string | undefined} [externalImage] @param {{ quantize?: boolean }} [options] */
-export async function optimizeGlb(raw, externalImage = () => undefined, { quantize = true } = {}) {
+// `cut` (opt-in, the Minotaur cut GLB only, scripts/cut-glb-pack.mjs): the lossy path. Meshopt input is unpacked first; positions and
+// UVs keep float32 but lose mantissa bits (EXPONENTIAL filter), normals go octahedral, rotation tracks QUATERNION, translations
+// EXPONENTIAL, times exact. The error is measured and checked against BOUNDS before anything is returned.
+/** @param {Uint8Array} raw @param {(bytes: Uint8Array, mime: string) => string | undefined} [externalImage] @param {{ quantize?: boolean, cut?: boolean }} [options] */
+export async function optimizeGlb(raw, externalImage = () => undefined, { quantize = true, cut = false } = {}) {
  await MeshoptEncoder.ready;
  assert.equal(raw.readUInt32LE(0),0x46546c67,'Expected GLB');
  assert.equal(raw.readUInt32LE(4),2,'Expected GLB v2');
- const n=raw.readUInt32LE(12),d=JSON.parse(raw.subarray(20,20+n)),bin=raw.subarray(28+n);
+ const n=raw.readUInt32LE(12);let d=JSON.parse(raw.subarray(20,20+n)),bin=raw.subarray(28+n);
+ if(cut)({d,bin}=await unpackMeshopt(d,bin));
  assert.equal(d.buffers.length,1,'Optimizer requires one embedded buffer');
  assert.ok(!d.extensionsUsed?.some(x=>['EXT_meshopt_compression','KHR_meshopt_compression','KHR_draco_mesh_compression'].includes(x)),'Source must be uncompressed');
  d.textures??=[];d.images??=[];   // a file with no textures (loot.glb: palette materials only) has neither array
@@ -44,7 +49,13 @@ export async function optimizeGlb(raw, externalImage = () => undefined, { quanti
   if(uri){assert.ok(!d.accessors.some(a=>a.bufferView===img.bufferView));discardedViews.add(img.bufferView);delete img.bufferView;img.uri=uri;}
  }
  const quantized=new Map();   // bufferView index → replacement bytes (stride 4)
- if(quantize){
+ let prepared=new Map();   // cut mode: bufferView index → already meshopt-coded bytes (+ filter)
+ if(cut){
+  const r=await repackCut(d,bin);prepared=r.prepared;for(const i of r.dropped)discardedViews.add(i);
+  assert.ok(r.report.positionError<BOUNDS.positionMetres,`cut pack: position error ${r.report.positionError}`);
+  assert.ok(r.report.rotationError<BOUNDS.rotationRadians,`cut pack: rotation error ${r.report.rotationError}`);
+ }
+ else if(quantize){
   const targets=new Set(d.meshes.flatMap(m=>m.primitives.flatMap(p=>(p.targets||[]).flatMap(t=>Object.values(t)))));
   const semantics=new Map();for(const m of d.meshes)for(const p of m.primitives)for(const[s,ai]of Object.entries(p.attributes))semantics.set(ai,s.replace(/_\d+$/,''));
   for(const[ai,s]of semantics){
@@ -68,6 +79,10 @@ export async function optimizeGlb(raw, externalImage = () => undefined, { quanti
  const append=bytes=>{const key=createHash('sha256').update(bytes).digest('hex');if(packedBytes.has(key))return packedBytes.get(key);const at=offset;packedBytes.set(key,at);chunks.push(bytes);offset+=bytes.length;const pad=(4-offset%4)%4;if(pad){chunks.push(Buffer.alloc(pad));offset+=pad;}return at;};
  for(const [i,v]of d.bufferViews.entries()){
   if(discardedViews.has(i))continue;
+  if(prepared.has(i)){
+   const p=prepared.get(i),next={...v,buffer:1,byteOffset:0,extensions:{EXT_meshopt_compression:{buffer:0,byteOffset:append(Buffer.from(p.enc)),byteLength:p.enc.length,byteStride:p.stride,count:p.count,mode:p.mode,filter:p.filter}}};
+   fallback=Math.max(fallback,v.byteLength);viewMap.set(i,views.length);views.push(next);continue;
+  }
   let bytes=quantized.get(i)||bin.subarray(v.byteOffset||0,(v.byteOffset||0)+v.byteLength);const a=d.accessors.find(a=>a.bufferView===i);
   if(jpegViews.has(i))bytes=losslessJpeg(bytes);
   let encoded;

@@ -147,6 +147,13 @@ for (const glb of PACKED) {
   const target = join(out, glb);
   if (existsSync(target)) writeFileSync(target, await optimizeGlb(readFileSync(target)));
 }
+// The Minotaur cut GLB (physics tool output, float32 + meshopt filter NONE, 2.37 MB in git, kept so: Blender and the cut validator read it plain)
+// ships through the lossy cut path (scripts/cut-glb-pack.mjs): positions within 0.1 mm, rotations within 0.006 degrees, 1.2 MB. Only this file.
+const CUT_GLBS = ['src/assets/minotaur-106.glb'];
+for (const glb of CUT_GLBS) {
+  const target = join(out, glb);
+  if (existsSync(target)) writeFileSync(target, await optimizeGlb(readFileSync(target), undefined, { cut: true }));
+}
 
 // Content-hashed art (2026-10-26: a phone kept the pre-#19 warrior.glb, the old hero clips, for a day, because art sat at fixed paths
 // cached a day). Every art file outside b/ (after packing, so the hash is of the bytes served) gets a copy named <name>.<sha256 8 hex>.<ext>
