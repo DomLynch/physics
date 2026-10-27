@@ -98,7 +98,7 @@ test("(3b) a light counter-hit that is over the cut rung takes a modest slice of
 
 test("(4) a light swing on a part whose remaining hp is at or under its damage kills; just above it, no cut", () => {
   for (const zone of ["head", "torso"]) for (const counterHit of [false, true]) {
-    const probe = minotaur(); probe.parts[zone].hp = 1e6; probe.parts[zone].max = 1e6;
+    const probe = minotaur(); probe.parts[zone].hp = 1e6; // max stays: the per-blow cap is part of "its damage"
     const d = ev.evaluateHit(hit({ zone, handSpeed: 9.74, swing: "light", counterHit }), probe).damage;
     const lo = minotaur(); lo.parts[zone].hp = d * 0.999;
     assert.equal(ev.evaluateHit(hit({ zone, handSpeed: 9.74, swing: "light", counterHit }), lo).outcome, "kill", `${zone} counter=${counterHit}: hp just under the damage`);
