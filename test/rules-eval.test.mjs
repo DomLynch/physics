@@ -41,7 +41,8 @@ test("strength is tip speed x sharpness; damage adds zone x global x armour colu
   const tip = 10;
   const r = ev.evaluateHit(hit({ tipSpeed: tip, zone: "torso", armour: "mail", kind: "stab" }), fresh());
   assert.ok(Math.abs(r.strength - tip * rules.weapons[W].stab_sharpness) < 1e-9);
-  const want = r.strength * rules.zones.torso.body_part_mult * rules.global.damage_scale * rules.armour_tiers.mail.damage_taken_mult.stab;
+  // a light swing on the torso (a kill part) carries evaluator.kill.light_damage_mult
+  const want = r.strength * rules.zones.torso.body_part_mult * rules.global.damage_scale * rules.armour_tiers.mail.damage_taken_mult.stab * rules.evaluator.kill.light_damage_mult;
   assert.ok(Math.abs(r.damage - want) < 1e-9);
   assert.equal(r.partHpAfter, rules.part_hp.torso - r.damage);
   // moving the rung row moves the outcome, no code change
