@@ -433,13 +433,19 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const V = { pos: [], raw: [], attr: {}, skin: [] }; // pos = world (metres, bind pose), raw = the vertex space the GLB stores
   const srcPrims = [], tris = [];
   // The attribute set of the output is the union over all skinned primitives (a body whose face mesh has a second UV set and whose skin does not,
-  // like the Centurion's, is not refused): a primitive without one gets zeros, which is what it would sample anyway. Sorted, so equal sets give equal bytes.
+  // like the Centurion's, is not refused): a primitive without a TEXCOORD gets zeros, without a COLOR white, and a missing NORMAL / TANGENT is refused (see missingFill). Sorted, so equal sets give equal bytes.
   const semSize = {};
   for (const node of skinNodes) for (const prim of node.getMesh().listPrimitives()) for (const s of prim.listSemantics()) {
     if (/^(POSITION|JOINTS_0|WEIGHTS_0)$/.test(s)) continue;
     const sz = prim.getAttribute(s).getElementSize();
     if (semSize[s] !== undefined && semSize[s] !== sz) throw new Error(`attribute ${s} has element size ${semSize[s]} on one primitive and ${sz} on another`);
     semSize[s] = sz;
+  }
+  // what a primitive without the attribute gets: TEXCOORD_n zeros (it samples the corner), COLOR_n ones (white, opaque: zeros would paint it transparent black);
+  // anything else (NORMAL, TANGENT, custom) cannot be invented, so a primitive missing it is refused
+  const missingFill = (s, size) => (/^TEXCOORD_\d+$/.test(s) ? new Array(size).fill(0) : /^COLOR_\d+$/.test(s) ? new Array(size).fill(1) : null);
+  for (const s of Object.keys(semSize)) if (!missingFill(s, semSize[s])) for (const node of skinNodes) for (const prim of node.getMesh().listPrimitives()) {
+    if (!prim.getAttribute(s)) throw new Error(`a skinned primitive has no ${s} while another has it; only TEXCOORD_n and COLOR_n are filled in, the cut will not invent ${s}`);
   }
   const semantics = Object.keys(semSize).sort();
   for (const s of semantics) V.attr[s] = [];
@@ -461,7 +467,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       for (let i = 0; i < n; i++) {
         const rawp = pa.getElement(i, [0, 0, 0]);
         V.raw.push(rawp); V.pos.push(toWorld(rawp));
-        for (const s of semantics) { const at = prim.getAttribute(s); V.attr[s].push(at ? at.getElement(i, new Array(semSize[s]).fill(0)) : new Array(semSize[s]).fill(0)); }
+        for (const s of semantics) { const at = prim.getAttribute(s); V.attr[s].push(at ? at.getElement(i, new Array(semSize[s]).fill(0)) : missingFill(s, semSize[s])); }
         const jj = ja.getElement(i, [0, 0, 0, 0]), ww = wa.getElement(i, [0, 0, 0, 0]);
         const sp = [];
         for (let k = 0; k < 4; k++) if (ww[k] > 0) sp.push([jmap[jj[k]], ww[k]]);

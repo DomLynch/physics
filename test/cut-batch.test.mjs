@@ -46,7 +46,7 @@ const box = (c, h, n, weights) => { // a subdivided box with per-face vertices, 
 };
 
 // Writes a synthetic body GLB: a column, two legs and two arms (second primitive, with a second UV set), plus an unskinned prop (a "weapon") beside it.
-async function makeBody(k) {
+async function makeBody(k, only) {
   const W = Object.fromEntries(NAMES.map((n) => [n, [base[n][0], base[n][1] * k, base[n][2]]]));
   const SPINE = [[0.95 * k, "Hips"], [1.05 * k, "Spine"], [1.17 * k, "Spine1"], [1.3 * k, "Spine2"], [1.45 * k, "Neck"], [1.55 * k, "Head"], [1.75 * k, "HeadTop_End"]];
   const legChain = (s) => [[0.05 * k, s + "ToeBase"], [0.14 * k, s + "Foot"], [0.47 * k, s + "Leg"], [0.9 * k, s + "UpLeg"]];
@@ -70,7 +70,7 @@ async function makeBody(k) {
   const skin = doc.createSkin("skin").setInverseBindMatrices(doc.createAccessor().setType("MAT4").setArray(ibm).setBuffer(buffer));
   for (const n of NAMES) skin.addJoint(nodes[n]);
   const acc = (type, arr) => doc.createAccessor().setType(type).setArray(arr).setBuffer(buffer);
-  const prim = (parts, material, uv1) => {
+  const prim = (parts, material, uv1, isBody) => {
     const pos = [], nor = [], uv = [], jj = [], ww = [], idx = [];
     for (const m of parts) {
       const b0 = pos.length / 3;
@@ -81,11 +81,14 @@ async function makeBody(k) {
       .setAttribute("POSITION", acc("VEC3", new Float32Array(pos))).setAttribute("NORMAL", acc("VEC3", new Float32Array(nor))).setAttribute("TEXCOORD_0", acc("VEC2", new Float32Array(uv)))
       .setAttribute("JOINTS_0", acc("VEC4", new Uint16Array(jj))).setAttribute("WEIGHTS_0", acc("VEC4", new Float32Array(ww))).setIndices(acc("SCALAR", new Uint32Array(idx)));
     if (uv1) p.setAttribute("TEXCOORD_1", acc("VEC2", new Float32Array(uv)));
+    // `only`: an attribute one of the two primitives has and the other lacks (COLOR_0 / TANGENT on the body only; "NORMAL" = the arms lose theirs)
+    if (isBody && (only === "COLOR_0" || only === "TANGENT")) p.setAttribute(only, acc("VEC4", new Float32Array((pos.length / 3) * 4).fill(0.5)));
+    if (!isBody && only === "NORMAL") p.setAttribute("NORMAL", null);
     return p;
   };
   const body = [box([0, 1.35 * k, 0], [0.1, 0.4 * k, 0.08], 10, wSpine), box([0.09, 0.5 * k, 0], [0.078, 0.5 * k, 0.07], 8, wLeg("Left")), box([-0.09, 0.5 * k, 0], [0.078, 0.5 * k, 0.07], 8, wLeg("Right"))];
   const arms = [box([0.435, 1.4 * k, 0], [0.315, 0.05, 0.05], 10, wArm("Left")), box([-0.435, 1.4 * k, 0], [0.315, 0.05, 0.05], 10, wArm("Right"))];
-  const mesh = doc.createMesh("Body").addPrimitive(prim(body, doc.createMaterial("body"))).addPrimitive(prim(arms, doc.createMaterial("arms"), true)); // only the arms carry TEXCOORD_1
+  const mesh = doc.createMesh("Body").addPrimitive(prim(body, doc.createMaterial("body"), false, true)).addPrimitive(prim(arms, doc.createMaterial("arms"), true, false)); // only the arms carry TEXCOORD_1
   scene.addChild(doc.createNode("Body").setMesh(mesh).setSkin(skin));
   // a rigid prop (no skin) high above the head: it must neither be cut nor counted as body surface
   const propBox = box([0.6, 2.2 * k, 0], [0.04, 0.3, 0.04], 3, () => [["Hips", 1]]);
@@ -177,6 +180,7 @@ test("a body that does not validate fails the run loudly; a blocked row is repor
   const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
   rows.bodies[0].expect_sha256 = "0".repeat(64);
   rows.bodies[1].blocked = "synthetic: pretend this body cannot be cut";
+  rows.bodies[1].blocked_checks = ["watertight"];
   writeFileSync(f.bodiesPath, JSON.stringify(rows));
   const out = join(f.dir, "out");
   const { results, failed } = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out });
@@ -185,15 +189,74 @@ test("a body that does not validate fails the run loudly; a blocked row is repor
   assert.equal(verdict(results[1]), "UNBLOCKED", "a blocked row that validates is a stale row");
   assert.equal(failed.length, 2);
   assert.match(readFileSync(join(out, "RECEIPT.md"), "utf8"), /RESULT: FAIL \(synth-a FAIL, synth-b UNBLOCKED\)/);
-  // a missing source is a FAIL with the path, a blocked missing source is BLOCKED
+  // a missing source is a FAIL with the path, and so is a blocked row's missing source: an error is never the failure the row expected
   rows.bodies[0] = { ...rows.bodies[0], expect_sha256: undefined, source: "nope.glb" };
   rows.bodies[1] = { ...rows.bodies[1], source: "nope.glb" };
   writeFileSync(f.bodiesPath, JSON.stringify(rows));
   const r2 = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out });
   assert.equal(verdict(r2.results[0]), "FAIL");
   assert.match(r2.results[0].error, /source not found/);
-  assert.equal(verdict(r2.results[1]), "BLOCKED");
-  assert.equal(r2.failed.length, 1);
+  assert.equal(verdict(r2.results[1]), "FAIL", "a blocked row whose source is missing is a FAIL, not BLOCKED");
+  assert.match(readFileSync(join(out, "RECEIPT.md"), "utf8"), /RESULT: FAIL \(synth-a FAIL, synth-b FAIL\)/);
+  assert.equal(r2.failed.length, 2);
+});
+
+test("a blocked row is BLOCKED only when exactly the checks it names fail, with no error", () => {
+  const chk = (...fail) => ["structure", "watertight", "orientation"].map((name) => ({ name, result: fail.includes(name) ? "FAIL" : "PASS" }));
+  const row = (checks, extra = {}) => ({ blocked: "cause", blocked_checks: ["watertight", "orientation"], ok: false, error: null, checks, ...extra });
+  assert.equal(verdict(row(chk("watertight", "orientation"))), "BLOCKED");
+  assert.equal(verdict(row(chk("orientation", "watertight"))), "BLOCKED", "order does not matter");
+  assert.equal(verdict(row(chk("watertight"))), "FAIL", "fewer checks fail than the row names: the row is stale, not blocked");
+  assert.equal(verdict(row(chk("watertight", "orientation", "structure"))), "FAIL", "an unnamed check also fails");
+  assert.equal(verdict(row(chk("structure"))), "FAIL", "a different check fails");
+  assert.equal(verdict(row(chk("watertight", "orientation"), { error: "boom" })), "FAIL", "an exception is never the expected failure");
+  assert.equal(verdict(row(chk(), { ok: true })), "UNBLOCKED");
+});
+
+test("blocked rows must name their checks, and blocked_checks without blocked is refused", () => {
+  const dir = tmp();
+  const write = (o) => { const p = join(dir, "r.json"); writeFileSync(p, JSON.stringify(o)); return p; };
+  const ok = { name: "a", source: "a.glb", rig_map: "r.json", measure: "m.json" };
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, blocked: "cause" }] })), /blocked_checks/);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, blocked: "cause", blocked_checks: [] }] })), /blocked_checks/);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, blocked_checks: ["watertight"] }] })), /without blocked/);
+  assert.ok(loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, blocked: "cause", blocked_checks: ["watertight"] }] })).bodies.length === 1);
+});
+
+// finding 2: a primitive that lacks an attribute another has is filled only where that is honest
+async function cutWithOnly(only) {
+  const f = await fixture();
+  writeFileSync(join(f.sources, "a.glb"), await makeBody(1, only));
+  const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
+  rows.bodies = [rows.bodies[0]];
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const out = join(f.dir, "out");
+  const { results } = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out });
+  return { r: results[0], out };
+}
+test("a missing COLOR_0 is filled with opaque white, never transparent black", async () => {
+  const { r, out } = await cutWithOnly("COLOR_0");
+  assert.equal(r.error, null);
+  const doc = await new NodeIO().read(join(out, "synth-a.cut.glb"));
+  let seen = 0, white = 0;
+  for (const mesh of doc.getRoot().listMeshes()) for (const p of mesh.listPrimitives()) {
+    const c = p.getAttribute("COLOR_0");
+    if (!c) continue;
+    for (let i = 0; i < c.getCount(); i++) { const v = c.getElement(i, [0, 0, 0, 0]); seen++; assert.ok(v[3] > 0, "no vertex is transparent"); if (v.every((x) => Math.abs(x - 1) < 1e-6)) white++; }
+  }
+  assert.ok(seen > 0 && white > 0, "the primitive that lacked COLOR_0 got ones");
+});
+test("a missing TANGENT is refused, not zero-filled", async () => {
+  const { r } = await cutWithOnly("TANGENT");
+  assert.match(r.error, /TANGENT/);
+});
+test("a missing NORMAL is refused, not zero-filled", async () => {
+  const { r } = await cutWithOnly("NORMAL");
+  assert.match(r.error, /NORMAL/);
+});
+test("a missing TEXCOORD_1 is still zero-filled (the fixture's arms-only second UV set)", async () => {
+  const { r } = await cutWithOnly(undefined);
+  assert.equal(r.error, null);
 });
 
 test("rows are checked: unknown keys, unknown overrides, duplicate names and bad hashes are refused", () => {

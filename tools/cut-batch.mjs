@@ -1,6 +1,6 @@
 // The batch cut pipeline (M9b): for every body in a row file, measure, cut, validate, and write one receipt. Fails loudly (exit 1) on any body that does not
 // validate, unless its row says it is `blocked` (a known, explained failure: still run and reported, never hidden).
-//   node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure] [--keep-going-on-error]
+//   node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure]
 // Per body: tools/glb-measure.mjs (rig map -> measure row), tools/cut-units.mjs's cutGlb (rig map, row overrides), tools/cut-validate.mjs's validate
 // (--plane-offset = the manifest's plane_frame.bind_offset, --source = the plain source). Outputs in <out>: <name>.cut.glb, <name>.cut.manifest.json,
 // <name>.source-plain.glb (when the source was compressed), <name>.measure.json, <name>.validate.txt, RECEIPT.md, receipt.json.
@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 export const SCHEMA = "cut-bodies/1";
 // the row keys a body may carry (anything else is refused: a typo in a row must not silently cut with defaults)
-const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "expect_sha256", "blocked", "note"]);
+const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "expect_sha256", "blocked", "blocked_checks", "note"]);
 const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open"]);
 const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac"]);
 
@@ -39,6 +39,8 @@ export function loadRows(path) {
     if (seen.has(row.name)) throw new Error(`${where}: duplicate name`);
     seen.add(row.name);
     if (row.blocked !== undefined && (typeof row.blocked !== "string" || !row.blocked)) throw new Error(`${where}: blocked must be the cause, a non-empty string`);
+    if (row.blocked !== undefined && !(Array.isArray(row.blocked_checks) && row.blocked_checks.length && row.blocked_checks.every((c) => typeof c === "string" && c))) throw new Error(`${where}: a blocked row names the checks it expects to fail: blocked_checks, a non-empty list of check names`);
+    if (row.blocked === undefined && row.blocked_checks !== undefined) throw new Error(`${where}: blocked_checks without blocked`);
     if (row.expect_sha256 !== undefined && !/^[0-9a-f]{64}$/.test(row.expect_sha256)) throw new Error(`${where}: expect_sha256 must be 64 hex digits`);
     return row;
   });
@@ -62,10 +64,10 @@ const rel = (base, p) => (isAbsolute(p) ? p : resolve(base, p));
 
 // One body through measure, cut and validate. Never throws for a body-level failure: the failure is the result.
 export async function runBody(row, ctx) {
-  const res = { name: row.name, rig_map: row.rig_map, source: row.source, blocked: row.blocked || null, stages: {}, checks: [], ok: false, error: null, sha256: null, source_sha256: null };
+  const res = { name: row.name, rig_map: row.rig_map, source: row.source, blocked: row.blocked || null, blocked_checks: row.blocked ? row.blocked_checks : null, stages: {}, checks: [], ok: false, error: null, sha256: null, source_sha256: null };
   try {
     const srcPath = rel(ctx.sources, row.source);
-    if (!existsSync(srcPath)) throw new Error(`source not found: ${srcPath}`);
+    if (!existsSync(srcPath)) throw new Error(`source not found: ${row.source}`);
     const rigPath = rel(ctx.root, row.rig_map);
     const rigMap = JSON.parse(readFileSync(rigPath, "utf8"));
     const srcBytes = readFileSync(srcPath);
@@ -128,9 +130,16 @@ function validateText(name, v) {
   return out.join("\n") + "\n";
 }
 
-// verdict of one body: PASS, FAIL (fails the run), BLOCKED (failed as the row says it would), UNBLOCKED (passes although the row says blocked: fails the run so the row is cleaned)
+// verdict of one body: PASS, FAIL (fails the run), BLOCKED (failed exactly as the row says: no error, and the failing checks are the row's blocked_checks, no more and no fewer),
+// UNBLOCKED (passes although the row says blocked: fails the run so the row is cleaned)
 export function verdict(r) {
-  if (r.blocked) return r.ok ? "UNBLOCKED" : "BLOCKED";
+  if (r.blocked) {
+    if (r.ok) return "UNBLOCKED";
+    if (r.error) return "FAIL";
+    const failing = r.checks.filter((c) => c.result === "FAIL").map((c) => c.name).sort();
+    const want = [...(r.blocked_checks || [])].sort();
+    return failing.length === want.length && failing.every((n, i) => n === want[i]) ? "BLOCKED" : "FAIL";
+  }
   return r.ok ? "PASS" : "FAIL";
 }
 
@@ -148,7 +157,7 @@ export function receiptMarkdown(results, meta) {
   L.push("");
   for (const r of results) {
     L.push(`## ${r.name}: ${verdict(r)}`, "");
-    if (r.blocked) L.push(`Blocked (row): ${r.blocked}`, "");
+    if (r.blocked) L.push(`Blocked (row): ${r.blocked}`, `Expected failing checks: ${r.blocked_checks.join(", ")}`, "");
     if (r.error) L.push(`Error: ${r.error}`, "");
     if (r.source_sha256) L.push(`Source ${r.source} sha256 ${r.source_sha256}`, "");
     for (const [k, v] of Object.entries(r.stages)) L.push(`- ${k}: ${Object.entries(v).map(([a, b]) => `${a} ${Array.isArray(b) ? b.join("; ") || "none" : b}`).join(", ")}`);
@@ -177,7 +186,7 @@ export async function runBatch({ bodiesPath, sources, out, only = null, updateMe
   }
   let git = null;
   try { git = execFileSync("git", ["-C", ROOT, "rev-parse", "--short", "HEAD"], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { /* not a checkout */ }
-  const meta = { rows: basename(bodiesPath), sources, git };
+  const meta = { rows: basename(bodiesPath), sources: basename(sources), git }; // the folder name only: an absolute path would make the receipt depend on where it ran
   writeFileSync(join(out, "RECEIPT.md"), receiptMarkdown(results, meta));
   writeFileSync(join(out, "receipt.json"), JSON.stringify({ schema: "cut-batch-receipt/1", ...meta, bodies: results.map((r) => ({ ...r, verdict: verdict(r) })) }, null, 1) + "\n");
   const failed = results.filter((r) => ["FAIL", "UNBLOCKED"].includes(verdict(r)));
