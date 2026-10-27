@@ -19,7 +19,7 @@ import { decompressGlb, triangulateLoops, weldCluster } from "./cut-units.mjs";
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const [inPath, outPath] = args.filter((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--")));
-const meshName = opt("--mesh"), minEdges = Number(opt("--min-edges", 10)), tol = Number(opt("--tol", 1e-5)), reportPath = opt("--report"), fill = opt("--fill", "pole");
+const meshName = opt("--mesh"), minEdges = Number(opt("--min-edges", 10)), tol = Number(opt("--tol", 1e-5)), reportPath = opt("--report"), fill = opt("--fill", "pole"), depthK = Number(opt("--depth", 1));
 if (!inPath || !outPath || !meshName || !["pole", "flat"].includes(fill)) { console.error("usage: cut-src-close.mjs <in.glb> <out.glb> --mesh <name> [--min-edges 10] [--fill pole|flat] [--tol 1e-5] [--report f.json]"); process.exit(2); }
 
 const { NodeIO } = await import("@gltf-transform/core");
@@ -37,7 +37,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const len = (a) => Math.hypot(a[0], a[1], a[2]);
 const unit = (a) => { const l = len(a); return l > 1e-12 ? a.map((x) => x / l) : [0, 0, 1]; };
-const report = { mesh: meshName, min_edges: minEdges, fill, tol, primitives: [] };
+const report = { mesh: meshName, min_edges: minEdges, fill, depth: depthK, tol, primitives: [] };
 
 // eigenvalues of a symmetric 3x3 (Jacobi), ascending
 function eig3(m) {
@@ -112,7 +112,7 @@ for (const mesh of targets) for (const prim of mesh.listPrimitives()) {
       if (N) for (const i of ids) nrm = [nrm[0] + N[i][0], nrm[1] + N[i][1], nrm[2] + N[i][2]];
       else for (let k = 0; k < pts.length; k++) { const x = cross(pts[k], pts[(k + 1) % pts.length]); nrm = [nrm[0] + x[0], nrm[1] + x[1], nrm[2] + x[2]]; }
       nrm = unit(nrm);
-      const depth = Math.sqrt(Math.max(eig3(cov)[1], 0));
+      const depth = depthK * Math.sqrt(Math.max(eig3(cov)[1], 0));
       const apex = [c[0] - nrm[0] * depth, c[1] - nrm[1] * depth, c[2] - nrm[2] * depth];
       const pi = n + poles.length;
       poles.push({ pos: apex, normal: nrm, loop: ids, centre: c });
