@@ -25,6 +25,7 @@ export function createCutRig(THREE, rd, scene, manifest, opts = {}) {
   for (const r of manifest.regions) {
     if (!r.id || !r.mesh) throw new Error("cut manifest: a region needs id and mesh");
     if (r.detached_by && !units.has(r.detached_by)) throw new Error(`cut manifest: region "${r.id}" is detached by unknown unit "${r.detached_by}"`);
+    if (r.separated_by && !units.has(r.separated_by)) throw new Error(`cut manifest: region "${r.id}" is separated by unknown unit "${r.separated_by}"`);
     pieces[r.id] = find(r.mesh, `region "${r.id}"`);
   }
   const caps = {}, capUnit = {};

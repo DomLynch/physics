@@ -89,14 +89,16 @@
     "note": "every role row carries length_m, mass_kg and reach_m, measured per body from the measure row, so a dwarf, a reference body and a giant differ (Strategy addendum 2026-10-25, experiment 1: tip-speed histogram per body size)"
   },
   "severable": {
-    "about": "Six severable units (Half Sword Severable_BodyParts_Enum / HQ chopped heads). The corpse-cut is the loot mechanic: the player taps a part on a dead body, the finisher cut plays, physics detaches the part WITH its gear. Each unit names the role whose parent joint is removed, the roles that go with it, and the gear slots attached to it. The head is the template: the same fields serve all six.",
+    "about": "Six severable units that detach a part, plus two visual-only units (head_split, belly_open) that only switch cut-face meshes on (Half Sword Severable_BodyParts_Enum / HQ chopped heads). The corpse-cut is the loot mechanic: the player taps a part on a dead body, the finisher cut plays, physics detaches the part WITH its gear. Each unit names the role whose parent joint is removed, the roles that go with it, and the gear slots attached to it. The head is the template: the same fields serve all six.",
     "units": [
       { "id": "head", "cut_role": "head", "cut_parent": "neck", "carries_roles": ["head"], "gear_slots": ["head"], "note": "the neck stump stays on the torso (neck role + neck slot gear stays unless a coif: see armour slot neck)" },
       { "id": "arm_left", "cut_role": "armLeft", "cut_parent": "spine2", "carries_roles": ["armLeft", "forearmLeft", "handLeft"], "gear_slots": ["arms", "hands"] },
       { "id": "arm_right", "cut_role": "armRight", "cut_parent": "spine2", "carries_roles": ["armRight", "forearmRight", "handRight"], "gear_slots": ["arms", "hands"] },
       { "id": "leg_left", "cut_role": "thighLeft", "cut_parent": "hips", "carries_roles": ["thighLeft", "shinLeft", "footLeft", "toeLeft"], "gear_slots": ["legs", "feet"] },
       { "id": "leg_right", "cut_role": "thighRight", "cut_parent": "hips", "carries_roles": ["thighRight", "shinRight", "footRight", "toeRight"], "gear_slots": ["legs", "feet"] },
-      { "id": "torso_waist", "cut_role": "spine", "cut_parent": "hips", "carries_roles": ["spine", "spine1", "spine2", "neck", "head", "armLeft", "forearmLeft", "handLeft", "armRight", "forearmRight", "handRight"], "gear_slots": ["chest", "neck"], "note": "a waist cut: the upper body goes with everything attached above the cut; hips and legs stay as the root piece" }
+      { "id": "torso_waist", "cut_role": "spine", "cut_parent": "hips", "carries_roles": ["spine", "spine1", "spine2", "neck", "head", "armLeft", "forearmLeft", "handLeft", "armRight", "forearmRight", "handRight"], "gear_slots": ["chest", "neck"], "note": "a waist cut: the upper body goes with everything attached above the cut; hips and legs stay as the root piece" },
+      { "id": "head_split", "visual_only": true, "cut_role": null, "cut_parent": null, "cap_role": "head", "carries_roles": [], "gear_slots": [], "note": "VISUAL-ONLY (V1 Split Crown, docs/CUT-CONTRACT.md Optional cuts): shows the cut faces of the two head halves of a cut GLB made with --head-split. No capsule or joint is removed, no mass moves, the ragdoll lives on. cap_role is the part the event points at." },
+      { "id": "belly_open", "visual_only": true, "cut_role": null, "cut_parent": null, "cap_role": "spine1", "carries_roles": [], "gear_slots": [], "note": "VISUAL-ONLY (V1 Opened): shows the wound decal of a cut GLB made with --belly-open. It removes no geometry and detaches nothing; no mass moves, the ragdoll lives on. cap_role is the part the event points at." }
     ]
   },
   "death": {

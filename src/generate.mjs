@@ -194,6 +194,23 @@ export function lintSelfTest(table) {
   return { probes: results, table_clean: clean, ok: results.every((r) => r.rejected) && clean };
 }
 
+// One severable unit of a ragdoll row from its role-table entry. A visual-only unit (visual_only: true: head_split, belly_open) detaches nothing: no cut role,
+// no joint, no mass; `cap_role` is the part its cut event points at. The six detaching units keep exactly the fields they always had.
+export function severableRow(u, roleRows) {
+  const idx = Object.fromEntries(roleRows.map((r, i) => [r.id, i]));
+  if (u.visual_only) {
+    const at = roleRows[idx[u.cap_role]];
+    if (!at) throw new Error(`severable unit ${u.id}: cap_role "${u.cap_role}" is not a role`);
+    return { id: u.id, visual_only: true, cut_role: null, detaches_from: null, cap_role: u.cap_role, carries_roles: [], gear_slots: u.gear_slots || [],
+      mass_kg: 0, length_m: 0, cut_pivot: at.rest.pivot, joint: null, note: u.note || null };
+  }
+  const carried = u.carries_roles.map((id) => roleRows[idx[id]]);
+  const cut = roleRows[idx[u.cut_role]];
+  return { id: u.id, cut_role: u.cut_role, detaches_from: u.cut_parent, carries_roles: u.carries_roles, gear_slots: u.gear_slots,
+    mass_kg: round(carried.reduce((a, r) => a + r.mass_kg, 0), 3), length_m: round(u.carries_roles.length ? Math.max(...carried.map((r) => r.reach_m)) : 0, 4), cut_pivot: cut.rest.pivot,
+    joint: cut.joint, note: u.note || null };
+}
+
 export function generateRow(bodyId, m, table, opts = {}) {
   if (!m || m.error || !m.joints) throw new Error(bodyId + ": no usable measure row");
   const volumeRef = opts.volumeRef ?? table.reference.volume_m3;
@@ -239,13 +256,7 @@ export function generateRow(bodyId, m, table, opts = {}) {
   const reachOf = (id) => { const r = roleRows[idx[id]]; return r.length_m + Math.max(0, ...(kids[id] || []).map(reachOf)); };
   roleRows.forEach((r) => { r.reach_m = round(reachOf(r.id), 4); r.tip_speed_per_rad_s = r.reach_m; });
   // severable units: the cut role, its parent joint, what goes with it, the gear slots on it, the mass and the cut position (the cut role's pivot)
-  const severable = table.severable.units.map((u) => {
-    const carried = u.carries_roles.map((id) => roleRows[idx[id]]);
-    const cut = roleRows[idx[u.cut_role]];
-    return { id: u.id, cut_role: u.cut_role, detaches_from: u.cut_parent, carries_roles: u.carries_roles, gear_slots: u.gear_slots,
-      mass_kg: round(carried.reduce((a, r) => a + r.mass_kg, 0), 3), length_m: round(u.carries_roles.length ? Math.max(...carried.map((r) => r.reach_m)) : 0, 4), cut_pivot: cut.rest.pivot,
-      joint: cut.joint, note: u.note || null };
-  });
+  const severable = table.severable.units.map((u) => severableRow(u, roleRows));
   const armLeft = roleRows[idx.armLeft], armRight = roleRows[idx.armRight], thighLeft = roleRows[idx.thighLeft], thighRight = roleRows[idx.thighRight];
   const row = {
     schema: "ragdoll-row/2",
