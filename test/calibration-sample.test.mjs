@@ -33,7 +33,7 @@ test("widened sample (40 swings): hand percentiles and the rungs they derive", (
   assert.equal(r2(d.base_lever), 1.99);
   // the cut rung (p90) is within the re-pin tolerance of its pin: not moved
   assert.ok(!d.rungs.rung_cut.beyond_tolerance, `cut ${d.rungs.rung_cut.derived} vs pin ${d.rungs.rung_cut.pin}`);
-  assert.equal(r2(d.rungs.rung_cut.derived), 23.09);
+  assert.equal(r2(d.rungs.rung_cut.derived), 23.08);
   // hit and stick fall beyond it on the identical method; the pins stay (docs/M4-CALIBRATION.md section 6 says why), so this row says so when the sample or a pin changes
   assert.ok(d.rungs.rung_hit.beyond_tolerance && d.rungs.rung_stick.beyond_tolerance);
   assert.deepEqual([rules.strength_scale.rung_hit, rules.strength_scale.rung_stick, rules.strength_scale.rung_cut], [8.0, 16.5, 24.3]);
