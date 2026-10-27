@@ -55,20 +55,25 @@ for (const mesh of targets) for (const prim of mesh.listPrimitives()) {
     const u = Math.floor(k / K), v = k % K;
     if (c > (edge.get(v * K + u) || 0)) { if (!capOut.has(v)) capOut.set(v, []); capOut.get(v).push(u); }
   }
-  const used = new Set(), loops = [], skipped = [];
-  for (const start of capOut.keys()) {
-    if (used.has(start)) continue;
-    const ring = [start]; used.add(start);
-    let cur = start, simple = true;
+  // Walk the cap edges and cut the walk into simple rings: a welded boundary can pinch (a vertex with two outgoing cap edges), and every time the walk
+  // comes back to a vertex already on its path, the rings between is one loop.
+  const usedEdge = new Set(), loops = [], skipped = [];
+  for (const s of capOut.keys()) {
     for (;;) {
-      const outs = capOut.get(cur);
-      if (!outs || outs.length !== 1) { simple = false; break; }
-      const nx = outs[0];
-      if (nx === start) break;
-      if (used.has(nx)) { simple = false; break; }
-      ring.push(nx); used.add(nx); cur = nx;
+      if (!capOut.get(s).some((u) => !usedEdge.has(s * K + u))) break;
+      const path = [s], at = new Map([[s, 0]]);
+      for (;;) {
+        const cur = path[path.length - 1], nx = capOut.get(cur)?.find((u) => !usedEdge.has(cur * K + u));
+        if (nx === undefined) { if (path.length > 1) skipped.push(path.slice()); break; }
+        usedEdge.add(cur * K + nx);
+        if (at.has(nx)) {
+          const j = at.get(nx);
+          loops.push(path.slice(j));
+          for (const w of path.slice(j + 1)) at.delete(w);
+          path.length = j + 1;
+        } else { at.set(nx, path.length); path.push(nx); }
+      }
     }
-    (simple ? loops : skipped).push(ring);
   }
   const added = []; let area = 0, capped = 0, forced = 0;
   const stats = { forced: 0, bridgeFallback: 0 };
