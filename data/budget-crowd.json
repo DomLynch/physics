@@ -1,0 +1,29 @@
+{
+  "schema": "budget-rows/1",
+  "about": "Crowd rows for tools/budget-seven.mjs (run: node tools/budget-seven.mjs data/budget-crowd.json --out crowd.json): per-frame CPU physics-step cost for N = 3..10 simultaneous plain MakeHuman humanoid ragdolls, no cuts, two scenarios (standing, and dying). Same constants and timing method as data/budget-rows.json; the tool is unchanged. Measurement only: this file sets no cap (max_simultaneous_ragdolls stays in data/budget-rows.json). This is the cost of one 60 Hz tick of the shared physics world (motors, Jolt step, readPose for every body), NOT GPU render cost, skinning or draw calls.",
+  "ticks": 240,
+  "warm_ticks": 30,
+  "repeats": 3,
+  "counts": [3, 4, 5, 6, 7, 8, 9, 10],
+  "spacing_m": 1.5,
+  "spacing_source": "own start value: a human is about 0.4 m across the shoulders and 1.7 m tall, so 1.5 m keeps standing bodies apart while a falling body (about 1.8 m long) can still land on a neighbour, as it would in a crowd; the seven-boss rows use 2.5 m for 2.1 m bosses",
+  "budget_ms": 3,
+  "budget_source": "docs/BRIEF.md: the 3 ms physics budget (five fighters + one cut) that test/budget.test.mjs guards",
+  "motor_strength": { "high": 1, "low": 0.8, "period_ticks": 120, "high_ticks": 60, "source": "test/budget.test.mjs: same motor pattern as the M3 proof scene" },
+  "sets": [
+    {
+      "id": "crowd_humanoid_mh",
+      "bodies": ["warrior", "veteran", "hale-pitborn", "vagrant-106", "hunter-pitborn-106", "warrior", "veteran", "hale-pitborn", "vagrant-106", "hunter-pitborn-106"],
+      "note": "ten plain MakeHuman humanoid measure rows (1.62 to 1.89 m, OpenTrident mh-gen proportions), none a boss or a monster; ragdoll N uses the first N, repeats after five. Mixed 65-joint and 106-joint rigs: all are 20-part ragdolls, so the part count does not change with the rig, only masses and lengths do."
+    }
+  ],
+  "scenarios": [
+    { "id": "alive_idle", "about": "all N standing, motors on, hips kinematic, no cut", "cuts": [] },
+    {
+      "id": "dying_uncut",
+      "about": "every ragdoll is killed at tick 70 with a hit impulse and falls free (released hips, limp motors, self-collision); no cut",
+      "cut_who": "all", "cuts": [],
+      "kill": { "tick": 70, "part": "spine2", "impulse": [0, 0, 60], "source": "test/bodies.test.mjs: the kill impulse the body tests use" }
+    }
+  ]
+}
