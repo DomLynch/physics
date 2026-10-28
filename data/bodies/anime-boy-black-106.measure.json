@@ -1,0 +1,120 @@
+{
+ "id": "anime-boy-black-106",
+ "source": "anime-boy-black-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.7955,
+ "neck_len": 0.0903,
+ "torso_len": 0.3082,
+ "shoulder_w": 0.2955,
+ "upper_arm_len": 0.2198,
+ "forearm_len": 0.249,
+ "thigh_len": 0.4545,
+ "shin_len": 0.5169,
+ "foot_len": 0.1565,
+ "chest_w": 0.3011,
+ "waist_w": 0.2778,
+ "hip_w": 0.2912,
+ "chest_d": 0.2349,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   -0.0008,
+   1.089,
+   0.007
+  ],
+  "Spine": [
+   -0.0008,
+   1.2295,
+   0.0078
+  ],
+  "Spine1": [
+   -0.0008,
+   1.3085,
+   0.0033
+  ],
+  "Spine2": [
+   -0.0008,
+   1.3859,
+   -0.0007
+  ],
+  "Neck": [
+   -0.0008,
+   1.5371,
+   -0.0113
+  ],
+  "Head": [
+   -0.0006,
+   1.6262,
+   0.0031
+  ],
+  "LeftArm": [
+   0.147,
+   1.4853,
+   0.0011
+  ],
+  "LeftForeArm": [
+   0.3665,
+   1.4752,
+   0.0026
+  ],
+  "LeftHand": [
+   0.6146,
+   1.4745,
+   0.0232
+  ],
+  "RightArm": [
+   -0.1485,
+   1.4853,
+   0.0011
+  ],
+  "RightForeArm": [
+   -0.3681,
+   1.4752,
+   0.0026
+  ],
+  "RightHand": [
+   -0.6162,
+   1.4745,
+   0.0232
+  ],
+  "LeftUpLeg": [
+   0.0841,
+   1.0451,
+   0.011
+  ],
+  "LeftLeg": [
+   0.058,
+   0.5914,
+   0.0029
+  ],
+  "LeftFoot": [
+   0.0441,
+   0.0756,
+   -0.0285
+  ],
+  "LeftToeBase": [
+   0.0457,
+   0,
+   0.1085
+  ],
+  "RightUpLeg": [
+   -0.0856,
+   1.0451,
+   0.011
+  ],
+  "RightLeg": [
+   -0.0595,
+   0.5914,
+   0.0029
+  ],
+  "RightFoot": [
+   -0.0457,
+   0.0756,
+   -0.0281
+  ],
+  "RightToeBase": [
+   -0.0474,
+   0.0006,
+   0.1093
+  ]
+ }
+}
