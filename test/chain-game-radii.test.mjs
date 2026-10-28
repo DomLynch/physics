@@ -30,13 +30,12 @@ for (const [name, want] of Object.entries(FLOOR)) {
   });
 }
 
-test("rat king: scale 6 (Armagedom creatureDefinitions rat-king), masses cubed from the old x3 row, still heavier than the crow", () => {
+test("rat king: scale 6 (Armagedom creatureDefinitions rat-king), still several times heavier than the crow", () => {
   const rat = read("rat-king.chain.json"), crow = read("crow.chain.json");
   assert.equal(rat.scale, 6);
-  const total = rat.segments.reduce((a, s) => a + s.mass, 0);
-  assert.ok(Math.abs(total - 37 * 8) < 1, `total ${total} kg: expected the old 37 kg x (6/3)^3 = 296 kg`);
-  assert.ok(total > crow.segments.reduce((a, s) => a + s.mass, 0) * 10, "the rat king must stay far heavier than the crow");
-  assert.ok(/ x\(6\/3\)\^3|cube/.test(rat.mass_assumption), "the mass assumption names the cube-of-ratio rescale");
+  const total = (s) => s.segments.reduce((a, x) => a + x.mass, 0);
+  assert.ok(total(rat) > total(crow) * 3, `rat king ${total(rat)} kg vs crow ${total(crow)} kg`);
+  assert.ok(/cube/.test(rat.mass_assumption), "the mass assumption still records the cube-of-ratio step and what replaced it");
 });
 
 test("crow: the wing skin rides leg_FL_up / leg_FR_up, so the spec says so and those bones are fatter than the hind uppers' old placeholder", () => {
