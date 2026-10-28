@@ -82,7 +82,7 @@ test("a shape map plus the body's scalars reproduces the generated ragdoll row (
       mass += r.m * kg;
     }
     errs.sort((a, b) => a - b);
-    // a shape is an approximation: psyche/minotaur/pitborn/brute land under 10 percent, gargantua (a 2.2 m boss with its own proportions) at about 20
+    // a shape is an approximation: psyche/minotaur/pitborn/brute land at 5 to 11 percent, gargantua (a 2.2 m boss with its own proportions) at about 20
     assert.ok(errs[errs.length >> 1] < 0.25, `${id}: median radius error ${errs[errs.length >> 1]}`);
     assert.ok(Math.abs(mass - row.total_mass_kg) / row.total_mass_kg < 0.01 + 0.02, `${id}: mass ${mass} vs ${row.total_mass_kg}`);
     assert.ok(Math.abs(H - row.height_m) < 0.001);
