@@ -357,7 +357,7 @@ test("the shipped rows file is valid and lists every V3 body", () => {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
   }
-  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106", "anime-boy-black-106", "sporty-granny-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
+  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106", "anime-boy-black-106", "sporty-granny-106", "the-boss-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
 });
 
 test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {
@@ -368,6 +368,20 @@ test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it name
   assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
   assert.match(b.note, /410/, "the note records the 410 native boundary edges (eye loops)");
   assert.match(b.note, /eye/i);
+});
+
+test("the-boss-106 (V3 boss The Boss, rebuilt body, Frankendom-v3 PR 242): a pinned, unblocked row with the two rigid layers; no validator bypass", () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "the-boss-106");
+  assert.equal(b.source, "the-boss-106.glb");
+  assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
+  assert.equal(b.blocked, undefined, "the row passes all 8 checks");
+  assert.equal(b.blocked_checks, undefined);
+  assert.match(b.expect_sha256, /^367554e5[0-9a-f]{56}$/);
+  assert.deepEqual(b.overrides, { rigid_accessory_materials: [{ name: "Clothes_MAT" }, { name: "Clothes_MAT.001", piece: "root", shells_inside: [[-0.5, -0.02, -0.4], [0.5, 1.03, 0.5]] }] });
+  assert.match(b.note, /43916a8/);
+  assert.match(b.note, /shell/i);
+  assert.match(b.note, /crotch/i, "the note records that the pass is sensitive near the crotch");
 });
 
 test("big-vegas-106 (V3 boss The King): a blocked row that names exactly the checks it still fails and why (not a validator bypass)", () => {

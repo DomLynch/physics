@@ -94,7 +94,7 @@ A layered garment (skirt, sash, hem, jacket, trouser or pauldron layer) that lie
 - `"name"`: a material name or a mesh name. A whole primitive is taken. A name that matches nothing, a hair material, or a primitive another entry took is refused.
 - `"shells_inside": [[x0, y0, z0], [x1, y1, z1]]`: only the connected shells (welded positions) of the match whose bounding box lies inside this box (GLB metres) are taken. This is how a skirt is picked out of a body that has one material (Kachujin: one mesh, 27 shells). No shell inside is refused. Such a layer, and any whole primitive whose material the body also uses, gets a copy of the material named `<material>.rigid`, so `plane_exempt` names the layer and not the shell.
 - `"piece"`: `root`, `upper_torso`, `head`, `arm_left`, `arm_right`, `leg_left` or `leg_right`; by default the heaviest piece by skin weight.
-- A layer that IS the body surface of its piece cannot be set aside: the piece would lose its section (no waist cap) or have no triangles. That body stays blocked (The Boss below).
+- A layer that IS the body surface of its piece cannot be set aside: the piece would lose its section (no waist cap) or have no triangles. That body stays blocked until the source carries a body shell under the layer (the PR #232 Boss was blocked; the rebuilt PR #242 Boss passes, see below).
 - No row, an empty list: the cut is byte-identical to before (proved on the seven shipped rows with sources, 14 files: GLB and manifest hashes before and after equal).
 
 Results (VPS, 2026-10-28, tool = this change, sources = V3 PRs at the heads in the rows):
@@ -103,9 +103,10 @@ Results (VPS, 2026-10-28, tool = this change, sources = V3 PRs at the heads in t
 |---|---|---|---|---|
 | kachujin-106 (V3 #227) | FAIL watertight (8 over-used), orientation (21 flipped), planes (1 vertex 0.00010 m) | back sash 410 + thigh skirt 664 triangles (root, Hips), ponytail 152 (head, Head); `plane_snap_m` 9e-5 | **PASS** (8 of 8) | ed1ce1d402dac0f63eb08a0a64e46d90d45cd199d1fdc65b22dc3e012f2d0357 |
 | castle-guard-106 (V3 #231) | FAIL watertight (3 over-used), orientation (6 flipped), caps | the two pauldrons (188 triangles each) | **PASS** (8 of 8) | ccbc64a54b33c22e8a2a7c94f2766834afb44e8da0d820d312b2a6745d02aad1 |
-| the-boss-106 (V3 #232) | FAIL watertight (13 over-used), orientation (12 flipped), caps | none possible | **BLOCKED** (cause in the row) | n/a |
+| the-boss-106 (V3 #232) | FAIL watertight (13 over-used), orientation (12 flipped), caps | none possible | **BLOCKED** (no body shell under the clothes) | n/a |
+| the-boss-106 (V3 #242 head 43916a8, rebuilt with a closed body shell) | not run | jacket (`Clothes_MAT`, upper_torso) and trousers (`Clothes_MAT.001`, root, hat excluded by `shells_inside`) | **PASS** (8 of 8) | 367554e5baddc5e921e9ba007ced91b7b9def499818d29a4cfb0d85d6ef2404a |
 
-Kachujin needs both parts: the accessories alone leave the planes violation, `plane_snap_m` alone leaves the 8 over-used and 21 flipped edges. The Boss has no layer over a body shell: its torso is the jacket and its legs are the trousers, so keeping either whole removes the waist section or the legs.
+Kachujin needs both parts: the accessories alone leave the planes violation, `plane_snap_m` alone leaves the 8 over-used and 21 flipped edges. The PR #232 Boss had no layer over a body shell: its torso was the jacket and its legs the trousers, so keeping either whole removed the waist section or the legs. PR #242 adds a closed body shell under both, and the same tool then passes (three runs, identical bytes); the pass is sensitive to the shell shape near the crotch (3 of 12 shell variants passed).
 
 ## Tests
 
