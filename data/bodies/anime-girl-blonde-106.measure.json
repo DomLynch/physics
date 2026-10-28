@@ -1,0 +1,120 @@
+{
+ "id": "anime-girl-blonde-106",
+ "source": "anime-girl-blonde-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.4852,
+ "neck_len": 0.0728,
+ "torso_len": 0.3542,
+ "shoulder_w": 0.2173,
+ "upper_arm_len": 0.2193,
+ "forearm_len": 0.2143,
+ "thigh_len": 0.3528,
+ "shin_len": 0.4153,
+ "foot_len": 0.1275,
+ "chest_w": 0.2214,
+ "waist_w": 0.2043,
+ "hip_w": 0.2648,
+ "chest_d": 0.1727,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   -0.0003,
+   0.8702,
+   0.0058
+  ],
+  "Spine": [
+   -0.0003,
+   0.9231,
+   0.0156
+  ],
+  "Spine1": [
+   -0.0003,
+   1.0371,
+   0.0298
+  ],
+  "Spine2": [
+   -0.0003,
+   1.1612,
+   0.0161
+  ],
+  "Neck": [
+   -0.0003,
+   1.2758,
+   -0.0173
+  ],
+  "Head": [
+   -0.0001,
+   1.348,
+   -0.008
+  ],
+  "LeftArm": [
+   0.1084,
+   1.2336,
+   -0.006
+  ],
+  "LeftForeArm": [
+   0.3274,
+   1.2234,
+   -0.0041
+  ],
+  "LeftHand": [
+   0.541,
+   1.2229,
+   0.0135
+  ],
+  "RightArm": [
+   -0.1089,
+   1.2336,
+   -0.006
+  ],
+  "RightForeArm": [
+   -0.328,
+   1.2234,
+   -0.0041
+  ],
+  "RightHand": [
+   -0.5415,
+   1.2229,
+   0.0135
+  ],
+  "LeftUpLeg": [
+   0.0769,
+   0.8302,
+   0.0023
+  ],
+  "LeftLeg": [
+   0.0566,
+   0.478,
+   -0.0041
+  ],
+  "LeftFoot": [
+   0.0462,
+   0.0634,
+   -0.0252
+  ],
+  "LeftToeBase": [
+   0.0477,
+   0,
+   0.0854
+  ],
+  "RightUpLeg": [
+   -0.0774,
+   0.8302,
+   0.0023
+  ],
+  "RightLeg": [
+   -0.0571,
+   0.478,
+   -0.0041
+  ],
+  "RightFoot": [
+   -0.0468,
+   0.0634,
+   -0.0252
+  ],
+  "RightToeBase": [
+   -0.0482,
+   0,
+   0.0854
+  ]
+ }
+}
