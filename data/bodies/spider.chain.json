@@ -1,0 +1,35 @@
+{
+  "schema": "chain-body/1",
+  "name": "spider",
+  "about": "Chain ragdoll body for the giant spider (Armagedom 27-bone roach rig). 14 capsules: body (root, kinematic), thorax, head, abdomen, and 6 legs: the front and rear pairs have two capsules (upper = leg to shin, lower = shin to foot), the middle pair one (leg to foot). Bones without a part (root, antennae, mandibles) follow their parent bone in the scene graph; the shin and foot of a middle leg ride the leg. Every number is here; src/chain.mjs holds none.",
+  "placeholder": true,
+  "placeholder_note": "radii, masses, joint limits and the two synthetic end points (abdomen_tip, head_tip) are PLACEHOLDERS to tune on Dom's phone and the clips; only the bone positions are measured. Every joint is a ball joint with a wide cone, so a leg can curl under the body: the hinge row (hinge_flex_z) only tests the z direction of a bend and cannot say 'curl up' for a leg that points sideways.",
+  "measure": "spider.bones.json",
+  "scale": 3,
+  "scale_source": "Armagedom Web/src/data/creatureDefinitions.json original-spider scale.model = 3 (character 1.265 and visual 1.3225 are applied by the actor wrapper on top and are NOT in this scale, the same choice as the salamander's 3.6). Bones and radii below are in model units, the row is in metres at this scale.",
+  "mass_assumption": "placeholder: a body about 1.6 m long and 1.2 m across at x3; a real large tarantula is 0.1 to 0.2 kg per 10 cm, this one is scaled up in length only, so 47 kg total is a thin squat estimate (abdomen 14, body 10, thorax 6, head 3, legs 14). Tune against how heavy the fall should feel.",
+  "inertia_multiplier": 8,
+  "inertia_source": "data/ragdoll-role-table.json motor.inertia_multiplier (M1 finding), same value as the humanoid rows",
+  "hinge_flex_z": {},
+  "segments": [
+    { "id": "body", "role": "body", "bone": "body", "tip": "thorax", "parent": null, "radius": 0.04, "mass": 10, "joint": null, "source": "placeholder: root, body bone to thorax bone (the leg roots sit along it)" },
+    { "id": "thorax", "role": "thorax", "bone": "thorax", "tip": "head", "parent": "body", "radius": 0.034, "mass": 6, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 20 }, "source": "placeholder: thorax to head" },
+    { "id": "head", "role": "head", "bone": "head", "tip": "head_tip", "parent": "thorax", "radius": 0.03, "mass": 3, "joint": { "type": "ball", "swing_deg": 50, "twist_deg": 40 }, "source": "placeholder: head to the synthetic head_tip (antennae and mandibles ride on it)" },
+    { "id": "abdomen", "role": "abdomen", "bone": "abdomen", "tip": "abdomen_tip", "parent": "body", "radius": 0.05, "mass": 14, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 30 }, "source": "placeholder: abdomen bone to the synthetic abdomen_tip" },
+
+    { "id": "leg0L_up", "role": "leg_upper", "bone": "leg_0L", "tip": "shin_0L", "parent": "body", "radius": 0.016, "mass": 1.5, "joint": { "type": "ball", "swing_deg": 60, "twist_deg": 25 }, "source": "placeholder" },
+    { "id": "leg0L_low", "role": "leg_lower", "bone": "shin_0L", "tip": "foot_0L", "parent": "leg0L_up", "radius": 0.012, "mass": 1, "joint": { "type": "ball", "swing_deg": 90, "twist_deg": 20 }, "source": "placeholder" },
+    { "id": "leg0R_up", "role": "leg_upper", "bone": "leg_0R", "tip": "shin_0R", "parent": "body", "radius": 0.016, "mass": 1.5, "joint": { "type": "ball", "swing_deg": 60, "twist_deg": 25 }, "source": "placeholder" },
+    { "id": "leg0R_low", "role": "leg_lower", "bone": "shin_0R", "tip": "foot_0R", "parent": "leg0R_up", "radius": 0.012, "mass": 1, "joint": { "type": "ball", "swing_deg": 90, "twist_deg": 20 }, "source": "placeholder" },
+    { "id": "leg1L", "role": "leg_whole", "bone": "leg_1L", "tip": "foot_1L", "parent": "body", "radius": 0.014, "mass": 2.2, "joint": { "type": "ball", "swing_deg": 80, "twist_deg": 25 }, "source": "placeholder: leg, shin and foot as one capsule (the middle leg bends in the xy plane only)" },
+    { "id": "leg1R", "role": "leg_whole", "bone": "leg_1R", "tip": "foot_1R", "parent": "body", "radius": 0.014, "mass": 2.2, "joint": { "type": "ball", "swing_deg": 80, "twist_deg": 25 }, "source": "placeholder" },
+    { "id": "leg2L_up", "role": "leg_upper", "bone": "leg_2L", "tip": "shin_2L", "parent": "body", "radius": 0.016, "mass": 1.5, "joint": { "type": "ball", "swing_deg": 60, "twist_deg": 25 }, "source": "placeholder" },
+    { "id": "leg2L_low", "role": "leg_lower", "bone": "shin_2L", "tip": "foot_2L", "parent": "leg2L_up", "radius": 0.012, "mass": 1, "joint": { "type": "ball", "swing_deg": 90, "twist_deg": 20 }, "source": "placeholder" },
+    { "id": "leg2R_up", "role": "leg_upper", "bone": "leg_2R", "tip": "shin_2R", "parent": "body", "radius": 0.016, "mass": 1.5, "joint": { "type": "ball", "swing_deg": 60, "twist_deg": 25 }, "source": "placeholder" },
+    { "id": "leg2R_low", "role": "leg_lower", "bone": "shin_2R", "tip": "foot_2R", "parent": "leg2R_up", "radius": 0.012, "mass": 1, "joint": { "type": "ball", "swing_deg": 90, "twist_deg": 20 }, "source": "placeholder" }
+  ],
+  "severable": [
+    { "id": "leg_front_L", "cut_role": "leg0L_up", "cut_parent": "body", "carries_roles": ["leg0L_up", "leg0L_low"], "gear_slots": [], "note": "front left leg: joint removed, both capsules fall free" },
+    { "id": "leg_front_R", "cut_role": "leg0R_up", "cut_parent": "body", "carries_roles": ["leg0R_up", "leg0R_low"], "gear_slots": [], "note": "front right leg: joint removed, both capsules fall free" }
+  ]
+}
