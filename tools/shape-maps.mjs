@@ -186,7 +186,7 @@ function main() {
     rules: {
       child_max_height_mm: Math.round(CHILD_H * 1000),
       child: "Height under 1450 mm is the child shape, whatever the build: a small adult under 1.45 m (e.g. mon-0056, 1445 mm) becomes a child, and mon-0846 at 1462 mm is average-heavy. The height is the only input; there is no age field in the measure rows.",
-      mass: `mass_kg_x10 is the role table's mass clamped to 18..140 kg (the role table's bounds), so it reads exactly 140 for ${Object.values(lookup).filter((v) => v[3] === 1400).length} of ${Object.keys(lookup).length - 1} bodies (and 18 for ${Object.values(lookup).filter((v) => v[3] === 180).length}). The 5th value is the unclamped volume-based mass: use it to scale impulses. The clamp is deliberate for ragdoll joint stiffness, not a measurement.`,
+      mass: `mass_kg_x10 is the role table's mass clamped to 18..140 kg (the role table's bounds), so it reads exactly 140 for ${Object.values(lookup).filter((v) => v[3] === 1400).length} of ${Object.keys(lookup).length} bodies (and 18 for ${Object.values(lookup).filter((v) => v[3] === 180).length}). The 5th value is the unclamped volume-based mass: use it to scale impulses. The clamp is deliberate for ragdoll joint stiffness, not a measurement.`,
       excluded: "Scale outliers (height under 1.0 m or over 3.0 m) have no shape: bodyShape throws.",
     },
     shapes: shapeNames, excluded, bodies: lookup,
