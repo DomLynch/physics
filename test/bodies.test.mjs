@@ -7,7 +7,7 @@ import { createPhysics } from "../src/index.mjs";
 import { generateRow, loadTable } from "../src/index.mjs";
 
 // the ragdoll's capsule lengths must match the lengths measured from the GLB joints (the row is what the game's body really is)
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "anime-girl-blonde-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020", "sporty-granny-106"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "anime-girl-blonde-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020", "mh-npc-marsh", "mh-npc-okafor", "mh-npc-reyes", "sporty-granny-106"]) {
   test(`${name}: ragdoll part lengths match the measured bone lengths`, () => {
     const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
     const row = generateRow(name, m, loadTable());
@@ -17,7 +17,7 @@ for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", 
   });
 }
 
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "anime-girl-blonde-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020", "sporty-granny-106"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "anime-girl-blonde-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020", "mh-npc-marsh", "mh-npc-okafor", "mh-npc-reyes", "sporty-granny-106"]) {
   const body = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
   test(`${name}: holds its rest pose (hips kinematic), then dies and freezes on the floor`, async () => {
     const p = await createPhysics({ seed: 1 });
@@ -98,6 +98,23 @@ for (const [name, { mesh_h }] of Object.entries(HUB_NPCS)) {
     assert.equal(m.id, name);
     assert.ok(Math.abs(m.height_m - mesh_h) / mesh_h < 0.015, `${name}: row height ${m.height_m} m vs mesh ${mesh_h} m`);
     assert.ok(Math.abs(m.height_m - lookup_h) / lookup_h < 0.03, `${name}: row height ${m.height_m} m vs game lookup ${lookup_h} m`);
+    const row = generateRow(name, m, loadTable());
+    assert.ok(row.total_mass_kg > 30 && row.total_mass_kg < 100, `total mass ${row.total_mass_kg} kg`);
+    assert.equal(row.roles.length, 20);
+  });
+}
+
+// ARMAGEDOM hub NPCs Marsh, Dr. Okafor, Reyes (ARMAGEDOM PR 468, npc-marsh/okafor/reyes.glb, OpenTrident bodies mh-npc-marsh/okafor/reyes, 106 joints, rig map
+// mixamo-106). Same rule as above: named by body id, height_m is the real skinned-mesh height (meshopt decoded, bind pose), not the joint-tree guess. Unlike the
+// first three NPCs there is no data/shape-maps/body-shapes.json entry for these ids, so there is no game lookup height to compare with.
+const HUB_NPCS_468 = { "mh-npc-marsh": { mesh_h: 1.8137, tree_h: 1.636 }, "mh-npc-okafor": { mesh_h: 1.6986, tree_h: 1.5871 }, "mh-npc-reyes": { mesh_h: 1.7631, tree_h: 1.5746 } };
+for (const [name, { mesh_h, tree_h }] of Object.entries(HUB_NPCS_468)) {
+  test(`${name}: hub NPC row is named by its body id and carries the real mesh height (within 1.5 percent), not the joint-tree guess`, () => {
+    const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
+    assert.equal(m.id, name);
+    assert.ok(Math.abs(m.height_m - mesh_h) / mesh_h < 0.015, `${name}: row height ${m.height_m} m vs mesh ${mesh_h} m`);
+    assert.ok(m.height_m - tree_h > 0.08, `${name}: row height ${m.height_m} m must be well above the joint-tree guess ${tree_h} m`);
+    assert.ok(typeof m.height_source === "string" && m.height_source.includes("skinned mesh"), `${name}: height_source must say where the height came from`);
     const row = generateRow(name, m, loadTable());
     assert.ok(row.total_mass_kg > 30 && row.total_mass_kg < 100, `total mass ${row.total_mass_kg} kg`);
     assert.equal(row.roles.length, 20);
