@@ -172,3 +172,17 @@ test("light_part_cap_pct: a light with remaining hp <= its capped damage still k
   const arm = ev.evaluateHit(hit({ zone: "arm_off", side: "right", handSpeed: 13, swing: "light", counterHit: true }), man());
   assert.equal(arm.outcome, "cut", "limb light counter-hit unchanged");
 });
+
+// Strategy ruling: two light counter-hits never kill a full Minotaur (head budget 40, torso 76), at the fastest real hand speeds
+// (p50 8.27, p90 12.2 and the 13 m/s test ceiling). A third or later light may.
+test("two light counter-hits never kill a fresh Minotaur head or torso, at the fastest real hand speeds", () => {
+  for (const zone of ["head", "torso"]) for (const handSpeed of [8.27, 12.2, 13]) {
+    const st = minotaur();
+    for (let i = 0; i < 2; i++) {
+      const r = ev.evaluateHit(hit({ zone, handSpeed, swing: "light", counterHit: true }), st);
+      assert.notEqual(r.outcome, "kill", `${zone} @ ${handSpeed} m/s, light counter-hit ${i + 1}`);
+      assert.equal(r.cut, null, `${zone} @ ${handSpeed} m/s, light counter-hit ${i + 1} cut`);
+      assert.equal(st.alive, true, `${zone} @ ${handSpeed} m/s, light counter-hit ${i + 1} alive`);
+    }
+  }
+});
