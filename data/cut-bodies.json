@@ -30,6 +30,15 @@
       "note": "V3 boss, Frankendom-v3 PR #181 head a7cf086; masked (no hair material), so no plane_exempt; source is decompressed by the batch"
     },
     {
+      "name": "arachne-106",
+      "source": "arachne-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/arachne-106.measure.json",
+      "overrides": { "planes": { "neck_frac": 0.2 } },
+      "expect_sha256": "30a476c4447b50f5d46ac46ee15e277d66b3e61e5ef9c4aca0098479c115b10a",
+      "note": "V3 boss Arachne, Frankendom-v3 PR 181 head a7cf086 (slim woman; the GLB carries only the body, eyes, lashes, face and hair, the shield and axe are runtime sockets); five meshes on five skins with five dequantisation matrices (cut-units.mjs now uses one per skin); hair goes whole to piece_head (plane_exempt). neck_frac 0.2: at the default 0.5 the neck plane runs along the seam between the body mesh and the face mesh and leaves 42 unclosed cap edges (24 open chains) each side; 0.2 and 0.8 both close (0.35 and 0.65 do not)."
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",
