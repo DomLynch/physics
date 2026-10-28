@@ -1,0 +1,35 @@
+{
+  "schema": "chain-body/1",
+  "name": "elephant",
+  "about": "Chain ragdoll body for the elephant (31-bone quadruped rig, identical skeleton to the wolf's). 13 capsules: hips (root, spine0), chest, head (neck + head + jaw: the trunk is skinned to the head and jaw bones, so it hangs off and swings with the head capsule; there is no separate trunk body), tail_a, tail_b, and 4 legs x (upper, lower). Bones without a body (spine1, spine3, spine4, ears, pasterns, paws, tail1, tail3) follow their parent bone in the scene graph. Heavy, thick torso and column legs with narrow swing. Every number is here; src/chain.mjs holds none.",
+  "placeholder": true,
+  "placeholder_note": "radii, masses, joint limits and motor scales are PLACEHOLDERS to tune on Dom's phone and the clips; only the bone positions are measured. The torso radius is capped by the 31-bone rig: the legs sit only 0.0789 model units off the spine, so torso + leg radii must stay under that or the start pose overlaps (test/chain-quadrupeds.test.mjs checks it).",
+  "measure": "elephant.bones.json",
+  "scale": 5,
+  "scale_source": "Armagedom Web/src/data/creatureDefinitions.json original-elephant scale.model 5: bones and radii below are in model units, the row is in metres at this scale (about 4.7 m long, 2.5 m at the ear tip)",
+  "mass_assumption": "placeholder: a real African elephant is about 3 m at the shoulder and 4 to 6 tonnes; this one is 2.5 m at the ear tip and 4.7 m long, call it 2.6 tonnes. The game data gives hp 150 and no mass.",
+  "inertia_multiplier": 8,
+  "inertia_source": "data/ragdoll-role-table.json motor.inertia_multiplier (M1 finding), same value as the humanoid rows",
+  "hinge_flex_z": { "leg_lower_hind": -1, "leg_lower_front": 1 },
+  "hinge_flex_z_source": "own: the creature faces +z. A hind hock flexes the lower leg backward (-z); a front elbow flexes it forward (+z). Same convention as the salamander.",
+  "segments": [
+    { "id": "hips", "role": "spine", "bone": "spine0", "tip": "spine2", "parent": null, "radius": 0.08, "mass": 800, "joint": null, "source": "placeholder: root, spine0 to spine2" },
+    { "id": "chest", "role": "spine", "bone": "spine2", "tip": "neck", "parent": "hips", "radius": 0.08, "mass": 880, "joint": { "type": "ball", "swing_deg": 15, "twist_deg": 12 }, "source": "placeholder: spine2 to neck (spine3, spine4 ride on it); stiff spine" },
+    { "id": "head", "role": "head", "bone": "neck", "tip": "jaw", "parent": "chest", "radius": 0.065, "mass": 280, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 30 }, "source": "placeholder: neck to jaw (neck + head + jaw; the trunk and tusks ride on it, the ears too)" },
+    { "id": "tail_a", "role": "tail", "bone": "tail0", "tip": "tail2", "parent": "hips", "radius": 0.02, "mass": 18, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 20 }, "source": "placeholder: tail0 to tail2" },
+    { "id": "tail_b", "role": "tail", "bone": "tail2", "tip": "tail3", "extend": 0.05, "parent": "tail_a", "radius": 0.012, "mass": 6, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 20 }, "source": "placeholder: tail2 to tail3 plus 0.05 model units past the last bone" },
+
+    { "id": "hind_up_L", "role": "leg_upper", "bone": "hind_up_L", "tip": "hind_low_L", "parent": "hips", "radius": 0.05, "mass": 95, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 15 }, "source": "placeholder: column leg, narrow swing" },
+    { "id": "hind_low_L", "role": "leg_lower_hind", "bone": "hind_low_L", "tip": "hind_paw_L", "parent": "hind_up_L", "radius": 0.042, "mass": 55, "joint": { "type": "hinge", "hinge_min_deg": -3, "hinge_max_deg": 75 }, "source": "placeholder: low, pastern and paw as one capsule; rests at about 36 degrees, folds less than a wolf's" },
+    { "id": "hind_up_R", "role": "leg_upper", "bone": "hind_up_R", "tip": "hind_low_R", "parent": "hips", "radius": 0.05, "mass": 95, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 15 }, "source": "placeholder" },
+    { "id": "hind_low_R", "role": "leg_lower_hind", "bone": "hind_low_R", "tip": "hind_paw_R", "parent": "hind_up_R", "radius": 0.042, "mass": 55, "joint": { "type": "hinge", "hinge_min_deg": -3, "hinge_max_deg": 75 }, "source": "placeholder" },
+    { "id": "front_up_L", "role": "leg_upper", "bone": "front_up_L", "tip": "front_low_L", "parent": "chest", "radius": 0.05, "mass": 95, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 15 }, "source": "placeholder" },
+    { "id": "front_low_L", "role": "leg_lower_front", "bone": "front_low_L", "tip": "front_paw_L", "parent": "front_up_L", "radius": 0.042, "mass": 55, "joint": { "type": "hinge", "hinge_min_deg": -3, "hinge_max_deg": 75 }, "source": "placeholder" },
+    { "id": "front_up_R", "role": "leg_upper", "bone": "front_up_R", "tip": "front_low_R", "parent": "chest", "radius": 0.05, "mass": 95, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 15 }, "source": "placeholder" },
+    { "id": "front_low_R", "role": "leg_lower_front", "bone": "front_low_R", "tip": "front_paw_R", "parent": "front_up_R", "radius": 0.042, "mass": 55, "joint": { "type": "hinge", "hinge_min_deg": -3, "hinge_max_deg": 75 }, "source": "placeholder" }
+  ],
+  "severable": [
+    { "id": "tail", "cut_role": "tail_a", "cut_parent": "hips", "carries_roles": ["tail_a", "tail_b"], "gear_slots": [], "note": "tail_a joint removed; both tail capsules fall free" },
+    { "id": "head", "cut_role": "head", "cut_parent": "chest", "carries_roles": ["head"], "gear_slots": [], "note": "head joint removed; the head capsule (with the trunk) falls free" }
+  ]
+}

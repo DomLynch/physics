@@ -5,6 +5,12 @@
 import ROLE_TABLE from "../data/ragdoll-role-table.json" with { type: "json" };
 import SALAMANDER_SPEC from "../data/bodies/salamander.chain.json" with { type: "json" };
 import SALAMANDER_BONES from "../data/bodies/salamander.bones.json" with { type: "json" };
+import EEL_SPEC from "../data/bodies/eel.chain.json" with { type: "json" };
+import EEL_BONES from "../data/bodies/eel.bones.json" with { type: "json" };
+import ELEPHANT_SPEC from "../data/bodies/elephant.chain.json" with { type: "json" };
+import ELEPHANT_BONES from "../data/bodies/elephant.bones.json" with { type: "json" };
+import WOLF_SPEC from "../data/bodies/wolf.chain.json" with { type: "json" };
+import WOLF_BONES from "../data/bodies/wolf.bones.json" with { type: "json" };
 import { frameQuat, severableRow } from "./generate.mjs";
 
 import RAT_KING_SPEC from "../data/bodies/rat-king.chain.json" with { type: "json" };
@@ -16,6 +22,9 @@ const BODIES = {
   salamander: { spec: SALAMANDER_SPEC, bones: SALAMANDER_BONES },
   "rat-king": { spec: RAT_KING_SPEC, bones: RAT_KING_BONES },
   crow: { spec: CROW_SPEC, bones: CROW_BONES },
+  eel: { spec: EEL_SPEC, bones: EEL_BONES },
+  elephant: { spec: ELEPHANT_SPEC, bones: ELEPHANT_BONES },
+  wolf: { spec: WOLF_SPEC, bones: WOLF_BONES },
 };
 const round = (x, n = 5) => Math.round(x * 10 ** n) / 10 ** n;
 const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
