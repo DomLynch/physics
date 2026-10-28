@@ -5,6 +5,7 @@ import WORLD from "../data/world.json" with { type: "json" };
 import STATES from "../data/states.json" with { type: "json" };
 import { qmul, qconj, qrot, vadd, vsub, vdot, vcross, qaxis, rad } from "./math.mjs";
 import { segSegDist } from "./generate.mjs";
+import { resolveGround, heightMax, FLAT } from "./ground.mjs";
 
 
 let joltPromise = null;
@@ -82,7 +83,10 @@ export async function createWorld(opts = {}) {
   const bi = physics.GetBodyInterface();
   { const g = new Jolt.Vec3(0, W.gravity_m_s2, 0); physics.SetGravity(g); Jolt.destroy(g); }
   { const ps = physics.GetPhysicsSettings(); ps.mNumVelocitySteps = W.velocity_iterations; physics.SetPhysicsSettings(ps); }
-  { // floor
+  // opts.ground (data/ground-rows.json: a row name, a row, or { groundHeight(x, z) }) replaces the flat floor; absent = the floor below, unchanged
+  const ground = opts.ground === undefined ? null : resolveGround(opts.ground);
+  if (ground) ground.create(Jolt, bi);
+  else { // floor
     const f = W.floor, half = new Jolt.Vec3(f.half_extent_m, 0.5, f.half_extent_m);
     const shape = new Jolt.BoxShape(half, 0.05, null), pos = new Jolt.RVec3(0, -0.5, 0), rot = new Jolt.Quat(0, 0, 0, 1);
     const bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Static, 0);
@@ -96,7 +100,35 @@ export async function createWorld(opts = {}) {
   let acc = 0, tick = 0, highRateTicks = 0, nextGroup = 1;
   const rand = mulberry32(opts.seed ?? 1);
 
+  // Rolling resistance for loose round things (cut pieces, props) on a non-default ground: a capsule or sphere has no rolling friction in Jolt, so on a
+  // slope it rolls for ever, which a severed head or limb does not. While the lowest point is within contact_m of the surface the spin loses
+  // roll.coefficient x g / radius rad/s each second (the deceleration a Coulomb coefficient gives a rolling body), never past zero. Only when opts.ground is set.
+  const rollDrag = (b, halfH, r) => {
+    const R = ground.rows.roll, id = b.GetID();
+    if (!bi.IsActive(id)) return;
+    const w = b.GetAngularVelocity(), m = Math.hypot(w.GetX(), w.GetY(), w.GetZ());
+    if (m < 1e-9) return;
+    const p = b.GetPosition(), q = b.GetRotation(), ax = qrot([q.GetX(), q.GetY(), q.GetZ(), q.GetW()], [0, 1, 0]);
+    let low = Infinity;
+    for (const s of [-1, 1]) {
+      const cx = p.GetX() + ax[0] * halfH * s, cy = p.GetY() + ax[1] * halfH * s, cz = p.GetZ() + ax[2] * halfH * s;
+      low = Math.min(low, (cy - ground.height(cx, cz)) * ground.normal(cx, cz)[1] - r);
+    }
+    if (low > R.contact_m) return;
+    const k = Math.max(0, m - ((R.coefficient * -W.gravity_m_s2) / r) * tickDt) / m, nw = new Jolt.Vec3(w.GetX() * k, w.GetY() * k, w.GetZ() * k);
+    bi.SetAngularVelocity(id, nw);
+    Jolt.destroy(nw);
+  };
+
+  // on a non-default ground a body may not start higher than continuous.max_drop_m above the surface (the height the tunnel test proves); fails loudly beyond it
+  const checkDrop = (pos, what) => {
+    if (!ground) return;
+    const drop = pos[1] - ground.height(pos[0], pos[2]), lim = ground.rows.continuous.max_drop_m;
+    if (drop > lim) throw new Error(`${what} starts ${drop.toFixed(2)} m above the ground; the limit is ${lim} m (data/ground-rows.json continuous.max_drop_m): spawn at groundMax + a smaller drop`);
+  };
+
   function makeRagdoll(row, ropts = {}) {
+    if (!ropts.parked) checkDrop(ropts.position || [0, 0, 0], "ragdoll");
     const D = buildDefinition(row, ropts.position || [0, 0, 0], W.hinge_flex_z), roles = row.roles;
     const parkedAtCreate = ropts.parked === true; // pooled ragdoll: bodies added asleep (no step cost), moved out of the way until rd.acquire()
     const n = D.def.length, body = W.body, groupId = nextGroup++;
@@ -109,6 +141,7 @@ export async function createWorld(opts = {}) {
       bcs.mMassPropertiesOverride.mMass = b.mass;
       bcs.mInertiaMultiplier = row.inertia_multiplier;
       bcs.mFriction = body.friction; bcs.mLinearDamping = body.linear_damping; bcs.mAngularDamping = body.angular_damping;
+      if (ground && ground.kind !== "plane" && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast; // sampled ground is a thin shell: sweep, do not jump
       bcs.mCollisionGroup.SetGroupFilter(gf); bcs.mCollisionGroup.SetGroupID(groupId); bcs.mCollisionGroup.SetSubGroupID(i);
       const bd = bi.CreateBody(bcs);
       bi.AddBody(bd.GetID(), parkedAtCreate ? Jolt.EActivation_DontActivate : Jolt.EActivation_Activate);
@@ -217,6 +250,7 @@ export async function createWorld(opts = {}) {
     if (parked) parkTo(0, -PARK_DROP_M, 0, Jolt.EActivation_DontActivate);
     let rootMove = null;
     const cut = new Set();
+    const loose = []; // indices of parts a cut set free (they roll on a slope: see rollDrag)
     const buf = new Float32Array(n * FLOATS);
     const api = {
       id: ropts.id ?? `rd${groupId}`,
@@ -434,6 +468,7 @@ export async function createWorld(opts = {}) {
         cut.add(unit);
         highRateTicks = W.cut_high_rate_ticks;
         const carried = u.carries_roles.map((id) => D.idx[id]);
+        loose.push(ci, ...carried.filter((i) => i !== ci)); // detached: on a non-flat ground these lose spin on contact (rollDrag)
         if (frozen) for (const i of carried) bi.ActivateBody(bodies[i].GetID());
         if (copts.impulse) { const iv = new Jolt.Vec3(...copts.impulse); bi.AddImpulse(bodies[ci].GetID(), iv); Jolt.destroy(iv); }
         const props = [];
@@ -473,6 +508,7 @@ export async function createWorld(opts = {}) {
       _pre() {
         if (parked) return;
         applyMotors();
+        if (ground && loose.length) for (const i of loose) rollDrag(bodies[i], D.def[i].halfH, D.def[i].r);
         if (rootMove) {
           const p = new Jolt.RVec3(...rootMove[0]), q = new Jolt.Quat(...rootMove[1]);
           bi.MoveKinematic(bodies[0].GetID(), p, q, tickDt);
@@ -495,15 +531,22 @@ export async function createWorld(opts = {}) {
     tickDt,
     get tick() { return tick; },
     rand,
+    // ground queries (flat floor: 0 and straight up). groundHeight(x, z) = surface y; groundNormal(x, z) = unit normal; groundMax(x, z, r) = highest surface
+    // y within r of (x, z): the y to spawn a ragdoll at so no foot starts inside a slope (createRagdoll position y is the lowest point of the body).
+    groundHeight: (x, z) => (ground ? ground.height(x, z) : 0),
+    groundNormal: (x, z) => (ground ? ground.normal(x, z) : [0, 1, 0]),
+    groundMax: (x, z, r = 0) => heightMax(ground || FLAT, x, z, r),
     // body measure row (a measure row, or an already generated ragdoll-row/2) -> ragdoll. opts: { position, id, rootKinematic (default true), motorStrength (default 1) }
     createRagdoll(input, ropts) { return makeRagdoll(input, ropts); },
     // a loose rigid sphere (helmet, thrown part, loot): { radius, mass, position, velocity, spin, id }. Returns { id, readPose() (10 floats), destroy() }.
     createProp(p) {
+      checkDrop([p.position[0], p.position[1] - p.radius, p.position[2]], "prop");
       const shape = new Jolt.SphereShape(p.radius), pos = new Jolt.RVec3(...p.position), rot = new Jolt.Quat(0, 0, 0, 1);
       const bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Dynamic, 1);
       bcs.mOverrideMassProperties = Jolt.EOverrideMassProperties_CalculateInertia;
       bcs.mMassPropertiesOverride.mMass = p.mass;
       bcs.mFriction = W.body.friction; bcs.mRestitution = p.restitution ?? 0.2; bcs.mLinearDamping = W.body.linear_damping; bcs.mAngularDamping = W.body.angular_damping;
+      if (ground && ground.kind !== "plane" && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast;
       const body = bi.CreateBody(bcs);
       bi.AddBody(body.GetID(), Jolt.EActivation_Activate);
       Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot);
@@ -512,6 +555,7 @@ export async function createWorld(opts = {}) {
       const buf = new Float32Array(10);
       const prop = {
         id: p.id || "prop", _live: true,
+        _pre() { rollDrag(body, 0, p.radius); },
         readPose() {
           const b = body.GetPosition(), r = body.GetRotation(), v = body.GetLinearVelocity();
           buf.set([b.GetX(), b.GetY(), b.GetZ(), r.GetX(), r.GetY(), r.GetZ(), r.GetW(), v.GetX(), v.GetY(), v.GetZ()]);
@@ -529,6 +573,7 @@ export async function createWorld(opts = {}) {
       if (ticks > W.max_dt_ticks_per_step) { ticks = W.max_dt_ticks_per_step; acc = 0; } else acc -= ticks * tickDt;
       for (let t = 0; t < ticks; t++) {
         for (const r of ragdolls) r._pre();
+        if (ground) for (const pr of props) pr._pre();
         jolt.Step(tickDt, highRateTicks > 0 ? W.collision_substeps.cut_or_thrown : W.collision_substeps.standing);
         if (highRateTicks > 0) highRateTicks--;
         tick++;

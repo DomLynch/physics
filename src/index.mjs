@@ -27,5 +27,6 @@ export { buildChainRow, validateChainSpec, loadChainBody, chainBoneMap, chainBon
 export { loadChainReactions, validateChainReactions, CHAIN_REACTION_ZONES, CHAIN_REACTION_DIRS } from "./chain-reactions.mjs";
 export { createEvaluator, createFighterState, rollFinisher } from "./rules-eval.mjs";
 export { loadLimbLoss, validateLimbLoss } from "./limb-loss.mjs";
+export { validateGround, loadGroundRows } from "./ground.mjs";
 export { admit } from "./budget.mjs";
 export { validateRules, assertRules, loadRules, rulesHash } from "./rules.mjs";
