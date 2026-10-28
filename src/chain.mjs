@@ -7,7 +7,16 @@ import SALAMANDER_SPEC from "../data/bodies/salamander.chain.json" with { type: 
 import SALAMANDER_BONES from "../data/bodies/salamander.bones.json" with { type: "json" };
 import { frameQuat, severableRow } from "./generate.mjs";
 
-const BODIES = { salamander: { spec: SALAMANDER_SPEC, bones: SALAMANDER_BONES } };
+import RAT_KING_SPEC from "../data/bodies/rat-king.chain.json" with { type: "json" };
+import RAT_KING_BONES from "../data/bodies/rat-king.bones.json" with { type: "json" };
+import CROW_SPEC from "../data/bodies/crow.chain.json" with { type: "json" };
+import CROW_BONES from "../data/bodies/crow.bones.json" with { type: "json" };
+
+const BODIES = {
+  salamander: { spec: SALAMANDER_SPEC, bones: SALAMANDER_BONES },
+  "rat-king": { spec: RAT_KING_SPEC, bones: RAT_KING_BONES },
+  crow: { spec: CROW_SPEC, bones: CROW_BONES },
+};
 const round = (x, n = 5) => Math.round(x * 10 ** n) / 10 ** n;
 const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const len3 = (a) => Math.hypot(a[0], a[1], a[2]);

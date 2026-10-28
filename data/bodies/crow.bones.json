@@ -1,0 +1,33 @@
+{
+  "schema": "chain-bones/1",
+  "body": "crow",
+  "source": "Armagedom origin/main Web/public/assets/crow/original-crow.glb. The crow GLB carries the SAME 24-bone rat rig as the rat king (same names, same hierarchy, same rest positions to 3 decimals; the bird has no wing, leg-feather or beak bones, and shares the rat clips rat_idle, rat_walk, rat_run, rat_hit, rat_death, rat_bite, rat_bite_low). World rest position of every bone, from the GLB node JSON only (translations composed down the parents, no mesh read). Model units, before the model scale the game applies (data/bodies/crow.chain.json scale). The creature faces +z, stands on y = 0, its spine runs along z. Left is -x here.",
+  "units": "glb model units (metres before the game's model scale)",
+  "bbox_model_units": { "x": 0.146, "y": 0.124, "z": 0.464, "source": "extent of the bone points only, not the mesh (the crow mesh is wider than the rat king's in x: its wings are skinned to the chest and spine bones)" },
+  "bones": {
+    "root": { "parent": null, "pos": [0, 0.08, -0.05] },
+    "pelvis": { "parent": "root", "pos": [0, 0.092, -0.078] },
+    "leg_BL": { "parent": "pelvis", "pos": [-0.048, 0.103, -0.071] },
+    "shin_BL": { "parent": "leg_BL", "pos": [-0.073, 0.062, -0.104] },
+    "paw_BL": { "parent": "shin_BL", "pos": [-0.065, 0.018, -0.053] },
+    "leg_BR": { "parent": "pelvis", "pos": [0.048, 0.103, -0.071] },
+    "shin_BR": { "parent": "leg_BR", "pos": [0.073, 0.062, -0.104] },
+    "paw_BR": { "parent": "shin_BR", "pos": [0.065, 0.018, -0.053] },
+    "spine": { "parent": "pelvis", "pos": [0, 0.097, -0.028] },
+    "chest": { "parent": "spine", "pos": [0, 0.1, 0.024] },
+    "leg_FL": { "parent": "chest", "pos": [-0.041, 0.103, 0.047] },
+    "shin_FL": { "parent": "leg_FL", "pos": [-0.05, 0.062, 0.022] },
+    "paw_FL": { "parent": "shin_FL", "pos": [-0.055, 0.018, 0.082] },
+    "leg_FR": { "parent": "chest", "pos": [0.041, 0.103, 0.047] },
+    "shin_FR": { "parent": "leg_FR", "pos": [0.05, 0.062, 0.022] },
+    "paw_FR": { "parent": "shin_FR", "pos": [0.055, 0.018, 0.082] },
+    "neck": { "parent": "chest", "pos": [0, 0.112, 0.07] },
+    "head": { "parent": "neck", "pos": [0, 0.124, 0.105] },
+    "jaw": { "parent": "head", "pos": [0, 0.091, 0.127] },
+    "bite_tip": { "parent": "jaw", "pos": [0, 0.086, 0.186] },
+    "tail_1": { "parent": "pelvis", "pos": [0, 0.062, -0.125] },
+    "tail_2": { "parent": "tail_1", "pos": [0, 0.045, -0.173] },
+    "tail_3": { "parent": "tail_2", "pos": [0, 0.032, -0.226] },
+    "tail_4": { "parent": "tail_3", "pos": [0.008, 0.023, -0.278] }
+  }
+}
