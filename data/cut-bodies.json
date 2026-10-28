@@ -90,6 +90,14 @@
       "note": "V3 boss Pumpkinhulk, Frankendom-v3 PR 224 head bbcf39c (1,514,336 bytes, sha256 42c32d30...e8b3, 9,648 tris, 106 joints); default planes, no hair material; the limb-loss row loadLimbLoss('pumpkinhulk') takes arm_left and arm_right as piece_hostile units"
     },
     {
+      "name": "parasite-106",
+      "source": "parasite-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/parasite-106.measure.json",
+      "expect_sha256": "de0b245c479ac24c85bd11b6619285b319076925b60ebb969c052e007e547ad7",
+      "note": "V3 boss Parasite (The Titan's Envoy), Frankendom-v3 PR 226 head 017f932 (src/assets/parasite-106.glb, 2,009,476 bytes, sha256 e3014ea7...ee1f, 10,930 tris, 106 joints, stem parasite; confidential source, not committed). OpenTrident Dev capped 66 open edges (throat ring + 2 jaw holes) in the source; all 8 checks pass with no bypass. The source keeps native boundary edges that the cut leaves alone: OpenTrident counted 410 (eye loops); the validator counts 438 on the source surface and 442 on the pieces (head 296, upper torso 50, root 38, legs 29 + 29), none introduced by a cut and none crossing a cut plane. Capping them would cover the eyeballs. Default planes, no hair material; 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; cut GLB 2,848,452 bytes, 1,943,703 gzipped."
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",
