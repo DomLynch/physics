@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Document, NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, KHRMeshQuantization } from "@gltf-transform/extensions";
-import { cutGlb, decompressGlb, weldReport, triangulateLoops, REGIONS, CAPS } from "../tools/cut-units.mjs";
+import { cutGlb, decompressGlb, weldReport, triangulateLoops, buildPlanes, REGIONS, CAPS } from "../tools/cut-units.mjs";
 import { validate } from "../tools/cut-validate.mjs";
 
 const rigMap = JSON.parse(readFileSync(new URL("../data/rig-maps/mixamo-106.json", import.meta.url), "utf8"));
@@ -780,3 +780,41 @@ test("rig map entries: a node that does not exist, a malformed object and a non-
   await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ Hips: { node: "mixamorig:Hips", along_local_y_m: 0 } }), {}), /Hips.*skin joint/);
   await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ Spine: "mixamorig:Spine1" }), {}), /Spine.*skin joint/);
 });
+
+// ---------------------------------------------------------------- hip_split when the thighs are parallel
+// The hip bisector's normal is the difference of the two hip-plane normals. Parallel thighs (a body that stands with its legs straight down, no
+// crotch apex found) make that difference a few thousandths and its direction whatever the thighs' tiny tilt asymmetry says (Big Vegas: front to
+// back, not left to right), and its scaled distance swallowed vertices into the 0.1 mm snap band 70 times wider than 0.1 mm.
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const hipJoints = (kneeLeft, kneeRight, hipHalf = 0.188) => ({
+  Hips: [0, 1.0, 0], Spine: [0, 1.07, 0.04], Neck: [0, 1.49, -0.04], Head: [0, 1.6, -0.05],
+  LeftArm: [0.41, 1.4, -0.14], LeftForeArm: [0.6, 1.4, -0.14], RightArm: [-0.41, 1.4, -0.14], RightForeArm: [-0.6, 1.4, -0.14],
+  LeftUpLeg: [hipHalf, 0.906, 0], LeftLeg: kneeLeft, RightUpLeg: [-hipHalf, 0.906, 0], RightLeg: kneeRight,
+});
+test("hip_split with parallel thighs: the plane is the midline, left to right, whatever the tiny tilt of each thigh is", () => {
+  const tilts = [[0.0, 0.0], [0.0866, 0.1003], [0.1003, 0.0866], [0.02, 0.0], [0.0, 0.03]];
+  for (const [zl, zr] of tilts) {
+    const fns = buildPlanes(hipJoints([0.188, 0.45, zl * 0.45], [-0.188, 0.45, zr * 0.45]));
+    const s = fns.hip_split;
+    assert.ok(Math.abs(s.n[0]) > 0.999, "normal runs left to right, got " + s.n.map((x) => x.toFixed(4)));
+    assert.ok(s.n[0] > 0, "positive side is the left leg's");
+    assert.ok(Math.abs(Math.hypot(...s.n) - 1) < 1e-9);
+    for (const z of [-0.3, 0, 0.3]) for (const y of [0.3, 0.6, 0.85]) assert.ok(Math.abs(s.d([0, y, z])) < 1e-9, "the midline is on the plane at y " + y + " z " + z);
+    assert.ok(Math.abs(s.d([0.05, 0.6, 0.1]) - 0.05) < 1e-9, "the distance is metres from the plane: 5 cm to the left is 0.05");
+    assert.ok(Math.abs(s.d([-0.07, 0.6, -0.1]) + 0.07) < 1e-9);
+    assert.ok(Math.abs(dot3(s.n, s.point) - s.c) < 1e-12, "stored normal, point and offset agree with the function");
+  }
+});
+test("hip_split with parallel thighs: nearly the same plane for tilts a milliradian apart (no noise)", () => {
+  const a = buildPlanes(hipJoints([0.188, 0.45, 0.039], [-0.188, 0.45, 0.045])).hip_split;
+  const b = buildPlanes(hipJoints([0.188, 0.45, 0.0391], [-0.188, 0.45, 0.0449])).hip_split;
+  assert.ok(vlenOf(a.n.map((x, i) => x - b.n[i])) < 1e-3);
+  assert.ok(vlenOf(a.point.map((x, i) => x - b.point[i])) < 1e-9);
+});
+test("hip_split with apart thighs keeps the bisector of the two hip planes exactly (shipped bodies cut as before)", () => {
+  const fns = buildPlanes(hipJoints([0.45, 0.45, 0], [-0.45, 0.45, 0]));
+  const s = fns.hip_split;
+  for (const p of [[0.1, 0.5, 0.02], [-0.2, 0.3, 0.1], [0, 0.7, -0.05]]) assert.equal(s.d(p), fns.hip_left.d(p) - fns.hip_right.d(p));
+  assert.ok(s.n[0] > 0.999);
+});
+const vlenOf = (v) => Math.hypot(...v);
