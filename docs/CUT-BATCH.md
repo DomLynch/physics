@@ -52,7 +52,7 @@ Both Minotaur-106 and Psyche-106 regenerate byte-identical (sha256 below; `cmp` 
 | body | rig | result | structure | watertight | orientation | weights | bone_side | caps | conservation | planes | sha256 of the cut GLB |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | minotaur-106 | mixamo-106 | **PASS** | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | e409cd5088b773a580ba714f419c48190931af23fe77a428981f7b80d7ad45d7 |
-| psyche-106 | mixamo-106 | **PASS** | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | b684b455188cad8e2e46742ea16b40faa6357d1b260fb427bdf61fe1d7798477 |
+| psyche-106 | mixamo-106 | **PASS** | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 204e7674e4e3118fee3ea768a8306505a8d96240946b0b3fec36d3abbe61690e (re-pinned 2026-10-28, see below; was b684b455) |
 | minotaur-65 | v1-65 | **PASS** | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 870db2c4c4152ff0b07c62d73622b00118a2c689f626b22743b6f2ff3056e9a7 |
 | psyche-65 | v1-65 | **PASS** | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 38c046e61b0bddbaa5519fef4f50a9c816c5ed67f6972f732393bbd3d37aef9b |
 | warrior-65 | v1-65 | **BLOCKED** | PASS | FAIL | PASS | PASS | PASS | PASS | PASS | PASS | 895b5289c3419a1038168d340c0b42d5d06a11b193a5a7137ea4de6273fac0d7 |
@@ -120,6 +120,10 @@ Kachujin needs both parts: the accessories alone leave the planes violation, `pl
 | the-boss-106 (V3 #232, 9d5a66b, the same GLB the row was blocked on) | 5 of 8 (watertight, orientation, caps) | 5 of 8: the same three still fail (bone_side and planes pass, so the mode is consistent on this body too); the row's cause, the jacket hem over the trouser waistband, is a source layering problem the shoulder plane does not fix; the row stays blocked | 39.3 / 36.9 degrees |
 
 Byte-identical proof (VPS, origin/main 3625aa0 code against this change, same row file and sources): the ten shipped rows whose sources are on the box (minotaur, psyche, gargantua, arachne, brute, hunter-pitborn, pumpkinhulk, anime-boy-black, kachujin, castle-guard) give 20 files, GLB and manifest, with equal sha256 before and after.
+
+## Psyche-106 re-pin to V3's own source (2026-10-28)
+
+The Psyche-106 row used to be pinned (b684b455) to a plain-source copy of unknown origin (sha256 e9f15ce7). It now cuts V3's own file: Frankendom-v3 commit 3e2a48c0 `src/assets/psyche-106.glb` (identical to V3 main), sha256 11c8e72da363f3b04e1d2d2bd5b68ffca00dfa9b2e759565b395b689057c8c74; the batch decompresses it (row is no longer `plain`) to e31c31c44a90a94941c2c4870a1ca78d4b0ef395be31a0fbaa77aff3d480a1fc. New cut sha256 204e7674e4e3118fee3ea768a8306505a8d96240946b0b3fec36d3abbe61690e. All 8 checks pass unmodified; same pieces (7 + 12 caps), triangles (58583) and 106-joint skin. Only the hair primitive (`Ch22_hair`, 9348 vertices, 11109 triangles) differs: V3's hair is head-sized (y 1.54 to 1.75 m), the old copy's spread x +-0.61, y 0.17 to 1.56, z to 0.90. The cut tool, the validator and the other rows are unchanged.
 
 ## Tests
 

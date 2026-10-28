@@ -14,12 +14,11 @@
     },
     {
       "name": "psyche-106",
-      "source": "psyche-106.source-plain.glb",
-      "plain": true,
+      "source": "psyche-106.glb",
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/psyche-106.measure.json",
-      "expect_sha256": "b684b455188cad8e2e46742ea16b40faa6357d1b260fb427bdf61fe1d7798477",
-      "note": "published 2026-10-27 (hair-fix 3f3bfe6); hair goes whole to piece_head (plane_exempt); the cut must stay byte-identical"
+      "expect_sha256": "204e7674e4e3118fee3ea768a8306505a8d96240946b0b3fec36d3abbe61690e",
+      "note": "re-pinned 2026-10-28 to V3's own source: Frankendom-v3 commit 3e2a48c0 src/assets/psyche-106.glb (same bytes as V3 main), sha256 11c8e72da363f3b04e1d2d2bd5b68ffca00dfa9b2e759565b395b689057c8c74 (decompressed by the batch to e31c31c44a90a94941c2c4870a1ca78d4b0ef395be31a0fbaa77aff3d480a1fc); replaces the unknown-origin plain copy e9f15ce7 (cut b684b455); hair goes whole to piece_head (plane_exempt); the cut must stay byte-identical"
     },
     {
       "name": "gargantua-106",
