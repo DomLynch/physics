@@ -26,6 +26,20 @@
       "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
       "note": "chain-kind quadruped (data/bodies/salamander.chain.json, 13 capsules, about 3.6 m long, 282 kg placeholder mass); the scenario's arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
     },
+    {
+      "id": "rat_king_x7", "kind": "chain",
+      "bodies": ["rat-king", "rat-king", "rat-king", "rat-king", "rat-king", "rat-king", "rat-king"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
+      "note": "chain-kind rat rig (data/bodies/rat-king.chain.json, 13 capsules, about 0.9 m long at x3, 37 kg placeholder mass); the arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
+    },
+    {
+      "id": "crow_x7", "kind": "chain",
+      "bodies": ["crow", "crow", "crow", "crow", "crow", "crow", "crow"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
+      "note": "chain-kind rat rig (data/bodies/crow.chain.json, 13 capsules, about 1.2 m long at x4, 5.7 kg placeholder mass); same mapping as rat_king_x7"
+    },
     { "id": "rig65_mix", "bodies": ["minotaur", "psyche", "warrior", "veteran", "minotaur", "psyche", "warrior"], "note": "the four 65-joint V3 bodies, repeated to seven" }
   ],
   "scenarios": [

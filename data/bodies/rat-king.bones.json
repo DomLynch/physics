@@ -1,0 +1,33 @@
+{
+  "schema": "chain-bones/1",
+  "body": "rat-king",
+  "source": "Armagedom origin/main Web/public/assets/rat/rat-king.glb (24-bone rat rig: root > pelvis > spine > chest > neck > head > jaw > bite_tip; pelvis > tail_1..tail_4; pelvis > leg_B[LR] > shin > paw; chest > leg_F[LR] > shin > paw). World rest position of every bone, from the GLB node JSON only (translations composed down the parents, no mesh read; the armature and root nodes carry no rotation or scale). Model units, before the model scale the game applies (data/bodies/rat-king.chain.json scale). The creature faces +z, stands on y = 0, its spine runs along z. Left is -x here (leg_BL x -0.048).",
+  "units": "glb model units (metres before the game's model scale)",
+  "bbox_model_units": { "x": 0.146, "y": 0.124, "z": 0.464, "source": "extent of the bone points only (paw_BL to bite_tip and tail_4), not the mesh" },
+  "bones": {
+    "root": { "parent": null, "pos": [0, 0.08, -0.05] },
+    "pelvis": { "parent": "root", "pos": [0, 0.092, -0.078] },
+    "leg_BL": { "parent": "pelvis", "pos": [-0.048, 0.103, -0.071] },
+    "shin_BL": { "parent": "leg_BL", "pos": [-0.073, 0.062, -0.104] },
+    "paw_BL": { "parent": "shin_BL", "pos": [-0.065, 0.018, -0.053] },
+    "leg_BR": { "parent": "pelvis", "pos": [0.048, 0.103, -0.071] },
+    "shin_BR": { "parent": "leg_BR", "pos": [0.073, 0.062, -0.104] },
+    "paw_BR": { "parent": "shin_BR", "pos": [0.065, 0.018, -0.053] },
+    "spine": { "parent": "pelvis", "pos": [0, 0.097, -0.028] },
+    "chest": { "parent": "spine", "pos": [0, 0.1, 0.024] },
+    "leg_FL": { "parent": "chest", "pos": [-0.041, 0.103, 0.047] },
+    "shin_FL": { "parent": "leg_FL", "pos": [-0.05, 0.062, 0.022] },
+    "paw_FL": { "parent": "shin_FL", "pos": [-0.055, 0.018, 0.082] },
+    "leg_FR": { "parent": "chest", "pos": [0.041, 0.103, 0.047] },
+    "shin_FR": { "parent": "leg_FR", "pos": [0.05, 0.062, 0.022] },
+    "paw_FR": { "parent": "shin_FR", "pos": [0.055, 0.018, 0.082] },
+    "neck": { "parent": "chest", "pos": [0, 0.112, 0.07] },
+    "head": { "parent": "neck", "pos": [0, 0.124, 0.105] },
+    "jaw": { "parent": "head", "pos": [0, 0.091, 0.127] },
+    "bite_tip": { "parent": "jaw", "pos": [0, 0.086, 0.186] },
+    "tail_1": { "parent": "pelvis", "pos": [0, 0.062, -0.125] },
+    "tail_2": { "parent": "tail_1", "pos": [0, 0.045, -0.173] },
+    "tail_3": { "parent": "tail_2", "pos": [0, 0.032, -0.226] },
+    "tail_4": { "parent": "tail_3", "pos": [0.008, 0.023, -0.278] }
+  }
+}
