@@ -34,7 +34,11 @@ if (flag("update-baseline") && dry) console.error("--update-baseline ignored: it
 const host = opt("host", "root@49.12.7.18"), key = opt("key", `${homedir()}/.ssh/binance_futures_tool`), rdir = opt("results-dir", "/srv/dev-jobs/physics-nightly-results");
 const fromDir = opt("from-dir"), baseDir = opt("baseline-dir"), branch = opt("baseline-branch", "bench-results");
 const ssh = (cmd) => execFileSync("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-i", key, host, cmd], { encoding: "utf8", maxBuffer: 1 << 26 });
-const gh = (a, input) => execFileSync("gh", a, { encoding: "utf8", input, maxBuffer: 1 << 26, stdio: ["pipe", "pipe", "pipe"] });
+// EPIPE on the body is harmless only when gh then exited 0 (it had what it needed and closed stdin early); any other error, or a non-zero exit, is a real failure and is rethrown
+const gh = (a, input) => {
+  try { return execFileSync("gh", a, { encoding: "utf8", input, maxBuffer: 1 << 26, stdio: ["pipe", "pipe", "pipe"] }); }
+  catch (e) { if (e.code === "EPIPE" && e.status === 0) return e.stdout ?? ""; throw e; }
+};
 
 // latest <date>-<target>.json; the date prefix sorts, and the target name must match exactly after it
 function latestName(target, names) {
