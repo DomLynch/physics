@@ -1,0 +1,121 @@
+{
+ "id": "mh-gen-v2-0020",
+ "source": "npc-quest-marrow.glb (ARMAGEDOM PR 452) bind pose via mixamo-106.json",
+ "height_source": "skinned mesh bounds at the bind pose (meshopt decoded, joint x inverse bind applied), 1.6582 m; the joint-tree guess (head joint + 1.9 x neck span) read 1.4562 m",
+ "height_m": 1.6582,
+ "neck_len": 0.0419,
+ "torso_len": 0.4029,
+ "shoulder_w": 0.3158,
+ "upper_arm_len": 0.2287,
+ "forearm_len": 0.2263,
+ "thigh_len": 0.3308,
+ "shin_len": 0.4574,
+ "foot_len": 0.1482,
+ "chest_w": 0.3218,
+ "waist_w": 0.2969,
+ "hip_w": 0.3923,
+ "chest_d": 0.251,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0.002,
+   0.8704,
+   0.0165
+  ],
+  "Spine": [
+   0,
+   0.9544,
+   0.0276
+  ],
+  "Spine1": [
+   0,
+   1.0528,
+   0.0132
+  ],
+  "Spine2": [
+   0,
+   1.1604,
+   -0.0427
+  ],
+  "Neck": [
+   0,
+   1.3573,
+   0.0286
+  ],
+  "Head": [
+   0.0005,
+   1.3914,
+   0.053
+  ],
+  "LeftArm": [
+   0.1579,
+   1.2561,
+   0.0282
+  ],
+  "LeftForeArm": [
+   0.3129,
+   1.0882,
+   0.0382
+  ],
+  "LeftHand": [
+   0.4292,
+   0.9798,
+   0.1993
+  ],
+  "RightArm": [
+   -0.1579,
+   1.2561,
+   0.0282
+  ],
+  "RightForeArm": [
+   -0.3129,
+   1.0882,
+   0.0382
+  ],
+  "RightHand": [
+   -0.4292,
+   0.9798,
+   0.1993
+  ],
+  "LeftUpLeg": [
+   0.1143,
+   0.8206,
+   -0.0047
+  ],
+  "LeftLeg": [
+   0.1492,
+   0.4931,
+   0.0263
+  ],
+  "LeftFoot": [
+   0.1778,
+   0.0373,
+   0.0004
+  ],
+  "LeftToeBase": [
+   0.174,
+   0,
+   0.1438
+  ],
+  "RightUpLeg": [
+   -0.1143,
+   0.8206,
+   -0.0047
+  ],
+  "RightLeg": [
+   -0.1492,
+   0.4931,
+   0.0263
+  ],
+  "RightFoot": [
+   -0.1778,
+   0.0373,
+   0.0004
+  ],
+  "RightToeBase": [
+   -0.174,
+   0,
+   0.1438
+  ]
+ }
+}
