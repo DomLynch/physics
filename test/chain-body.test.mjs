@@ -145,12 +145,13 @@ test("kill with a hit impulse: the salamander falls, settles and freezes on the 
   for (let t = 0; t < 30; t++) p.step(1 / 60);
   const hipsY0 = rd.readPose()[1];
   rd.kill({ part: "chest", impulse: [0, 0, 300] });
+  // 0.1 m, was 0.15: with the game-measured hind legs (radius 0.36 m) the dead salamander rests on its hind lowers and the hips settle 0.135 m lower, not 0.4 m
   let sawFall = false;
-  for (let t = 0; t < 900; t++) { p.step(1 / 60); if (rd.readPose()[1] < hipsY0 - 0.15) sawFall = true; }
+  for (let t = 0; t < 900; t++) { p.step(1 / 60); if (rd.readPose()[1] < hipsY0 - 0.1) sawFall = true; }
   const pose = rd.readPose();
   for (const v of pose) assert.ok(Number.isFinite(v), "NaN or Infinity in the pose");
   assert.ok(sawFall, `hips never dropped (start ${hipsY0})`);
-  assert.ok(pose[1] < hipsY0 - 0.15, `hips at ${pose[1]} m, start ${hipsY0} m`);
+  assert.ok(pose[1] < hipsY0 - 0.1, `hips at ${pose[1]} m, start ${hipsY0} m`);
   let maxSpeed = 0, minY = Infinity;
   for (let i = 0; i < 13; i++) { maxSpeed = Math.max(maxSpeed, Math.hypot(pose[i * 10 + 7], pose[i * 10 + 8], pose[i * 10 + 9])); minY = Math.min(minY, pose[i * 10 + 1]); }
   assert.ok(maxSpeed < 0.2, `still moving at ${maxSpeed} m/s after 15 s`);
