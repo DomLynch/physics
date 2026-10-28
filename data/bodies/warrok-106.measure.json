@@ -1,0 +1,120 @@
+{
+ "id": "warrok-106",
+ "source": "warrok-106.glb bind pose via mixamo-106.json",
+ "height_m": 2.2177,
+ "neck_len": 0.2138,
+ "torso_len": 0.7012,
+ "shoulder_w": 0.7274,
+ "upper_arm_len": 0.493,
+ "forearm_len": 0.316,
+ "thigh_len": 0.3828,
+ "shin_len": 0.3269,
+ "foot_len": 0.271,
+ "chest_w": 0.7412,
+ "waist_w": 0.6838,
+ "hip_w": 0.683,
+ "chest_d": 0.5782,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9684,
+   0.0307
+  ],
+  "Spine": [
+   0,
+   1.1063,
+   0.0314
+  ],
+  "Spine1": [
+   0,
+   1.2264,
+   0.0354
+  ],
+  "Spine2": [
+   0,
+   1.4045,
+   0.0397
+  ],
+  "Neck": [
+   0,
+   1.7957,
+   0.1595
+  ],
+  "Head": [
+   0,
+   1.9412,
+   0.3162
+  ],
+  "LeftArm": [
+   0.3637,
+   1.7084,
+   0.0697
+  ],
+  "LeftForeArm": [
+   0.8567,
+   1.7084,
+   0.0697
+  ],
+  "LeftHand": [
+   1.1727,
+   1.7084,
+   0.0752
+  ],
+  "RightArm": [
+   -0.3637,
+   1.7084,
+   0.0697
+  ],
+  "RightForeArm": [
+   -0.8567,
+   1.7084,
+   0.0697
+  ],
+  "RightHand": [
+   -1.1727,
+   1.7084,
+   0.0752
+  ],
+  "LeftUpLeg": [
+   0.199,
+   0.8896,
+   -0.0036
+  ],
+  "LeftLeg": [
+   0.199,
+   0.5235,
+   0.1084
+  ],
+  "LeftFoot": [
+   0.199,
+   0.2256,
+   -0.0262
+  ],
+  "LeftToeBase": [
+   0.199,
+   0,
+   0.1239
+  ],
+  "RightUpLeg": [
+   -0.199,
+   0.8896,
+   -0.0036
+  ],
+  "RightLeg": [
+   -0.199,
+   0.5235,
+   0.1084
+  ],
+  "RightFoot": [
+   -0.199,
+   0.2256,
+   -0.0262
+  ],
+  "RightToeBase": [
+   -0.199,
+   0,
+   0.1239
+  ]
+ }
+}

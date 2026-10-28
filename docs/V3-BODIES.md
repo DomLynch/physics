@@ -14,4 +14,17 @@ Measured length / ragdoll capsule length (m), from `test/bodies.test.mjs` (limit
 | warrior | 1.7357 | 0.2768 / 0.2768 | 0.2787 / 0.2787 | 0.4168 / 0.41683 | 0.3928 / 0.39282 | 0.0852 / 0.0852 | 45.23 |
 | veteran (Centurion) | 1.6834 | 0.226 / 0.22602 | 0.2192 / 0.21922 | 0.4159 / 0.4159 | 0.445 / 0.44501 | 0.0804 / 0.08045 | 46.34 |
 
+## 106-joint boss bodies (Frankendom-v3 `src/assets/<name>-106.glb`, rig map `data/rig-maps/mixamo-106.json`)
+
+Demon (PR 182, head 4e32b08), Warrok (PR 183, head 0aee9ea), Brute (PR 184, head 20dcf39), Maw (PR 185, head 54d6706). Rows in `data/bodies/<name>-106.measure.json`; cut rows in `data/cut-bodies.json` (`docs/CUT-BATCH.md`).
+
+| body | height | ragdoll mass (kg) | cut result |
+|---|---|---|---|
+| demon-106 | 2.1028 | 83.63 | BLOCKED (watertight, orientation, planes) |
+| warrok-106 | 2.2177 | 140 | BLOCKED (watertight, caps) |
+| brute-106 | 2.0916 | 87.54 | PASS |
+| maw-106 | 1.901 | 117.66 | BLOCKED (watertight, planes) |
+
+Known gap, same as above: the widths are proportions of the reference body, not mesh girths, so these masses are estimates (Warrok sits at the 140 kg clamp).
+
 **Known gaps:** the masses (32 to 46 kg) are low for fighters of this height because the widths are proportions, not mesh girths; the heights assume the head reaches 1.9 times the neck-to-head joint span above the head joint. Both should be replaced by measures from the skinned mesh when V3 or OpenTrident has them (OpenTrident owns measure rows). Mesh node scale (the GLBs carry a 0.9 / 0.97 scale on the mesh node) is not applied.

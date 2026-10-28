@@ -39,6 +39,41 @@
       "note": "V3 boss Arachne, Frankendom-v3 PR 181 head a7cf086 (slim woman; the GLB carries only the body, eyes, lashes, face and hair, the shield and axe are runtime sockets); five meshes on five skins with five dequantisation matrices (cut-units.mjs now uses one per skin); hair goes whole to piece_head (plane_exempt). neck_frac 0.2: at the default 0.5 the neck plane runs along the seam between the body mesh and the face mesh and leaves 42 unclosed cap edges (24 open chains) each side; 0.2 and 0.8 both close (0.35 and 0.65 do not)."
     },
     {
+      "name": "demon-106",
+      "source": "demon-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/demon-106.measure.json",
+      "blocked_checks": ["watertight", "orientation", "planes"],
+      "blocked": "one skinned mesh (Steel, material Demon_MAT, 9,340 vertices, no hair material) whose shell is not closed where the cut planes pass: 756 open source edges, and the section loops at the shoulder planes (x = +-0.261) and the crotch plane (x = 0, hip_split) do not close, so 586 cap-loop edges stay open (84 root, 132 torso, 87 + 45 arms, 106 + 106 legs). The thigh pieces also get 11 flipped-winding edges each on the crotch plane (orientation) and 1 root vertex lands 0.0001 m on the wrong side of the hip_right plane (planes). A sweep of neck_frac {0.5, 0.2, 0.8} x waist_frac {1, 0.8, 0.6} x shoulder_frac {0, 0.1, 0.2} x hip_frac {0, 0.1, 0.2} (81 cuts), home_min_weight {0.1, 0.35, 0.5} and crotch_planes false gave no PASS (crotch_planes false leaves leg_left with no triangles). The mesh is one primitive with one material, so there is no sub-mesh to drop or hand to the head. Needs a closed (or hand-capped) shell at the shoulders and between the legs in the source.",
+      "note": "V3 boss Demon, Frankendom-v3 PR 182 head 4e32b08"
+    },
+    {
+      "name": "warrok-106",
+      "source": "warrok-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/warrok-106.measure.json",
+      "blocked_checks": ["watertight", "caps"],
+      "blocked": "one skinned mesh (Steel, material warrok_MAT, 7,568 vertices, no hair material) with open geometry on the back (z about -0.26) where the waist, hip_right, hip_left and crotch (hip_split) planes pass: 272 open source edges and 12 non-manifold ones, 49 open section chains, 7 forced ears, so 145 cap-loop edges stay open (40 root, 16 torso, 39 + 47 legs), and cap_shoulder_right_arm has winding that disagrees with its normals on 18 of 186 triangles (caps). A sweep of neck_frac {0.5, 0.2, 0.8} x waist_frac {1, 0.8, 0.6} x shoulder_frac {0, 0.1, 0.2} x hip_frac {0, 0.1, 0.2} (81 cuts), home_min_weight {0.1, 0.35, 0.5} and crotch_planes false gave no PASS (crotch_planes false leaves leg_left with no triangles). The mesh is one primitive with one material, so there is no sub-mesh to drop. Needs a closed (or hand-capped) back and right shoulder in the source.",
+      "note": "V3 boss Warrok, Frankendom-v3 PR 183 head 0aee9ea"
+    },
+    {
+      "name": "brute-106",
+      "source": "brute-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/brute-106.measure.json",
+      "expect_sha256": "6cb36078bf6380626959eaf7e05ade1a63809c56316966696350c7abccaa9ad5",
+      "note": "V3 boss Brute, Frankendom-v3 PR 184 head 20dcf39; hair and lashes (MaleBruteA_Hair6, Lashes_MAT4) go whole to piece_head (plane_exempt), default planes"
+    },
+    {
+      "name": "maw-106",
+      "source": "maw-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/maw-106.measure.json",
+      "blocked_checks": ["watertight", "planes"],
+      "blocked": "one skinned mesh (Steel, material MAW_MAT, 9,914 vertices, no hair material) whose shell is not closed at the hips and waist: 812 open source edges, the section loops at the hip planes (front, z about +0.20, y about 0.90) and the waist plane (back, z about -0.2) do not close, so 421 cap-loop edges stay open (195 root, 93 torso, 73 + 57 legs) plus 2 + 2 over-used edges in the right arm and right leg (watertight), and 2 root vertices land 0.0001 m on the wrong side of the waist and hip_left planes (planes). A sweep of neck_frac {0.5, 0.2, 0.8} x waist_frac {1, 0.8, 0.6} x shoulder_frac {0, 0.1, 0.2} x hip_frac {0, 0.1, 0.2} (81 cuts), home_min_weight {0.1, 0.35, 0.5} and crotch_planes false gave no PASS (crotch_planes false leaves leg_left with no triangles). The mesh is one primitive with one material, so there is no sub-mesh to drop. Needs a closed (or hand-capped) shell at the hips and waist in the source.",
+      "note": "V3 boss Maw, Frankendom-v3 PR 185 head 54d6706"
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",
