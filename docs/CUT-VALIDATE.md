@@ -23,7 +23,9 @@ A source mesh can have open edges (hair cards, a hairline slit), and a cut that 
 
 `watertight` and `orientation` **pass when no defect was introduced** and report the native count (`every piece with its caps is closed except N edge(s) native to the source (...); none introduced`; the table shows per piece `open edges (n native)`). They fail on introduced defects, and the details list those only. Without `--source` there is nothing to be native to, so every defect counts as introduced (the strict behaviour). Nothing else is relaxed: a hole the cut made in a closed surface, a cap that leaves a cut open, or a flipped cap fail as before.
 
-## plane_exempt (hair on the head piece)
+## plane_exempt (hair on the head piece; rigid accessory layers)
+
+Rigid accessory layers (`docs/CUT-BATCH.md`, row `overrides.rigid_accessory_materials`) use this same declaration on whichever piece holds them, with no change to the validator: the exempt materials are the accessory's own (a layer that shares its material with the body shell is given a copy named `<material>.rigid`, so the exemption never reaches the shell). The body shell is checked in full.
 
 The manifest may carry `plane_exempt: { "piece_head": ["<material>", ...] }` and a non-empty `plane_exempt_reason` (Physics Dev ruling, `docs/CUT-CONTRACT.md`: hair goes whole to the head, re-bound to the Head bone, and hangs below the neck plane). The validator honours it for the **`planes` check only**: vertices of a primitive with a listed material are not tested against the planes. It also leaves them out of the piece centroid that the `caps` outward test uses (hair hanging below the cap would otherwise drag the head's centroid under its own neck cap). Everything else applies to those vertices: `weights`, `bone_side` (a Head-only binding is on the head's side; a weight on Neck is not), `watertight`, `orientation`, `caps` and `conservation`. `structure` rejects a `plane_exempt` with no reason, a piece that is not a `piece_*` mesh, or a material the piece does not use. The planes line says how many vertices were not checked.
 

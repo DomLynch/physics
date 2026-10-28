@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { basename, dirname, join, resolve, isAbsolute, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { cutGlb, decompressGlb } from "./cut-units.mjs";
+import { cutGlb, decompressGlb, rigidAccessorySpecs } from "./cut-units.mjs";
 import { validate } from "./cut-validate.mjs";
 import { sha256HexBytes } from "../src/sha256.mjs";
 
@@ -18,7 +18,7 @@ const ROOT = resolve(HERE, "..");
 export const SCHEMA = "cut-bodies/1";
 // the row keys a body may carry (anything else is refused: a typo in a row must not silently cut with defaults)
 const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "expect_sha256", "blocked", "blocked_checks", "note"]);
-const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open"]);
+const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open", "rigid_accessory_materials", "plane_snap_m"]);
 const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac"]);
 
 // Reads and checks a body-row file. `defaults` fills every body's missing keys (rig_map, overrides merge one level deep).
@@ -39,6 +39,8 @@ export function loadRows(path) {
     for (const [k, v] of Object.entries(ov.planes || {})) if (!isFrac(v)) throw new Error(`${where}: overrides.planes.${k} must be a number from 0 to 1, got ${JSON.stringify(v)}`);
     if (ov.home_min_weight !== undefined && !isFrac(ov.home_min_weight)) throw new Error(`${where}: overrides.home_min_weight must be a number from 0 to 1, got ${JSON.stringify(ov.home_min_weight)}`);
     if (ov.hair_materials !== undefined && !(Array.isArray(ov.hair_materials) && ov.hair_materials.every((m) => typeof m === "string" && m))) throw new Error(`${where}: overrides.hair_materials must be a list of material names`);
+    if (ov.plane_snap_m !== undefined && !(typeof ov.plane_snap_m === "number" && ov.plane_snap_m > 0 && ov.plane_snap_m <= 1e-4)) throw new Error(`${where}: overrides.plane_snap_m must be a number from 0 (exclusive) to 0.0001 metres (the validator's plane tolerance), got ${JSON.stringify(ov.plane_snap_m)}`);
+    if (ov.rigid_accessory_materials !== undefined) { try { rigidAccessorySpecs(ov.rigid_accessory_materials); } catch (e) { throw new Error(`${where}: overrides.${e.message}`); } }
     if (ov.crotch_planes !== undefined && typeof ov.crotch_planes !== "boolean") throw new Error(`${where}: overrides.crotch_planes must be true or false, got ${JSON.stringify(ov.crotch_planes)}`);
     for (const k of ["head_split", "belly_open"]) if (ov[k] !== undefined && typeof ov[k] !== "boolean" && !(ov[k] && typeof ov[k] === "object" && !Array.isArray(ov[k]))) throw new Error(`${where}: overrides.${k} must be true, false or a row object`);
     for (const k of ["name", "source", "rig_map", "measure"]) if (typeof row[k] !== "string" || !row[k]) throw new Error(`${where}: needs ${k}`);
@@ -60,6 +62,8 @@ export function cutOpts(row, extra = {}) {
   const opts = { body: row.name, rig: basename(row.rig_map, ".json"), ...extra };
   if (o.planes) opts.planes = o.planes;
   if (o.hair_materials) opts.hairMaterials = o.hair_materials;
+  if (o.rigid_accessory_materials) opts.rigidAccessoryMaterials = o.rigid_accessory_materials;
+  if (o.plane_snap_m !== undefined) opts.planeSnap = o.plane_snap_m;
   if (o.home_min_weight !== undefined) opts.homeMinWeight = o.home_min_weight;
   if (o.crotch_planes === false) opts.crotchPlanes = false;
   if (o.head_split) opts.headSplit = o.head_split;

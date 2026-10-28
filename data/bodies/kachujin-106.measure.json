@@ -1,0 +1,120 @@
+{
+ "id": "kachujin-106",
+ "source": "kachujin-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.8958,
+ "neck_len": 0.0772,
+ "torso_len": 0.4397,
+ "shoulder_w": 0.3473,
+ "upper_arm_len": 0.2924,
+ "forearm_len": 0.2966,
+ "thigh_len": 0.4661,
+ "shin_len": 0.5048,
+ "foot_len": 0.1775,
+ "chest_w": 0.3539,
+ "waist_w": 0.3265,
+ "hip_w": 0.418,
+ "chest_d": 0.276,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0.0007,
+   1.1342,
+   0.0104
+  ],
+  "Spine": [
+   0.0007,
+   1.2438,
+   0.0098
+  ],
+  "Spine1": [
+   0.0007,
+   1.3701,
+   0.0055
+  ],
+  "Spine2": [
+   0.0007,
+   1.5169,
+   -0.0036
+  ],
+  "Neck": [
+   0.0004,
+   1.6789,
+   -0.0535
+  ],
+  "Head": [
+   0.0004,
+   1.7537,
+   -0.0345
+  ],
+  "LeftArm": [
+   0.1744,
+   1.6217,
+   -0.054
+  ],
+  "LeftForeArm": [
+   0.4668,
+   1.6217,
+   -0.054
+  ],
+  "LeftHand": [
+   0.7634,
+   1.6217,
+   -0.0488
+  ],
+  "RightArm": [
+   -0.1729,
+   1.6217,
+   -0.054
+  ],
+  "RightForeArm": [
+   -0.4653,
+   1.6217,
+   -0.054
+  ],
+  "RightHand": [
+   -0.7619,
+   1.6217,
+   -0.0488
+  ],
+  "LeftUpLeg": [
+   0.1218,
+   1.0736,
+   -0.0019
+  ],
+  "LeftLeg": [
+   0.1218,
+   0.6076,
+   0.0069
+  ],
+  "LeftFoot": [
+   0.1218,
+   0.1042,
+   -0.0308
+  ],
+  "LeftToeBase": [
+   0.1218,
+   0,
+   0.1129
+  ],
+  "RightUpLeg": [
+   -0.1218,
+   1.0736,
+   -0.0019
+  ],
+  "RightLeg": [
+   -0.1218,
+   0.6076,
+   0.0069
+  ],
+  "RightFoot": [
+   -0.1218,
+   0.1042,
+   -0.0308
+  ],
+  "RightToeBase": [
+   -0.1218,
+   0,
+   0.1129
+  ]
+ }
+}

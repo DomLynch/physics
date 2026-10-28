@@ -326,9 +326,33 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
   assert.deepEqual(o, { body: "a", rig: "v1-65", planes: { neck_frac: 0.4 }, hairMaterials: ["h"], homeMinWeight: 0.3, crotchPlanes: false, headSplit: true });
 });
 
+test("rows: overrides.rigid_accessory_materials is a list of names or {name, piece}, passed to the cut; a typo is refused", () => {
+  const dir = tmp();
+  const write = (o) => { const p = join(dir, "r.json"); writeFileSync(p, JSON.stringify(o)); return p; };
+  const ok = { name: "a", source: "a.glb", rig_map: "r.json", measure: "m.json" };
+  const withAcc = (v) => write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { rigid_accessory_materials: v } }] });
+  assert.equal(loadRows(withAcc(["skirt", { name: "sash", piece: "root" }])).bodies.length, 1);
+  assert.throws(() => loadRows(withAcc("skirt")), /rigid_accessory_materials must be a list/);
+  assert.throws(() => loadRows(withAcc([""])), /rigid_accessory_materials/);
+  assert.throws(() => loadRows(withAcc([{ name: "sash", piece: "tail" }])), /piece "tail"/);
+  assert.throws(() => loadRows(withAcc([{ name: "sash", extra: 1 }])), /unknown key extra/);
+  assert.equal(loadRows(withAcc([{ name: "m", piece: "leg_left", shells_inside: [[-1, 0, -1], [1, 1, 1]] }, { name: "m", shells_inside: [[-1, 1, -1], [1, 2, 1]] }])).bodies.length, 1);
+  assert.throws(() => loadRows(withAcc([{ name: "m", shells_inside: [[1, 0, 0], [0, 1, 1]] }])), /shells_inside must be a box/);
+  assert.throws(() => loadRows(withAcc([{ name: "m", shells_inside: [[0, 0, 0]] }])), /shells_inside must be a box/);
+  assert.throws(() => loadRows(withAcc([{ name: "m", shells_inside: [[0, 0, 0], [1, 1, 1]] }, { name: "m", shells_inside: [[0, 0, 0], [1, 1, 1]] }])), /twice with the same box/);
+  assert.deepEqual(cutOpts({ name: "a", rig_map: "data/rig-maps/mixamo-106.json", overrides: { rigid_accessory_materials: ["skirt"] } }), { body: "a", rig: "mixamo-106", rigidAccessoryMaterials: ["skirt"] });
+  assert.deepEqual(cutOpts({ name: "a", rig_map: "data/rig-maps/mixamo-106.json", overrides: {} }), { body: "a", rig: "mixamo-106" }, "no override, no option");
+  // plane_snap_m: the snap distance of vertices onto a plane, a per-body number in the row
+  const withSnap = (v) => write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { plane_snap_m: v } }] });
+  assert.equal(loadRows(withSnap(9e-5)).bodies.length, 1);
+  assert.equal(loadRows(withSnap(1e-4)).bodies.length, 1, "the validator's tolerance itself is the cap");
+  for (const bad of [0, -1e-5, 1.0001e-4, 5e-4, 0.01, "9e-5", null]) assert.throws(() => loadRows(withSnap(bad)), /plane_snap_m must be a number/, JSON.stringify(bad));
+  assert.deepEqual(cutOpts({ name: "a", rig_map: "data/rig-maps/mixamo-106.json", overrides: { plane_snap_m: 9e-5 } }), { body: "a", rig: "mixamo-106", planeSnap: 9e-5 });
+});
+
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "arachne-106", "big-vegas-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "arachne-106", "big-vegas-106", "brute-106", "castle-guard-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "kachujin-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "the-boss-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
