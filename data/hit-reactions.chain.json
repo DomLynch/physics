@@ -87,8 +87,8 @@
         {"zone":"tail","dir":"right","part":"tail_a","impulse_scale":1.44,"hold_s":0.6,"weights":{"hips":[0.51,0.25],"chest":[0.24,0.12],"head":[0.17,0.08],"tail_a":[0.79,-0.24],"tail_b":[0.37,-0.11],"leg_BL_up":[0.08,0],"leg_BL_low":[0.1,0],"leg_BR_up":[0.13,0],"leg_BR_low":[0.17,0],"leg_FR_up":[0.06,0],"leg_FR_low":[0.07,0]}}
       ]
     },
-    "spider": {
-      "bodies": ["spider"],
+    "roach_hexapod": {
+      "bodies": ["spider", "roach"],
       "zones": ["head","front_body","rear_body","legs"],
       "rows": [
         {"zone":"head","dir":"front","part":"head","impulse_scale":1.68,"hold_s":0.45,"weights":{"body":[0.15,0],"thorax":[0.47,0],"head":[1,0],"abdomen":[0.15,0],"leg0L_up":[0.15,0],"leg0L_low":[0.18,0],"leg0R_up":[0.15,0],"leg0R_low":[0.18,0],"leg1L":[0.08,0],"leg1R":[0.08,0]}},

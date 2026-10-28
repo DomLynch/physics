@@ -47,7 +47,7 @@ const body = loadChainBody("centipede"), rd = physics.createRagdoll(body.row);
 const r = chainRigOptions(body, (name) => gltf.scene.getObjectByName(name)); // optional 3rd arg { bindFind, bindRoot } for an untouched bind copy
 const rig = createThreeRig(THREE, rd, r.bones, fighterGroup, r.options);
 ```
-Errors at creation: a model without a bone the spec names, an unknown `virtual` or `follow` part id, a virtual root part, a virtual follow driver, a follower that is not an Object3D. Bodies with no virtual or follow entries (humanoid, salamander, spider) behave exactly as before; omitting `r.options` keeps the old "no bone for part X" error.
+Errors at creation: a model without a bone the spec names, an unknown `virtual` or `follow` part id, a virtual root part, a virtual follow driver, a follower that is not an Object3D. Bodies with no virtual or follow entries (humanoid, salamander, spider, roach) behave exactly as before; omitting `r.options` keeps the old "no bone for part X" error.
 
 ## Tracking a live clip, reset, snap, rows (asked for by V3 Dev)
 
@@ -105,7 +105,7 @@ const row = rows.find((r) => r.zone === "rear_body" && r.dir === "left");
 ```
 
 - Pick `zone` (`head`, `front_body`, `rear_body`, `legs`, `tail`; a body has only the zones its parts allow) from the part the blow hit, and `dir` (`front`, `back`, `left`, `right`) from the blow's x/z in the body frame (forward +z, left +x; `dir` is the side the blow comes FROM).
-- Bone maths: for each `partId` in `row.weights`, bone = `boneMap[partId]` (skip a virtual part), apply `class lean x bend` pitched along `impulse_dir` and `class twist x twist` as yaw about +y, additive on the clip, held `hold_s` with the class ease. Parts not listed take 0. Family rows are shared by bodies with the same part ids (quadruped: salamander, wolf, elephant; canine_rat: dog, rat-king; crow; spider; centipede; eel).
+- Bone maths: for each `partId` in `row.weights`, bone = `boneMap[partId]` (skip a virtual part), apply `class lean x bend` pitched along `impulse_dir` and `class twist x twist` as yaw about +y, additive on the clip, held `hold_s` with the class ease. Parts not listed take 0. Family rows are shared by bodies with the same part ids (quadruped: salamander, wolf, elephant; canine_rat: dog, rat-king; crow; roach_hexapod: spider, roach; centipede; eel).
 - Physics (optional, same blow): `rd.stagger({ part: row.part, impulse: row.impulse_dir x row.impulse_scale x power x partMass })`. Stagger hold is the global `states.json` 0.5 s; `hold_s` is for the bone-maths layer. A `rear_body` impulse hits the hips, which are the kinematic root while the ragdoll is alive (quadruped, canine_rat, crow, eel), so it has no physical effect until the body is released: for `rear_body` rows only the bone-maths layer and the motor dip react.
 - The file is a closed schema: `validateChainReactions(data)` returns error strings (unknown key, unknown part id, weight out of range, missing direction, a body in two families); `loadChainReactions` throws if the shipped file does not validate. The weights are start values from a geometry rule (falloff along the body from the struck part, near-side legs braced, tail whips opposite): retune on our clips.
 - The game must add: the lookup (zone from the hit part, dir from the blow), the bone-maths application above through `boneMap`, and the class power / ease / hold mapping it already has for the humanoid.

@@ -83,6 +83,13 @@
       "note": "chain-kind spider (data/bodies/spider.chain.json, 14 capsules, about 1.6 m long, 47 kg placeholder mass); the scenario's arm cut becomes a front-leg cut and the spine2 hit lands on the thorax; the multi-cut scenario is left out"
     },
     {
+      "id": "roach_x7", "kind": "chain",
+      "bodies": ["roach", "roach", "roach", "roach", "roach", "roach", "roach"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "leg_front_R" }, "part_map": { "spine2": "thorax" },
+      "note": "chain-kind roach (data/bodies/roach.chain.json, 14 capsules, about 1.3 m long, 31 kg placeholder mass; ARMAGEDOM original-roach, the spider's rig); the scenario's arm cut becomes a front-leg cut and the spine2 hit lands on the thorax; the multi-cut scenario is left out"
+    },
+    {
       "id": "centipede_x7", "kind": "chain",
       "bodies": ["centipede", "centipede", "centipede", "centipede", "centipede", "centipede", "centipede"],
       "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
