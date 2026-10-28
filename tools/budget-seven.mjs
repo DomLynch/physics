@@ -30,7 +30,7 @@ export async function runCell(rows, set, scenario, n, over = {}) {
   for (let t = 0; t < ticks; t++) {
     const t0 = performance.now();
     for (const c of scenario.cuts) if (c.tick === t) for (let k = 0; k < who; k++) if (rds[k].cut(unitOf(c.unit))) cuts++;
-    if (scenario.kill && scenario.kill.tick === t) for (const r of rds) r.kill({ part: partOf(scenario.kill.part), impulse: scenario.kill.impulse });
+    if (scenario.kill && scenario.kill.tick === t) for (const r of rds) r.kill({ part: partOf(scenario.kill.part), impulse: scenario.kill.impulse.map((x) => x * (set.impulse_scale ?? 1)) }); // set.impulse_scale: a 2 kg eel is not hit like a 140 kg boss
     if (!scenario.kill || t < scenario.kill.tick) for (const r of rds) r.setMotorStrength({ all: t % M.period_ticks < M.high_ticks ? M.high : M.low });
     physics.step(1 / 60);
     for (const r of rds) r.readPose();
