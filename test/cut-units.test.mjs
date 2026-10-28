@@ -10,6 +10,7 @@ import { Document, NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, KHRMeshQuantization } from "@gltf-transform/extensions";
 import { cutGlb, decompressGlb, weldReport, triangulateLoops, buildPlanes, REGIONS, CAPS } from "../tools/cut-units.mjs";
 import { validate } from "../tools/cut-validate.mjs";
+import { sha256HexBytes } from "../src/sha256.mjs";
 
 const rigMap = JSON.parse(readFileSync(new URL("../data/rig-maps/mixamo-106.json", import.meta.url), "utf8"));
 const FLOOR = 0.05; // the toes sit 5 cm above y = 0 in the synthetic GLB, like the real bodies sit above their measure row's floor
@@ -164,16 +165,22 @@ async function buildBody(variant = {}) {
   const armParts = [box([0.435, 1.4, 0], [0.315, 0.05, 0.05], 12, wArm("Left")), box([-0.435, 1.4, 0], [0.315, 0.05, 0.05], 12, wArm("Right"))]; // arms across the shoulder planes
   const lashParts = [box([0, 1.62, 0.12], [0.03, 0.005, 0.005], 2, wHead)];
   const hairParts = variant.hair ? [hairCard(0, 0.12, 0.6, 1.9, -0.12, 14, wSpine)] : []; // an open card from above the neck plane down across the waist and hip planes
+  // variant.skirt: a wide closed garment layer (a flared box, material skirt_mat, mesh Skirt_Geo) around the hips: across the waist plane and both hip planes,
+  // weighted to Hips and the upper legs, overlapping the body box and the leg boxes
+  const wSkirt = (p) => [["Hips", 0.6], [p[0] >= 0 ? "LeftUpLeg" : "RightUpLeg", 0.4]];
+  const skirtParts = variant.skirt ? [box([0, 1.0, 0], [0.22, 0.2, 0.16], 6, wSkirt)] : [];
   const skin = mkSkin(), skin2 = variant.quantLash ? mkSkin(ibm2) : mkSkin();
   const lashStored = variant.quantLash ? lashParts.map((m) => ({ ...m, pos: m.pos.map((p) => p.map((x, k) => (x - QUANT.T[k]) / QUANT.S)) })) : lashParts;
   const mesh = doc.createMesh("Body").addPrimitive(prim(bodyParts, matBody)).addPrimitive(prim(armParts, matHorn));
   if (hairParts.length) mesh.addPrimitive(prim(hairParts, doc.createMaterial("hair_cards")));
   scene.addChild(doc.createNode("Body").setMesh(mesh).setSkin(skin));
   scene.addChild(doc.createNode("Lashes").setMesh(doc.createMesh("Lashes").addPrimitive(prim(lashStored, matLash))).setSkin(skin2));
+  // variant.skirtShared: the skirt uses the body's own material (one atlas for the whole garment set), so only its shell can tell it apart
+  if (skirtParts.length) scene.addChild(doc.createNode("Skirt").setMesh(doc.createMesh("Skirt_Geo").addPrimitive(prim(skirtParts, variant.skirtShared ? matBody : doc.createMaterial("skirt_mat")))).setSkin(mkSkin()));
   if (variant.quantLash) doc.createExtension(KHRMeshQuantization).setRequired(true); // as in a gltfpack file: the tool only trusts per-skin matrices of a still-quantised source
   const bytes = await new NodeIO().registerExtensions(ALL_EXTENSIONS).writeBinary(doc);
   const row = { id: "synthetic", joints: Object.fromEntries(Object.keys(rigMap.joints).map((r) => [r, [W[r][0], W[r][1] - FLOOR, W[r][2]]])) };
-  return { bytes, row, source: { body: bodyParts, arm: armParts, lash: lashParts, hair: hairParts } };
+  return { bytes, row, source: { body: bodyParts, arm: armParts, lash: lashParts, hair: hairParts, skirt: skirtParts } };
 }
 const cut = async (b) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb" });
 
@@ -818,3 +825,136 @@ test("hip_split with apart thighs keeps the bisector of the two hip planes exact
   assert.ok(s.n[0] > 0.999);
 });
 const vlenOf = (v) => Math.hypot(...v);
+
+// ---------------------------------------------------------------- rigid accessory layers (row-level override; the validator is not touched)
+const cutWithAcc = (b, rigidAccessoryMaterials) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", rigidAccessoryMaterials });
+const failedChecks = (v) => v.checks.filter((c) => !c.ok).map((c) => c.name + ": " + c.details.slice(0, 3).join(" | "));
+const SKIRT_TRIS = 6 * 6 * 6 * 2, SKIRT_VERTS = 6 * 7 * 7; // 6 faces of 6 x 6 quads, per-face vertices
+
+test("rigid accessory: without the override a wide layer is cut at the planes into several pieces", async () => {
+  const b = await buildBody({ skirt: true });
+  const out = await readOut((await cut(b)).glb);
+  const holders = REGIONS.filter((R) => out.meshes[R.mesh].prims.some((p) => p.material === "skirt_mat"));
+  assert.ok(holders.length >= 2, "the skirt spans the waist and hip planes: " + holders.map((R) => R.id));
+  assert.ok(holders.map((R) => out.meshes[R.mesh].prims.find((p) => p.material === "skirt_mat").jj.length).reduce((s, x) => s + x, 0) > SKIRT_VERTS, "cut: vertices were added");
+});
+
+test("rigid accessory: a named material stays whole in one piece, bound rigidly to one bone of that piece, declared as plane_exempt", async () => {
+  const b = await buildBody({ skirt: true });
+  const r = await cutWithAcc(b, ["skirt_mat"]);
+  const out = await readOut(r.glb);
+  const m = r.manifest;
+  // whole: 432 triangles, 294 vertices (no vertex added), in exactly one piece; dominant weight is Hips (root) over the two upper legs
+  const holders = REGIONS.filter((R) => out.meshes[R.mesh].prims.some((p) => p.material === "skirt_mat"));
+  assert.deepEqual(holders.map((R) => R.id), ["root"]);
+  const sk = out.meshes.piece_root.prims.find((p) => p.material === "skirt_mat");
+  assert.equal(sk.indices.length / 3, SKIRT_TRIS);
+  assert.equal(sk.jj.length, SKIRT_VERTS);
+  const hips = out.joints.indexOf("Hips");
+  for (let i = 0; i < sk.jj.length; i++) { assert.equal(sk.jj[i][0], hips); assert.equal(sk.ww[i][0], 1); assert.equal(sk.ww[i][1] + sk.ww[i][2] + sk.ww[i][3], 0); }
+  let ymin = Infinity, ymax = -Infinity; for (let i = 1; i < sk.positions.length; i += 3) { ymin = Math.min(ymin, sk.positions[i]); ymax = Math.max(ymax, sk.positions[i]); }
+  assert.ok(ymin < 0.85 && ymax > 1.1, "still spans the planes: y " + ymin + " to " + ymax);
+  // declared: plane_exempt (merged with the lashes), a reason, and the accessory table
+  assert.deepEqual(m.plane_exempt, { piece_head: ["lash"], piece_root: ["skirt_mat"] });
+  assert.match(m.plane_exempt_reason, /accessor/);
+  assert.match(m.plane_exempt_reason, /hair/, "the hair reason is kept when hair is present");
+  assert.deepEqual(m.rigid_accessories, [{ name: "skirt_mat", mesh: "piece_root", materials: ["skirt_mat"], bone: "mixamorig:Hips", triangles: SKIRT_TRIS, vertices: SKIRT_VERTS }]);
+  assert.equal(m.stats.rigid_accessory_triangles, SKIRT_TRIS);
+  // the rest is cut as before: area conserved with the skirt in
+  const src = sourceArea([...b.source.body, ...b.source.arm, ...b.source.lash, ...b.source.skirt]);
+  let got = 0;
+  for (const R of REGIONS) for (const p of out.meshes[R.mesh].prims) got += areaOf(p.positions, p.indices);
+  assert.ok(Math.abs(got - src) / src < 1e-7, `area ${got} vs ${src}`);
+  // the validator, unchanged, passes all checks; the exemption is the existing plane_exempt, and without it the planes check fails (the skirt really crosses)
+  const v = validate(Buffer.from(r.glb), m, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset });
+  assert.deepEqual(failedChecks(v), []);
+  assert.match(v.checks.find((c) => c.name === "planes").summary, /piece_root/);
+  const bare = { ...m, plane_exempt: { piece_head: ["lash"] } };
+  assert.equal(validate(Buffer.from(r.glb), bare, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset }).checks.find((c) => c.name === "planes").ok, false);
+});
+
+test("rigid accessory: a mesh name works like a material name; the output bytes do not depend on which is used", async () => {
+  const b = await buildBody({ skirt: true });
+  const byMat = await cutWithAcc(b, ["skirt_mat"]), byMesh = await cutWithAcc(b, ["Skirt_Geo"]);
+  assert.equal(sha256HexBytes(byMesh.glb), sha256HexBytes(byMat.glb));
+  assert.deepEqual(byMesh.manifest.plane_exempt, byMat.manifest.plane_exempt);
+  assert.equal(byMesh.manifest.rigid_accessories[0].name, "Skirt_Geo");
+  assert.deepEqual(byMesh.manifest.rigid_accessories[0].materials, ["skirt_mat"]);
+});
+
+test("rigid accessory: the piece can be named in the row; the bone is then the heaviest one of that piece", async () => {
+  const b = await buildBody({ skirt: true });
+  const r = await cutWithAcc(b, [{ name: "skirt_mat", piece: "leg_left" }]);
+  const out = await readOut(r.glb);
+  assert.ok(out.meshes.piece_leg_left.prims.some((p) => p.material === "skirt_mat"));
+  assert.ok(!out.meshes.piece_root.prims.some((p) => p.material === "skirt_mat"));
+  const sk = out.meshes.piece_leg_left.prims.find((p) => p.material === "skirt_mat");
+  const up = out.joints.indexOf("LeftUpLeg");
+  for (let i = 0; i < sk.jj.length; i++) assert.equal(sk.jj[i][0], up);
+  assert.equal(r.manifest.rigid_accessories[0].bone, "mixamorig:LeftUpLeg");
+  assert.deepEqual(r.manifest.plane_exempt.piece_leg_left, ["skirt_mat"]);
+  const v = validate(Buffer.from(r.glb), r.manifest, { source: Buffer.from(b.bytes), planeOffset: r.manifest.plane_frame.bind_offset });
+  assert.deepEqual(failedChecks(v), []);
+});
+
+test("rigid accessory: a name that matches nothing, a hair material, a bad piece or a doubled name is refused", async () => {
+  const b = await buildBody({ skirt: true });
+  await assert.rejects(() => cutWithAcc(b, ["skirtt_mat"]), /rigid accessory "skirtt_mat" matches no material or mesh/);
+  await assert.rejects(() => cutWithAcc(b, ["lash"]), /rigid accessory "lash".*hair/);
+  await assert.rejects(() => cutWithAcc(b, [{ name: "skirt_mat", piece: "tail" }]), /piece "tail"/);
+  await assert.rejects(() => cutWithAcc(b, ["skirt_mat", "Skirt_Geo"]), /rigid accessory "Skirt_Geo".*already/);
+  await assert.rejects(() => cutWithAcc(b, "skirt_mat"), /list/);
+});
+
+const SKIRT_BOX = [[-0.23, 0.79, -0.17], [0.23, 1.21, 0.17]];
+test("rigid accessory: a shell that shares its material with the body is picked by shells_inside; only that shell is exempt", async () => {
+  const b = await buildBody({ skirt: true, skirtShared: true });
+  const r = await cutWithAcc(b, [{ name: "body", shells_inside: SKIRT_BOX }]);
+  const out = await readOut(r.glb);
+  const m = r.manifest;
+  // the skirt shell is whole in piece_root under a copy of the material; the body's own triangles keep their material and are cut as before
+  const sk = out.meshes.piece_root.prims.find((p) => p.material === "body.rigid");
+  assert.equal(sk.indices.length / 3, SKIRT_TRIS);
+  assert.equal(sk.jj.length, SKIRT_VERTS);
+  assert.ok(REGIONS.every((R) => out.meshes[R.mesh].prims.filter((p) => p.material === "body.rigid").length === (R.id === "root" ? 1 : 0)));
+  assert.ok(REGIONS.filter((R) => out.meshes[R.mesh].prims.some((p) => p.material === "body")).length >= 5, "the body material is still cut into the pieces");
+  assert.deepEqual(m.plane_exempt.piece_root, ["body.rigid"], "the exemption names the copy, not the body's material");
+  assert.deepEqual(m.rigid_accessories, [{ name: "body", shells_inside: SKIRT_BOX, mesh: "piece_root", materials: ["body.rigid"], bone: "mixamorig:Hips", triangles: SKIRT_TRIS, vertices: SKIRT_VERTS }]);
+  const v = validate(Buffer.from(r.glb), m, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset });
+  assert.deepEqual(failedChecks(v), []);
+  assert.match(v.checks.find((c) => c.name === "planes").summary, new RegExp(SKIRT_VERTS + " piece_root vertices \\(body\\.rigid\\)"), "exactly the skirt's vertices are not checked");
+  // the same cut with no box would have exempted the body material in piece_root: naming the whole material is a different (wider) declaration
+  const whole = await cutWithAcc(b, ["Skirt_Geo"]);
+  assert.deepEqual(whole.manifest.plane_exempt.piece_root, ["body.rigid"], "a whole mesh whose material the body shares gets the copy as well");
+  assert.equal(sha256HexBytes(whole.glb), sha256HexBytes(r.glb), "same shell, same bytes");
+});
+
+test("rigid accessory: shells_inside that holds no shell, a bad box and a whole-and-shell clash are refused", async () => {
+  const b = await buildBody({ skirt: true, skirtShared: true });
+  await assert.rejects(() => cutWithAcc(b, [{ name: "body", shells_inside: [[5, 5, 5], [6, 6, 6]] }]), /no shell of the match lies inside/);
+  await assert.rejects(() => cutWithAcc(b, [{ name: "body", shells_inside: [[0, 0, 0], [0, 1, 1]] }]), /shells_inside must be a box/);
+  await assert.rejects(() => cutWithAcc(b, ["Skirt_Geo", { name: "body", shells_inside: SKIRT_BOX }]), /already took whole/);
+});
+
+test("plane_snap: absent is the height-scaled default (same bytes), a bad value is refused, a wide snap really changes the cut", async () => {
+  const b = await buildBody();
+  const base = await cut(b);
+  const run1 = (planeSnap) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planeSnap });
+  assert.equal(sha256HexBytes((await run1(undefined)).glb), sha256HexBytes(base.glb));
+  for (const bad of [0, -1, 1.0001e-4, 0.01, "1e-4", null]) await assert.rejects(() => run1(bad), /plane_snap_m must be a number/, JSON.stringify(bad));
+  // the value reaches the cut: the synthetic body is 1.7 m tall, so its default snap is 5e-5 x 1.7; giving exactly that value is the default cut
+  const h = 1.75; // ymax - ymin of the synthetic GLB (the column's top at 1.75, the leg boxes' bottoms at 0)
+  assert.equal(sha256HexBytes((await run1(5e-5 * h)).glb), sha256HexBytes(base.glb));
+});
+
+test("rigid accessory: an empty list is the same cut as no option (shipped rows stay byte-identical)", async () => {
+  for (const variant of [{}, { hair: true }]) {
+    const b = await buildBody(variant);
+    const plain = await cut(b), none = await cutWithAcc(b, []), undef = await cutWithAcc(b, undefined);
+    assert.equal(sha256HexBytes(none.glb), sha256HexBytes(plain.glb));
+    assert.equal(sha256HexBytes(undef.glb), sha256HexBytes(plain.glb));
+    assert.equal(JSON.stringify(none.manifest), JSON.stringify(plain.manifest));
+    assert.equal(plain.manifest.rigid_accessories, undefined);
+    assert.equal(plain.manifest.stats.rigid_accessory_triangles, undefined);
+  }
+});

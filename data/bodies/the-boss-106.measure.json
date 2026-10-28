@@ -1,0 +1,120 @@
+{
+ "id": "the-boss-106",
+ "source": "the-boss-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.7367,
+ "neck_len": 0.0856,
+ "torso_len": 0.4415,
+ "shoulder_w": 0.3688,
+ "upper_arm_len": 0.2769,
+ "forearm_len": 0.2789,
+ "thigh_len": 0.4183,
+ "shin_len": 0.3895,
+ "foot_len": 0.152,
+ "chest_w": 0.3758,
+ "waist_w": 0.3467,
+ "hip_w": 0.3305,
+ "chest_d": 0.2931,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.964,
+   -0.0004
+  ],
+  "Spine": [
+   0,
+   1.0563,
+   0.0154
+  ],
+  "Spine1": [
+   0,
+   1.2189,
+   0.0138
+  ],
+  "Spine2": [
+   0,
+   1.3552,
+   0.0008
+  ],
+  "Neck": [
+   0,
+   1.494,
+   -0.0427
+  ],
+  "Head": [
+   0,
+   1.5777,
+   -0.0249
+  ],
+  "LeftArm": [
+   0.1844,
+   1.4463,
+   -0.0544
+  ],
+  "LeftForeArm": [
+   0.4613,
+   1.4463,
+   -0.0544
+  ],
+  "LeftHand": [
+   0.7402,
+   1.4463,
+   -0.0544
+  ],
+  "RightArm": [
+   -0.1844,
+   1.4463,
+   -0.0544
+  ],
+  "RightForeArm": [
+   -0.4613,
+   1.4463,
+   -0.0544
+  ],
+  "RightHand": [
+   -0.7402,
+   1.4463,
+   -0.0544
+  ],
+  "LeftUpLeg": [
+   0.0963,
+   0.9313,
+   -0.0004
+  ],
+  "LeftLeg": [
+   0.097,
+   0.513,
+   -0.0045
+  ],
+  "LeftFoot": [
+   0.0975,
+   0.1242,
+   -0.0272
+  ],
+  "LeftToeBase": [
+   0.093,
+   0,
+   0.0603
+  ],
+  "RightUpLeg": [
+   -0.0963,
+   0.9313,
+   -0.0004
+  ],
+  "RightLeg": [
+   -0.097,
+   0.513,
+   -0.0045
+  ],
+  "RightFoot": [
+   -0.0975,
+   0.1242,
+   -0.0272
+  ],
+  "RightToeBase": [
+   -0.093,
+   0,
+   0.0603
+  ]
+ }
+}

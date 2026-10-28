@@ -161,6 +161,45 @@
       "blocked_checks": ["watertight", "orientation"],
       "blocked": "nine skinned meshes on eight 65-joint skins, layered over one another (Photo, PhotoEyes, PhotoTeeth, Bone, Pitborn_L3_Armour, OriginalHead_Steel, OriginalHead_Wrap, Fitted joint sleeves, Recovered donor lower neck; 54,628 vertices, 2,769 open source edges): 2,371 open edges at the cuts, 9 pieces with open or over-used edges introduced by the cut (493 open edges on upper_torso and 400 on head at the neck plane, over-used edges on the root, both arms, both legs) and 5 pieces with flipped winding (142 root, 664 torso, 92 head, 194 + 366 arms). Caps, weights, bone_side, conservation and planes pass. A sweep of neck_frac {0.5, 0.2, 0.8} x waist_frac {1, 0.8, 0.6} x shoulder_frac {0, 0.2} (18 cuts), home_min_weight 0.5 and crotch_planes false gave no PASS (crotch_planes false leaves a region with no triangles). Needs the armour, sleeves and head layers merged into one closed (or hand-capped) shell at the neck, shoulders and hips in the source.",
       "note":"Armagedom player Hale (Web/public/assets/appearances/hale-pitborn.glb): 65-joint UE-style rig (v1-65)"
+    },
+    {
+      "name": "kachujin-106",
+      "source": "kachujin-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/kachujin-106.measure.json",
+      "expect_sha256": "ed1ce1d402dac0f63eb08a0a64e46d90d45cd199d1fdc65b22dc3e012f2d0357",
+      "overrides": {
+        "plane_snap_m": 9e-5,
+        "rigid_accessory_materials": [
+          { "name": "kachujin_MAT", "piece": "root", "shells_inside": [[-0.22, 1.12, -0.22], [0.22, 1.41, -0.08]] },
+          { "name": "kachujin_MAT", "piece": "root", "shells_inside": [[-0.22, 0.51, -0.13], [0.22, 1.25, 0.15]] },
+          { "name": "kachujin_MAT", "shells_inside": [[0.0, 0.67, -0.19], [0.27, 1.26, -0.08]] }
+        ]
+      },
+      "note": "V3 boss body, Frankendom-v3 PR #227 head 482c92d. One mesh, material kachujin_MAT, 27 shells. Three shells are rigid accessories (box = the shell's bounding box, GLB metres): the back sash (410 triangles, y 1.12 to 1.41), the thigh skirt (664, y 0.51 to 1.25) and the left ponytail (152, weighted to Head), the first two on piece_root / Hips, the third on piece_head / Head by its weights. Without them the shoulder, hip and waist planes cut the sash and skirt through the pelvis shell: 8 over-used edges and 21 flipped-winding edges. plane_snap_m 9e-5: the 2.07 m body's default snap (1.04e-4) is above the validator's 1e-4 plane tolerance and left one root vertex 0.00010 m on the wrong side of the waist plane."
+    },
+    {
+      "name": "castle-guard-106",
+      "source": "castle-guard-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/castle-guard-106.measure.json",
+      "expect_sha256": "ccbc64a54b33c22e8a2a7c94f2766834afb44e8da0d820d312b2a6745d02aad1",
+      "overrides": {
+        "rigid_accessory_materials": [
+          { "name": "Guard_02", "shells_inside": [[-0.46, 1.54, -0.23], [-0.1, 1.73, 0.12]] },
+          { "name": "Guard_02", "shells_inside": [[0.1, 1.54, -0.23], [0.46, 1.73, 0.12]] }
+        ]
+      },
+      "note": "V3 boss body, Frankendom-v3 PR #231 head 1fb332c. One mesh, one material (Guard_02), 16 shells. The two pauldrons (188 triangles each, weighted to the upper arms) are rigid accessories; the neck plane crossed the right pauldron where it overlaps the body shell (3 over-used and 6 flipped edges in piece_head, winding off in two caps)."
+    },
+    {
+      "name": "the-boss-106",
+      "source": "the-boss-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/the-boss-106.measure.json",
+      "blocked_checks": ["watertight", "orientation", "caps"],
+      "blocked": "no accessory layer to set aside: the body IS the garments. The skin shell (Head_Geo, Skin_MAT) is the head, the hands and the brows; the torso is the jacket (Jacket_Geo, 1,506 triangles, y 0.87 to 1.62) and the legs are the trousers (shell of Hat_Geo, 1,760 triangles, y 0.00 to 0.98, the same mesh as the hat). The jacket hem and the trouser waistband overlap at y 0.87 to 0.98, so the waist and hip planes slice two layers that are each the only surface of their piece: 13 over-used edges (5 root, 2 torso, 5 left arm, 1 right leg) and 12 flipped-winding edges (6 left arm, 6 left leg) near the waist and hem, and winding off in 3 caps. Keeping the jacket whole (rigid accessory) leaves no waist section at all (cap_waist_torso and cap_waist_root are missing, structure FAIL), and keeping the trousers whole leaves the legs with no triangles. Rigid shells that exist (lapel 356 triangles, hands) change none of the defects. A sweep of waist_frac {1, 0.8, 0.6} x hip_frac {0, 0.1, 0.2} x shoulder_frac {0, 0.15, 0.3} (27 cuts) gave no PASS. Needs the jacket and trousers modelled over a closed body shell (or a hand-capped waist) in the source; no bypass of the validator is offered.",
+      "note": "V3 boss body, Frankendom-v3 PR #232 head 9d5a66b. Six skinned meshes on six skins (cigar, hat and trousers, head and hands, jacket, two eyes)."
     }
   ]
 }

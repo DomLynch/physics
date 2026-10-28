@@ -391,6 +391,26 @@ export async function decompressGlb(glbBytes) {
 }
 
 // ---------------------------------------------------------------- the cutter
+// The row override `rigid_accessory_materials` (cutGlb opt `rigidAccessoryMaterials`): a list of material or mesh names, each a string or { name, piece }.
+// Returns [{ name, piece | null }]; undefined or null is the empty list. A typo in a row is refused here, not cut around.
+export function rigidAccessorySpecs(list) {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) throw new Error("rigid_accessory_materials must be a list of material or mesh names, or { name, piece } objects");
+  const ids = REGIONS.map((r) => r.id), seen = new Set();
+  return list.map((e) => {
+    const o = typeof e === "string" ? { name: e } : e;
+    if (!o || typeof o !== "object" || Array.isArray(o) || typeof o.name !== "string" || !o.name) throw new Error("rigid_accessory_materials entries must be a non-empty name or { name, piece }, got " + JSON.stringify(e));
+    for (const k of Object.keys(o)) if (k !== "name" && k !== "piece" && k !== "shells_inside") throw new Error(`rigid_accessory_materials entry ${JSON.stringify(o.name)}: unknown key ${k}`);
+    if (o.piece !== undefined && !ids.includes(o.piece)) throw new Error(`rigid_accessory_materials entry ${JSON.stringify(o.name)}: piece ${JSON.stringify(o.piece)} is not one of ${ids.join(", ")}`);
+    const b = o.shells_inside;
+    if (b !== undefined && !(Array.isArray(b) && b.length === 2 && b.every((c) => Array.isArray(c) && c.length === 3 && c.every(Number.isFinite)) && [0, 1, 2].every((a) => b[0][a] < b[1][a]))) throw new Error(`rigid_accessory_materials entry ${JSON.stringify(o.name)}: shells_inside must be a box [[x0, y0, z0], [x1, y1, z1]] in metres with x0 < x1, y0 < y1, z0 < z1`);
+    const key = o.name + "|" + JSON.stringify(b === undefined ? null : b);
+    if (seen.has(key)) throw new Error(`rigid_accessory_materials names ${JSON.stringify(o.name)} twice${b === undefined ? "" : " with the same box"}`);
+    seen.add(key);
+    return { name: o.name, piece: o.piece === undefined ? null : o.piece, shells_inside: b === undefined ? null : b };
+  });
+}
+
 export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const io = await gltfIO();
   const doc = await io.readBinary(glbBytes instanceof Uint8Array ? glbBytes : new Uint8Array(glbBytes));
@@ -566,7 +586,11 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   report.crack_vertices_snapped = snapped;
   let ymin = Infinity, ymax = -Infinity;
   for (const p of V.pos) { ymin = Math.min(ymin, p[1]); ymax = Math.max(ymax, p[1]); }
-  const eps = 5e-5 * (ymax - ymin); // a vertex this close to a plane counts as on it (0.09 mm on a 1.7 m body): no sliver triangles, boundary edges stay classifiable
+  // a vertex this close to a plane counts as on it (0.09 mm on a 1.7 m body): no sliver triangles, boundary edges stay classifiable.
+  // opts.planeSnap (row override plane_snap_m, metres) replaces the height-scaled default: on a body taller than 2 m the default is above the validator's
+  // 1e-4 m plane tolerance, so a vertex snapped "onto" the plane can sit just past the tolerance on the wrong side.
+  if (opts.planeSnap !== undefined && !(typeof opts.planeSnap === "number" && opts.planeSnap > 0 && opts.planeSnap <= 1e-4)) throw new Error("plane_snap_m must be a number from 0 (exclusive) to 0.0001 metres (the validator's plane tolerance), got " + JSON.stringify(opts.planeSnap));
+  const eps = opts.planeSnap !== undefined ? opts.planeSnap : 5e-5 * (ymax - ymin);
 
   // what the source mesh already has open (hair cards, eye sockets, slits), for the report
   const srcPos = new Float64Array(verticesIn * 3), srcIdx = new Uint32Array(tris.length * 3);
@@ -671,7 +695,81 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const isHairMaterial = (name) => (Array.isArray(opts.hairMaterials) ? opts.hairMaterials.includes(name) : /hair|lash|brow/i.test(name || ""));
   const hairPrim = srcPrims.map((p) => !!p.material && isHairMaterial(p.material.getName()));
   const hairTris = [], hairVerts = new Set();
+  // Rigid accessory layers (row override rigid_accessory_materials, docs/CUT-TOOL.md): a layered or wide garment (skirt, sash, hem, jacket, trousers, pauldron)
+  // whose material or mesh the row names is kept whole, like hair: its triangles are not cut at any plane, they go to ONE piece (the piece owning most of the
+  // layer's skin weight, or the piece the row names) and are bound rigidly to ONE bone of that piece. The rest of the body shell is cut exactly as before.
+  // Nothing is loosened for it in the validator: the layer is declared in the manifest's plane_exempt, the mechanism hair already uses.
+  // An entry names a material or a mesh. With `shells_inside` (a box in the GLB's world metres) only the connected shells of the match whose bounding box lies
+  // inside the box are accessories (a skirt that shares its material with the body); the rest of the match is cut as before.
+  // plane_exempt names materials, so an accessory that shares its material with anything cut gets a copy of the material named "<name>.rigid": the
+  // exemption then covers the accessory triangles and nothing else.
+  const accSpecs = rigidAccessorySpecs(opts.rigidAccessoryMaterials);
+  const accPrim = srcPrims.map(() => -1); // source primitive -> index into accSpecs
+  const nSrcPrims = srcPrims.length, copies = new Map(); // material -> its ".rigid" copy
+  for (const p of srcPrims) p.srcMaterial = p.material; // what the file said, whatever copy a primitive ends up with
+  const rigidCopy = (mat) => {
+    if (!copies.has(mat)) { const m = mat.clone(); m.setName(mat.getName() + ".rigid"); copies.set(mat, m); }
+    return copies.get(mat);
+  };
+  const matchName = (spec, pi) => { const p = srcPrims[pi], mat = p.srcMaterial ? p.srcMaterial.getName() : null; return spec.name === mat || spec.name === p.name; };
+  const accShells = []; // debug listing of the shells of every match
+  accSpecs.forEach((spec, k) => {
+    if (spec.shells_inside) return;
+    let hit = 0;
+    for (let pi = 0; pi < nSrcPrims; pi++) {
+      if (!matchName(spec, pi)) continue;
+      hit++;
+      const p = srcPrims[pi];
+      if (hairPrim[pi]) throw new Error(`rigid accessory ${JSON.stringify(spec.name)} is a hair material (hair_materials): it already goes whole to the head`);
+      if (accPrim[pi] >= 0) throw new Error(`rigid accessory ${JSON.stringify(spec.name)} matches a primitive that ${JSON.stringify(accSpecs[accPrim[pi]].name)} already took`);
+      if (!p.material) throw new Error(`rigid accessory ${JSON.stringify(spec.name)}: a primitive of mesh ${JSON.stringify(p.name)} has no material name, so plane_exempt cannot declare it`);
+      if (srcPrims.some((q, qi) => qi !== pi && q.srcMaterial === p.srcMaterial && accSpecs.findIndex((s) => !s.shells_inside && matchName(s, qi)) !== k)) p.material = rigidCopy(p.material);
+      accPrim[pi] = k;
+    }
+    if (!hit) throw new Error(`rigid accessory ${JSON.stringify(spec.name)} matches no material or mesh of the body`);
+  });
+  if (accSpecs.some((s) => s.shells_inside)) {
+    const wc = weldCluster(V.pos, 1e-5), eps6 = 1e-6;
+    accSpecs.forEach((spec, k) => {
+      if (!spec.shells_inside) return;
+      const [lo, hi] = spec.shells_inside;
+      let hit = 0;
+      for (let pi = 0; pi < nSrcPrims; pi++) {
+        if (!matchName(spec, pi)) continue;
+        hit++;
+        const p = srcPrims[pi];
+        if (hairPrim[pi]) throw new Error(`rigid accessory ${JSON.stringify(spec.name)} is a hair material (hair_materials): it already goes whole to the head`);
+        if (accPrim[pi] >= 0) throw new Error(`rigid accessory ${JSON.stringify(spec.name)} matches a primitive that ${JSON.stringify(accSpecs[accPrim[pi]].name)} already took whole`);
+        if (!p.material) throw new Error(`rigid accessory ${JSON.stringify(spec.name)}: a primitive of mesh ${JSON.stringify(p.name)} has no material name, so plane_exempt cannot declare it`);
+        // the connected shells of this primitive (welded positions)
+        const own = tris.filter((t) => t[3] === pi), par = new Map();
+        const find = (x) => { while (par.get(x) !== x) { par.set(x, par.get(par.get(x))); x = par.get(x); } return x; };
+        for (const t of own) for (let i = 0; i < 3; i++) if (!par.has(wc[t[i]])) par.set(wc[t[i]], wc[t[i]]);
+        for (const t of own) for (let i = 1; i < 3; i++) { const x = find(wc[t[0]]), y = find(wc[t[i]]); if (x !== y) par.set(Math.max(x, y), Math.min(x, y)); }
+        const shells = new Map();
+        for (const t of own) {
+          const r = find(wc[t[0]]);
+          if (!shells.has(r)) shells.set(r, { tris: [], lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] });
+          const S = shells.get(r);
+          S.tris.push(t);
+          for (let i = 0; i < 3; i++) for (let a = 0; a < 3; a++) { S.lo[a] = Math.min(S.lo[a], V.pos[t[i]][a]); S.hi[a] = Math.max(S.hi[a], V.pos[t[i]][a]); }
+        }
+        const chosen = [...shells.values()].filter((S) => [0, 1, 2].every((a) => S.lo[a] >= lo[a] - eps6 && S.hi[a] <= hi[a] + eps6));
+        if (opts.debug) for (const S of shells.values()) accShells.push({ entry: spec.name, material: p.material.getName(), triangles: S.tris.length, lo: S.lo.map(r6), hi: S.hi.map(r6), taken: chosen.includes(S) });
+        if (!chosen.length) continue;
+        const npi = srcPrims.length;
+        srcPrims.push({ material: rigidCopy(p.material), name: p.name });
+        accPrim.push(k);
+        for (const S of chosen) for (const t of S.tris) t[3] = npi;
+      }
+      if (!hit) throw new Error(`rigid accessory ${JSON.stringify(spec.name)} matches no material or mesh of the body`);
+      if (!accPrim.some((x, pi) => x === k && pi >= nSrcPrims)) throw new Error(`rigid accessory ${JSON.stringify(spec.name)}: no shell of the match lies inside shells_inside ${JSON.stringify(spec.shells_inside)}`);
+    });
+  }
+  if (opts.debug && accShells.length) report.accessory_shells = accShells;
+  const accTris = accSpecs.map(() => []), accVerts = accSpecs.map(() => new Set());
   for (const [a, b, c, pi] of tris) {
+    if (accPrim[pi] >= 0) { const k = accPrim[pi]; accTris[k].push([a, b, c, pi]); accVerts[k].add(a); accVerts[k].add(b); accVerts[k].add(c); continue; }
     if (hairPrim[pi]) { hairTris.push([a, b, c, pi]); hairVerts.add(a); hairVerts.add(b); hairVerts.add(c); continue; }
     let polys = [{ v: [a, b, c], bits: 0 }];
     for (const fn of sequence) {
@@ -688,11 +786,28 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     if (polys.length > 1 || polys[0].v.some((v) => v >= verticesIn)) trianglesSplit++;
     for (const P of polys) for (let k = 1; k + 1 < P.v.length; k++) cellTris.push([P.v[0], P.v[k], P.v[k + 1], pi, P.bits]);
   }
+  // where each rigid accessory goes: the row's piece, else the piece owning most of the layer's skin weight (ties: the first in region order); its one bone
+  // is the heaviest joint of that piece in the layer (none: the piece's anchor joint)
+  const accPlace = accSpecs.map((spec, k) => {
+    const score = new Array(REGIONS.length).fill(0), jointW = new Map();
+    for (const v of accVerts[k]) for (const [j, w] of V.skin[v]) { score[REGIONS.findIndex((r) => r.id === owner[j])] += w; jointW.set(j, (jointW.get(j) || 0) + w); }
+    let region = spec.piece;
+    if (!region) { let best = 0; for (let i = 1; i < score.length; i++) if (score[i] > score[best]) best = i; region = REGIONS[best].id; }
+    if (headSplit && region === "head") throw new Error(`rigid accessory ${JSON.stringify(spec.name)} would go to piece_head, which head_split replaces by its halves: name another piece`);
+    let bone = -1;
+    for (const [j, w] of [...jointW.entries()].sort((x, y) => x[0] - y[0])) if (owner[j] === region && (bone < 0 || w > jointW.get(bone))) bone = j;
+    if (bone < 0) bone = roleJoint[REGION_ANCHOR[region]];
+    return { region, bone };
+  });
+  const accVertBone = new Map();
+  accSpecs.forEach((spec, k) => { for (const v of accVerts[k]) accVertBone.set(v, accPlace[k].bone); });
+  const accFor = {};
+  accSpecs.forEach((spec, k) => { (accFor[accPlace[k].region] ||= []).push(...accTris[k]); });
   if (opts.debug) {
     const seen = new Set();
     for (const t of cellTris) { seen.add(t[0]); seen.add(t[1]); seen.add(t[2]); }
     const lost = new Map();
-    for (const t of tris) for (let k = 0; k < 3; k++) if (!seen.has(t[k]) && !hairVerts.has(t[k])) lost.set(t[k], t[3]);
+    for (const t of tris) for (let k = 0; k < 3; k++) if (!seen.has(t[k]) && !hairVerts.has(t[k]) && !accVertBone.has(t[k])) lost.set(t[k], t[3]);
     report.lostAfterSplit = { count: lost.size, sample: [...lost.entries()].slice(0, 5).map(([v, p]) => [v, p, V.pos[v].map(r6)]) };
   }
   // fragments = connected pieces (welded positions) of one cell. A fragment goes to the region its cell names, unless its bones say otherwise:
@@ -777,6 +892,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const bindWeights = (v, region) => {
     // hair travels with the head as one rigid piece: Head bone only (renormalised weights of a single bone)
     const side = boneRegion(region); // a head half uses the bones of the head
+    if (accVertBone.has(v)) return { j: [accVertBone.get(v), 0, 0, 0], w: [1, 0, 0, 0] }; // a rigid accessory: its one bone
     if (side === "head" && hairVerts.has(v)) return { j: [roleJoint.Head, 0, 0, 0], w: [1, 0, 0, 0] };
     const key = v * 8 + REGIONS.findIndex((r) => r.id === side);
     if (bindCache.has(key)) return bindCache.get(key);
@@ -806,7 +922,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const outPieces = {}; // region -> { prims: [{ pi, gv: [vertex ids], indices }], positionsAll }
   for (const R of regions) {
     const byPrim = new Map();
-    for (const [a, b, c, pi] of hairFor[R.id] ? pieceTris[R.id].concat(hairFor[R.id]) : pieceTris[R.id]) {
+    const whole = hairFor[R.id] ? pieceTris[R.id].concat(hairFor[R.id]) : pieceTris[R.id]; // hair and rigid accessories are added uncut
+    for (const [a, b, c, pi] of accFor[R.id] ? whole.concat(accFor[R.id]) : whole) {
       if (!byPrim.has(pi)) byPrim.set(pi, { pi, gv: [], map: new Map(), indices: [] });
       const P = byPrim.get(pi);
       for (const v of [a, b, c]) {
@@ -1312,6 +1429,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       pieces: outStats.pieces,
       caps: outStats.caps,
       watertight_by_region: watertight,
+      ...(accSpecs.length ? { rigid_accessory_triangles: accTris.reduce((s, t) => s + t.length, 0) } : {}),
     },
   };
   const hairNames = [...new Set(hairTris.map((t) => srcPrims[t[3]].material.getName()))].sort();
@@ -1321,6 +1439,18 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       for (const r of headSplit.regions) { const m = [...new Set(hairFor[r.id].map((t) => srcPrims[t[3]].material.getName()))].sort(); if (m.length) manifest.plane_exempt[r.mesh] = m; }
     } else manifest.plane_exempt = { piece_head: hairNames };
     manifest.plane_exempt_reason = "hair, hair cards and eyelashes belong to the head: a severed head carries its hair whole, so these materials are not cut at any plane (they reach below the neck plane) and are bound rigidly to the Head bone; cut-validate skips the planes check for them only";
+  }
+  if (accSpecs.length) {
+    // rigid accessories: declared through the same plane_exempt mechanism (the validator is unchanged), plus a table saying where each went and on which bone
+    const pe = manifest.plane_exempt || (manifest.plane_exempt = {}), entries = [];
+    accSpecs.forEach((spec, k) => {
+      const mesh = "piece_" + accPlace[k].region, mats = [...new Set(accTris[k].map((t) => srcPrims[t[3]].material.getName()))].sort();
+      pe[mesh] = [...new Set((pe[mesh] || []).concat(mats))].sort();
+      entries.push({ name: spec.name, ...(spec.shells_inside ? { shells_inside: spec.shells_inside } : {}), mesh, materials: mats, bone: joints[accPlace[k].bone].getName(), triangles: accTris[k].length, vertices: accVerts[k].size });
+    });
+    const accReason = "rigid accessory layers (the row's rigid_accessory_materials: a skirt, sash, hem, jacket, trousers or pauldron layer) are kept whole and bound rigidly to one bone of the piece that holds them, so they are not cut at any plane (they reach across planes of the pieces beside them); cut-validate skips the planes check for them only";
+    manifest.plane_exempt_reason = manifest.plane_exempt_reason ? manifest.plane_exempt_reason + "; " + accReason : accReason;
+    manifest.rigid_accessories = entries;
   }
   return { glb, manifest, report };
 }

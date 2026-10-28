@@ -1,0 +1,120 @@
+{
+ "id": "castle-guard-106",
+ "source": "castle-guard-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.8571,
+ "neck_len": 0.0895,
+ "torso_len": 0.4713,
+ "shoulder_w": 0.4962,
+ "upper_arm_len": 0.3233,
+ "forearm_len": 0.32,
+ "thigh_len": 0.359,
+ "shin_len": 0.4058,
+ "foot_len": 0.2379,
+ "chest_w": 0.5056,
+ "waist_w": 0.4664,
+ "hip_w": 0.4472,
+ "chest_d": 0.3944,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9987,
+   -0.0095
+  ],
+  "Spine": [
+   0,
+   1.1452,
+   -0.0052
+  ],
+  "Spine1": [
+   0,
+   1.2489,
+   -0.0047
+  ],
+  "Spine2": [
+   0,
+   1.3498,
+   -0.0017
+  ],
+  "Neck": [
+   0,
+   1.6164,
+   -0.0153
+  ],
+  "Head": [
+   0,
+   1.6994,
+   0.0181
+  ],
+  "LeftArm": [
+   0.2481,
+   1.5269,
+   -0.0166
+  ],
+  "LeftForeArm": [
+   0.5714,
+   1.5269,
+   -0.0166
+  ],
+  "LeftHand": [
+   0.8896,
+   1.5247,
+   -0.0111
+  ],
+  "RightArm": [
+   -0.2481,
+   1.5269,
+   -0.0166
+  ],
+  "RightForeArm": [
+   -0.5714,
+   1.5269,
+   -0.0166
+  ],
+  "RightHand": [
+   -0.893,
+   1.5247,
+   -0.011
+  ],
+  "LeftUpLeg": [
+   0.1303,
+   0.9273,
+   -0.001
+  ],
+  "LeftLeg": [
+   0.1301,
+   0.5698,
+   0.0323
+  ],
+  "LeftFoot": [
+   0.1303,
+   0.1683,
+   -0.0266
+  ],
+  "LeftToeBase": [
+   0.1431,
+   0,
+   0.141
+  ],
+  "RightUpLeg": [
+   -0.1303,
+   0.9273,
+   -0.001
+  ],
+  "RightLeg": [
+   -0.1301,
+   0.5698,
+   0.0323
+  ],
+  "RightFoot": [
+   -0.1303,
+   0.1683,
+   -0.0266
+  ],
+  "RightToeBase": [
+   -0.1431,
+   0,
+   0.141
+  ]
+ }
+}
