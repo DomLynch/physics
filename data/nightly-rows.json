@@ -1,0 +1,35 @@
+{
+  "schema": "nightly-rows/1",
+  "about": "Cells for tools/nightly.mjs, the nightly physics benchmark. Each cell names a set and a scenario from data/budget-rows.json, a ragdoll count n and whether the simultaneous-ragdoll cap (admit()) applies; its key is <set>/<scenario>/n<N>/<cap|nocap>. The nightly keeps the MEDIAN p95 of `runs` runs per cell and gates it with tools/nightly-gate.mjs.",
+  "runs": 5,
+  "limit_ms": 3,
+  "limit_source": "docs/BRIEF.md: the 3 ms physics budget; a cell above it is OVER BUDGET",
+  "regress_pct": 20,
+  "regress_source": "Strategy task 2026-10-28: REGRESSED when more than 20% above the previous night's stored value; no stored value means no regression flag",
+  "skip_rule": "A cell whose tooling or data is absent at the checked-out sha (no admit(), no loadChainBody(), no body file, a `needs` tool that does not exist) is SKIPPED and never fails. Older game pins run their own src/ and data/ bodies with the current tools/ and this file.",
+  "calibration": {
+    "cell": "boss106_warrok_x7/dying_all_cut/n7/cap",
+    "sha": "37c0e47fd0076721e6725018c37f4a649ba27c27",
+    "budget_seven_ms": 1.937,
+    "nightly_ms": 2.012,
+    "job_budget_seven": "6ae1e1e141e90535df772e45",
+    "job_nightly": "6ae1e1de3fb22a235dd3eae7",
+    "other_runs": { "nightly_ms": [1.956, 1.965], "nightly_jobs": ["6ae1e1df41e90535df772e43", "6ae1e1e03fb22a235dd3eaeb"], "budget_seven_ms": [2.007, 1.973], "budget_seven_jobs": ["6ae1e15b3fb22a235dd3ea98", "6ae1e15c3fb22a235dd3ea9a"] },
+    "note": "Both numbers are the p95 of pooled per-frame step times on a cpu-upgrade HF job at the same commit (`node tools/budget-seven.mjs --cap --sets boss106_warrok_x7` vs `node tools/nightly.mjs`). The first nightly design (one cold process per run, p95 per run, median of 5) read 2.5-5.8 ms per run, median 3.3-4.1: a different measurement (11th-largest of 210 cold-JIT frames), not a regression. Now each cell process does 5 unrecorded full runs first (JIT and WASM warm, as budget-seven's repeats do) and the p95 is taken over the 5 runs' frames pooled, with budget-seven's percentile. Two earlier trials with 2 warm-up runs read 2.41 and 2.17 ms (+15% and +8%), hence 5. Re-check this block if the method changes."
+  },
+  "cells": [
+    { "set": "boss106_warrok_x7", "scenario": "dying_all_cut", "n": 7, "cap": true },
+    { "set": "boss106_mix", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "boss106_warrok_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "salamander_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "rat_king_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "crow_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "eel_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "elephant_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "wolf_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "dog_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "spider_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "set": "centipede_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
+    { "kind": "parked", "set": "parked", "scenario": "pool", "n": 30, "cap": false, "needs": "tools/parked-cost.mjs", "note": "30 pooled, never-killed humanoid ragdolls (parked:true), p95 ms per world.step; present once tools/parked-cost.mjs (PR #75) is on main" }
+  ]
+}
