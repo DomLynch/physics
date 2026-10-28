@@ -1,8 +1,11 @@
 // Nightly benchmark: the pure gate (tools/nightly-gate.mjs), the table, the results-file schema, the rows file, and a reduced run of tools/nightly.mjs. Timing lives in the tool, never in src/.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { median, cellKey, medianCells, gate, flagLine, renderTable, renderReport, validateResults, LIMIT_MS, REGRESS_PCT } from "../tools/nightly-gate.mjs";
+import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir, availableParallelism } from "node:os";
+import { join } from "node:path";
+import { median, cellKey, medianCells, pooledCells, gate, flagLine, renderTable, renderReport, validateResults, LIMIT_MS, REGRESS_PCT } from "../tools/nightly-gate.mjs";
 import { runNightly } from "../tools/nightly.mjs";
 
 test("defaults: 3 ms limit, 20% regression", () => { assert.equal(LIMIT_MS, 3); assert.equal(REGRESS_PCT, 20); });
@@ -32,6 +35,54 @@ test("medianCells: a cell missing from some runs uses the runs that have it; abs
   assert.equal(c.y.p95_ms, 5);
   assert.equal(c.y.runs, 1);
   assert.equal(medianCells([{ z: null }, {}]).z, undefined);
+});
+
+test("pooledCells: p95 of the frames of all runs together (same percentile as budget-seven), one slow process does not own the answer", () => {
+  const f1 = Array.from({ length: 50 }, (_, i) => i + 1), f2 = Array.from({ length: 50 }, (_, i) => i + 51);
+  const c = pooledCells([{ k: f1 }, { k: f2 }, { z: [] }]);
+  assert.equal(c.k.p95_ms, 96); // sorted[floor(100 * 0.95)]
+  assert.equal(c.k.runs, 2);
+  assert.equal(c.k.frames, 100);
+  assert.equal(c.z, undefined);
+  const spiky = Array.from({ length: 200 }, (_, i) => (i < 4 ? 9 : 2)); // 2% slow frames per run stay under the 95th percentile
+  assert.equal(pooledCells([{ k: spiky }, { k: spiky }, { k: spiky }, { k: spiky }, { k: spiky }]).k.p95_ms, 2);
+});
+
+test("runNightly records the real vCPU count, not the host's", async () => {
+  const res = await runNightly({ ...nr, runs: 1, cells: [] }, br, { target: "t", sha: "b".repeat(40), date: "2026-10-28" });
+  assert.equal(res.cpus, availableParallelism());
+});
+
+test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the only way to write; help says so", () => {
+  const dir = mkdtempSync(join(tmpdir(), "np-")), bin = join(dir, "bin"), res = join(dir, "res"), base = join(dir, "base"), log = join(dir, "gh.log");
+  mkdirSync(bin); mkdirSync(res); mkdirSync(base);
+  writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*) echo https://example.test/1;; esac\n`);
+  chmodSync(join(bin, "gh"), 0o755);
+  writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells: { "a/b/n1/cap": { p95_ms: 1.2 } }, skipped: [] }));
+  const run = (...extra) => spawnSync(process.execPath, [new URL("../scripts/nightly-post.mjs", import.meta.url).pathname, "--target", "physics-main", "--from-dir", res, "--baseline-dir", base, ...extra], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  const a = run();
+  assert.equal(a.status, 0, a.stderr);
+  assert.match(a.stdout, /dry run/);
+  assert.match(a.stdout, /nightly-physics-benchmark/);
+  assert.equal(existsSync(log), false, "no gh call without --post");
+  assert.equal(existsSync(log), false);
+  const b = run("--dry-run");
+  assert.equal(b.status, 0);
+  assert.equal(existsSync(log), false, "--dry-run still makes no gh call");
+  const h = run("--help");
+  assert.equal(h.status, 0);
+  assert.match(h.stdout, /dry run is the default/i);
+  assert.match(h.stdout, /--post/);
+  assert.equal(existsSync(log), false, "--help makes no gh call");
+  const p = run("--post");
+  assert.equal(p.status, 0, p.stderr);
+  assert.match(readFileSync(log, "utf8"), /issue create/, "--post writes");
+});
+
+test("data/nightly-rows.json records the n7/cap calibration against budget-seven --cap on the same commit (within 15%)", () => {
+  const c = nr.calibration;
+  assert.ok(c && c.cell === "boss106_warrok_x7/dying_all_cut/n7/cap" && c.sha && c.budget_seven_ms > 0 && c.nightly_ms > 0 && c.job_budget_seven && c.job_nightly);
+  assert.ok(Math.abs(c.nightly_ms / c.budget_seven_ms - 1) <= 0.15, `nightly ${c.nightly_ms} vs budget-seven ${c.budget_seven_ms}`);
 });
 
 const base = { "a/n/n1/cap": { p95_ms: 2.0 }, "b/n/n1/cap": { p95_ms: 2.0 }, "c/n/n1/cap": { p95_ms: 2.0 }, "d/n/n1/cap": { p95_ms: 2.0 } };
