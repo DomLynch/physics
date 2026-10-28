@@ -24,28 +24,28 @@
       "bodies": ["salamander", "salamander", "salamander", "salamander", "salamander", "salamander", "salamander"],
       "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
       "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
-      "note": "chain-kind quadruped (data/bodies/salamander.chain.json, 13 capsules, about 3.6 m long, 282 kg placeholder mass); the scenario's arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
+      "note": "chain-kind quadruped (data/bodies/salamander.chain.json, 13 capsules, about 3.6 m long, 259 kg placeholder mass from 700 kg/m3 x capsule volume); the scenario's arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
     },
     {
       "id": "rat_king_x7", "kind": "chain",
       "bodies": ["rat-king", "rat-king", "rat-king", "rat-king", "rat-king", "rat-king", "rat-king"],
       "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
-      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
-      "note": "chain-kind rat rig (data/bodies/rat-king.chain.json, 13 capsules, about 0.9 m long at x3, 37 kg placeholder mass); the arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" }, "impulse_scale": 3.5,
+      "note": "chain-kind rat rig (data/bodies/rat-king.chain.json, 13 capsules, about 1.8 m long at x6, 490 kg placeholder mass from 600 kg/m3 x capsule volume); the 60 N*s scenario impulse is scaled x3.5 (about the mass ratio to a 140 kg boss); the arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
     },
     {
       "id": "crow_x7", "kind": "chain",
       "bodies": ["crow", "crow", "crow", "crow", "crow", "crow", "crow"],
       "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
       "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
-      "note": "chain-kind rat rig (data/bodies/crow.chain.json, 13 capsules, about 1.2 m long at x4, 5.7 kg placeholder mass); same mapping as rat_king_x7"
+      "note": "chain-kind rat rig (data/bodies/crow.chain.json, 13 capsules, about 1.2 m long at x4, 98.6 kg placeholder mass from 500 kg/m3 x capsule volume); same mapping as rat_king_x7; the scenario impulse is used unscaled (a boss is about 140 kg)"
     },
     {
       "id": "eel_x7", "kind": "chain",
       "bodies": ["eel", "eel", "eel", "eel", "eel", "eel", "eel"],
       "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
-      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest_a" }, "impulse_scale": 0.01,
-      "note": "chain-kind eel (data/bodies/eel.chain.json, 7 capsules, about 0.95 m long, 2.1 kg placeholder mass); arm cut becomes a tail cut, the spine2 hit lands on chest_a; the 60 N*s scenario impulse is scaled x0.01 so a 2 kg body is not launched; the multi-cut scenario is left out"
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest_a" }, "impulse_scale": 0.12,
+      "note": "chain-kind eel (data/bodies/eel.chain.json, 7 capsules, about 0.95 m long, 26.5 kg placeholder mass); arm cut becomes a tail cut, the spine2 hit lands on chest_a; the 60 N*s scenario impulse is scaled x0.12 so a 26.5 kg body is not launched; the multi-cut scenario is left out"
     },
     {
       "id": "elephant_x7", "kind": "chain",
@@ -59,7 +59,7 @@
       "bodies": ["wolf", "wolf", "wolf", "wolf", "wolf", "wolf", "wolf"],
       "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
       "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" }, "impulse_scale": 1,
-      "note": "chain-kind wolf (data/bodies/wolf.chain.json, 13 capsules, about 2.4 m long, 139.5 kg placeholder mass); arm cut becomes a tail cut, the spine2 hit lands on the chest; the scenario impulse is used unscaled (a boss is about 140 kg too); the multi-cut scenario is left out"
+      "note": "chain-kind wolf (data/bodies/wolf.chain.json, 13 capsules, about 2.4 m long, 146 kg placeholder mass from 700 kg/m3 x capsule volume); arm cut becomes a tail cut, the spine2 hit lands on the chest; the scenario impulse is used unscaled (a boss is about 140 kg too); the multi-cut scenario is left out"
     },
     {
       "id": "dog_x7", "kind": "chain",

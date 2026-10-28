@@ -13,7 +13,7 @@ const rows = JSON.parse(readFileSync(new URL("../data/budget-rows.json", import.
 // what each body must look like: part count, game model scale (Armagedom creatureDefinitions.json scale.model), plausible total mass, the part -> bone map
 const WANT = {
   eel: {
-    parts: 7, scale: 0.9, mass: [0.5, 10], tailUnit: ["tail_a", "tail_b", "tail_c"], headCutParent: "chest_b",
+    parts: 7, scale: 0.9, mass: [10, 50], tailUnit: ["tail_a", "tail_b", "tail_c"], headCutParent: "chest_b",
     map: { hips: "spine0", chest_a: "spine2", chest_b: "spine4", head: "neck", tail_a: "tail0", tail_b: "tail1", tail_c: "tail2" },
   },
   elephant: {

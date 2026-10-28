@@ -150,6 +150,8 @@ test("kill with a hit impulse: the salamander falls, settles and freezes on the 
   const pose = rd.readPose();
   for (const v of pose) assert.ok(Number.isFinite(v), "NaN or Infinity in the pose");
   assert.ok(sawFall, `hips never dropped (start ${hipsY0})`);
+  assert.ok(pose[1] < 0.45, `a dead salamander must lie down: settled hips at ${pose[1]} m (balanced on fat leg capsules if this is high)`);
+  assert.ok(hipsY0 - pose[1] >= 0.3, `hips dropped only ${hipsY0 - pose[1]} m (main: 0.35 to 0.40)`);
   assert.ok(pose[1] < hipsY0 - 0.15, `hips at ${pose[1]} m, start ${hipsY0} m`);
   let maxSpeed = 0, minY = Infinity;
   for (let i = 0; i < 13; i++) { maxSpeed = Math.max(maxSpeed, Math.hypot(pose[i * 10 + 7], pose[i * 10 + 8], pose[i * 10 + 9])); minY = Math.min(minY, pose[i * 10 + 1]); }
@@ -212,8 +214,9 @@ test("humanoid rows are unaffected: pose and state behave as before (hash of a p
 
 // ---- the rat rig family: rat king (mini-boss) and crow, both on the 24-bone rat rig (root > pelvis > spine > chest > neck > head > jaw > bite_tip; tail_1..4; leg_B*/leg_F* > shin > paw) ----
 const RIG = {
-  "rat-king": { scale: 3, mass: [20, 80], impulse: 40, species: "rat king" },
-  crow: { scale: 4, mass: [2, 20], impulse: 10, species: "crow" },
+  // per creature bounds: height (m), widest capsule radius (m), drift while alive (m). Masses are density x capsule volume (spec density_kg_m3).
+  "rat-king": { scale: 6, mass: [300, 700], impulse: 600, species: "rat king", height: 2, radius: 0.42, drift: 0.3 }, // x6 in the game (PR #435), 600 kg/m3
+  crow: { scale: 4, mass: [50, 200], impulse: 100, species: "crow", height: 1, radius: 0.25, drift: 0.15 }, // 500 kg/m3: about 107 kg at x4; the old crow bounds hold unchanged
 };
 const EXPECTED_MAP = {
   hips: "pelvis", chest: "chest", head: "neck", tail_a: "tail_1", tail_b: "tail_3",
@@ -266,9 +269,9 @@ for (const [name, cfg] of Object.entries(RIG)) {
 
   test(`${name}: the built row has capsules sized to the creature (scale ${cfg.scale}) and every pivot above the floor`, () => {
     const { row } = loadChainBody(name);
-    assert.ok(row.height_m > 0.2 && row.height_m < 1, `height ${row.height_m} m`);
+    assert.ok(row.height_m > 0.2 && row.height_m < cfg.height, `height ${row.height_m} m`);
     for (const r of row.roles) {
-      assert.ok(r.radius_m > 0.005 && r.radius_m < 0.25, `${r.id}: radius ${r.radius_m}`);
+      assert.ok(r.radius_m > 0.005 && r.radius_m < cfg.radius, `${r.id}: radius ${r.radius_m}`);
       assert.ok(r.rest.pivot[1] > 0, `${r.id}: pivot above the floor`);
     }
   });
@@ -281,7 +284,7 @@ for (const [name, cfg] of Object.entries(RIG)) {
     let worst = 0;
     const p1 = rd.readPose();
     for (let i = 0; i < 13; i++) worst = Math.max(worst, Math.hypot(p1[i * 10] - p0[i * 10], p1[i * 10 + 1] - p0[i * 10 + 1], p1[i * 10 + 2] - p0[i * 10 + 2]));
-    assert.ok(worst < 0.15, `${name}: a part drifted ${worst} m while alive`);
+    assert.ok(worst < cfg.drift, `${name}: a part drifted ${worst} m while alive`);
     const hipsY0 = rd.readPose()[1];
     rd.kill({ part: "chest", impulse: [0, 0, cfg.impulse] });
     for (let t = 0; t < 900; t++) p.step(1 / 60);
@@ -316,11 +319,14 @@ for (const [name, cfg] of Object.entries(RIG)) {
   });
 }
 
-test("the crow is the lighter one and the rat king the heavier; no crow capsule is fatter; both GLBs share the same 24-bone skeleton", () => {
+test("the crow is the lighter one and the rat king the heavier; no crow capsule is fatter in metres (except the wing bones); both GLBs share the same 24-bone skeleton", () => {
   const rat = read("rat-king.chain.json"), crow = read("crow.chain.json");
   const mass = (s) => s.segments.reduce((a, x) => a + x.mass, 0);
   assert.ok(mass(crow) < mass(rat), `crow ${mass(crow)} kg vs rat king ${mass(rat)} kg`);
-  assert.ok(crow.segments.every((s) => s.radius <= rat.segments.find((x) => x.id === s.id).radius + 1e-9), "crow capsule fatter than the rat king's (model units)");
+  // metres, not model units: the king is x6 and the crow x4. The crow's front uppers carry the wing skin (game radius about 0.09), so they may be fatter than the king's front legs.
+  // The crow's hind lowers (game radius 0.0256) are also fatter than the king's (game 0.007, left at the 0.009 placeholder): a real difference between the two meshes.
+  const WING = new Set(["leg_FL_up", "leg_FR_up", "leg_BL_low", "leg_BR_low"]);
+  assert.ok(crow.segments.every((s) => WING.has(s.id) || s.radius * crow.scale <= rat.segments.find((x) => x.id === s.id).radius * rat.scale + 1e-9), "crow capsule fatter than the rat king's (metres)");
   assert.deepEqual(read("rat-king.bones.json").bones, read("crow.bones.json").bones);
 });
 
