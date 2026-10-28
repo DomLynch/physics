@@ -75,6 +75,20 @@
       "unit_map": {}, "part_map": { "spine2": "hips" }, "impulse_scale": 0.2,
       "note": "chain-kind drone (data/bodies/drone.chain.json, ONE capsule, 1.12 m long, 25 kg placeholder mass, no joints, nothing to cut); the hit lands on the single body; the 60 N*s scenario impulse is scaled x0.2 (about the mass ratio to a 140 kg boss); only the idle and the uncut death scenarios apply"
     },
+    {
+      "id": "spider_x7", "kind": "chain",
+      "bodies": ["spider", "spider", "spider", "spider", "spider", "spider", "spider"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "leg_front_R" }, "part_map": { "spine2": "thorax" },
+      "note": "chain-kind spider (data/bodies/spider.chain.json, 14 capsules, about 1.6 m long, 47 kg placeholder mass); the scenario's arm cut becomes a front-leg cut and the spine2 hit lands on the thorax; the multi-cut scenario is left out"
+    },
+    {
+      "id": "centipede_x7", "kind": "chain",
+      "bodies": ["centipede", "centipede", "centipede", "centipede", "centipede", "centipede", "centipede"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "seg3" },
+      "note": "chain-kind centipede (data/bodies/centipede.chain.json, 19 capsules: 6 body segments, head, 12 leg banks; about 1.3 m long, 21 kg placeholder mass); the scenario's arm cut becomes a tail cut (rear third) and the spine2 hit lands on the root segment; the multi-cut scenario is left out"
+    },
     { "id": "rig65_mix", "bodies": ["minotaur", "psyche", "warrior", "veteran", "minotaur", "psyche", "warrior"], "note": "the four 65-joint V3 bodies, repeated to seven" }
   ],
   "scenarios": [
