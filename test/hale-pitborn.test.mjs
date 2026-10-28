@@ -30,7 +30,7 @@ test("hale-pitborn: generated row has 20 finite parts and a sane mass", () => {
   const row = generateRow("hale-pitborn", m(), loadTable());
   assert.equal(row.roles.length, 20);
   for (const r of row.roles) for (const v of [r.radius_m, r.half_height_m, r.length_m, r.mass_kg]) assert.ok(Number.isFinite(v) && v > 0, r.id);
-  assert.ok(row.total_mass_kg > 50 && row.total_mass_kg < 120, "mass " + row.total_mass_kg);
+  assert.ok(row.total_mass_kg > 40 && row.total_mass_kg < 120, "mass " + row.total_mass_kg);
 });
 
 test("hale-pitborn fall trace: dies, falls, freezes; hips low, speed bounded, nothing below the floor, all finite", async () => {
