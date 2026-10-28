@@ -1,0 +1,136 @@
+{
+ "bodies": 582,
+ "shapes": [
+  {
+   "shape": "child",
+   "n": 12,
+   "scaleOutliers": [
+    "pirate-by-p-konstantinov 0.647 m",
+    "the-boss 0.538 m"
+   ],
+   "medianH": 1.396,
+   "medianMass": 41.995,
+   "clamped140": 0,
+   "families": {
+    "mixamo": 2,
+    "makehuman": 8
+   },
+   "radiusErrMedianNoGirth": 0.023,
+   "radiusErrMedian": 0.037,
+   "radiusErrP95": 0.3102,
+   "example": "eve-by-j-gonzales"
+  },
+  {
+   "shape": "average-medium",
+   "n": 177,
+   "scaleOutliers": [],
+   "medianH": 1.742,
+   "medianMass": 49.55,
+   "clamped140": 0,
+   "families": {
+    "boss106": 4,
+    "mixamo": 68,
+    "makehuman": 105
+   },
+   "radiusErrMedianNoGirth": 0.0436,
+   "radiusErrMedian": 0.0537,
+   "radiusErrP95": 0.3304,
+   "example": "ch11-nonpbr"
+  },
+  {
+   "shape": "average-heavy",
+   "n": 86,
+   "scaleOutliers": [],
+   "medianH": 1.7634,
+   "medianMass": 117.19,
+   "clamped140": 27,
+   "families": {
+    "boss106": 2,
+    "mixamo": 1,
+    "makehuman": 83
+   },
+   "radiusErrMedianNoGirth": 0.0522,
+   "radiusErrMedian": 0.0526,
+   "radiusErrP95": 0.3825,
+   "example": "mon-0830"
+  },
+  {
+   "shape": "tall-medium",
+   "n": 89,
+   "scaleOutliers": [],
+   "medianH": 2.098,
+   "medianMass": 92.22,
+   "clamped140": 3,
+   "families": {
+    "boss106": 2,
+    "mixamo": 18,
+    "makehuman": 69
+   },
+   "radiusErrMedianNoGirth": 0.0541,
+   "radiusErrMedian": 0.0648,
+   "radiusErrP95": 0.3687,
+   "example": "mon-0178"
+  },
+  {
+   "shape": "giant-slim",
+   "n": 46,
+   "scaleOutliers": [],
+   "medianH": 2.242,
+   "medianMass": 51.44,
+   "clamped140": 1,
+   "families": {
+    "mixamo": 3,
+    "makehuman": 43
+   },
+   "radiusErrMedianNoGirth": 0.0969,
+   "radiusErrMedian": 0.0823,
+   "radiusErrP95": 0.4751,
+   "example": "mon-0611"
+  },
+  {
+   "shape": "giant-massive",
+   "n": 93,
+   "scaleOutliers": [],
+   "medianH": 2.283,
+   "medianMass": 140,
+   "clamped140": 93,
+   "families": {
+    "boss106": 1,
+    "mixamo": 9,
+    "makehuman": 83
+   },
+   "radiusErrMedianNoGirth": 0.0382,
+   "radiusErrMedian": 0.0473,
+   "radiusErrP95": 0.3037,
+   "example": "mon-0297"
+  },
+  {
+   "shape": "giant-heavy",
+   "n": 79,
+   "scaleOutliers": [
+    "remy 3.6501 m"
+   ],
+   "medianH": 2.3943,
+   "medianMass": 140,
+   "clamped140": 69,
+   "families": {
+    "mixamo": 2,
+    "makehuman": 76
+   },
+   "radiusErrMedianNoGirth": 0.0493,
+   "radiusErrMedian": 0.06,
+   "radiusErrP95": 0.4024,
+   "example": "mon-0630"
+  }
+ ],
+ "bytesPerMap": {
+  "child": 1785,
+  "average-medium": 1790,
+  "average-heavy": 1791,
+  "tall-medium": 1787,
+  "giant-slim": 1789,
+  "giant-massive": 1785,
+  "giant-heavy": 1785
+ },
+ "lookupBytes": 23215
+}
