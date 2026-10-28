@@ -37,6 +37,18 @@ const rig = createThreeRig(THREE, rd, { hips: pelvisBone, spine: spine01, ..., t
 ```
 `bones` maps the 20 part ids (`rd.partIds`) to your Object3Ds (your role map); `root` is the Object3D whose local frame is the sim frame (the fighter's group with its position and yaw). Create the rig while the model is in its bind pose, before the first step. Alive: after the animation has posed the bones, call `rig.drive()` each frame (sends the hips via `setRoot` and the animated pose via `setTargetPose`). Dying or dead: after `physics.step()`, call `rig.applyPose()` and the bones follow the capsules. Also `rd.setTargetPose(Float32Array)` (4 floats per part, world quaternion of each capsule) if you drive the motors yourself.
 
+### Chain bodies with virtual parts and follower bones (centipede): one call
+
+A chain part with `drives: null` is virtual (simulated, no bone) and a part with a `follow` list carries extra bones that copy its rotation. `createThreeRig` handles both through `opts.virtual` (part ids with no bone: skipped by `applyPose`, they take the nearest driven ancestor's orientation change in `drive`) and `opts.follow` (`{ partId: [Object3D] }`: after every bone is posed, `applyPose` sets each follower's local quaternion to its driver bone's, then refreshes the world matrices). The game does not give virtual parts empty nodes and does not copy rotations by hand:
+
+```js
+import { loadChainBody, chainRigOptions } from "@frankendom/physics";
+const body = loadChainBody("centipede"), rd = physics.createRagdoll(body.row);
+const r = chainRigOptions(body, (name) => gltf.scene.getObjectByName(name)); // optional 3rd arg { bindFind, bindRoot } for an untouched bind copy
+const rig = createThreeRig(THREE, rd, r.bones, fighterGroup, r.options);
+```
+Errors at creation: a model without a bone the spec names, an unknown `virtual` or `follow` part id, a virtual root part, a virtual follow driver, a follower that is not an Object3D. Bodies with no virtual or follow entries (humanoid, salamander, spider) behave exactly as before; omitting `r.options` keeps the old "no bone for part X" error.
+
 ## Tracking a live clip, reset, snap, rows (asked for by V3 Dev)
 
 - `createRagdoll(row, { motorGain, motorDamping })` and `rd.setMotorGain(g, damping)`: stiffness multiplier and damping multiplier (default 1 and 1 = the M1 values). Measured on one arm swinging 2 Hz, +-50 degrees (VPS, Node 22, `test/api2.test.mjs`), mean orientation error: gain 1 = 20.9 deg, gain 2 = 12.6, gain 4 = 13.6, gain 8 = 20.4 (unstable-ish); with less damping: gain 2 / damping 0.25 = 7.6 deg, gain 4 / damping 0.25 = 8.6. Start with `{ motorGain: 2, motorDamping: 0.25 }` for a body that follows a fighting clip; retune on the real clip. One arm and one frequency only.
