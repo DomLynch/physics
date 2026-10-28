@@ -1,0 +1,23 @@
+{
+  "schema": "limb-loss/1",
+  "about": "Optional per-body limb-loss rows. A body with no row here behaves exactly as before (global locational rows in data/rules.json). Read with loadLimbLoss(body); pass the row to createFighterState as opts.limbLoss. Every number below is a PLACEHOLDER until Strategy/Dom tune it.",
+  "rows": [
+    {
+      "body": "castle-guard",
+      "budgets": { "head": 40, "torso": 150, "arm_right": 80, "arm_left": 100, "leg_left": 100, "leg_right": 100 },
+      "arm_gone_damage_mult": 0.45,
+      "leg_state": "kneel",
+      "note": "PLACEHOLDER (Sir Reginald, 2.18 m soft-skin boss). Sword-arm loss: he fights one-handed at 0.45 x damage (global row is 0.3). One leg gone: the game shows him kneeling (presentation of limp; both legs gone still kills). Budgets are scaled up from the part_hp rows for a boss; soft skin so no armour tier is implied.",
+      "source": "Strategy request 2026-10-28 (part-HP limb-loss rows); numbers are OWN start values, Dom/Strategy tune later"
+    },
+    {
+      "body": "pumpkinhulk",
+      "piece_hostile": {
+        "arm_right": { "attack": "swipe", "hp": 10 },
+        "arm_left": { "attack": "swipe", "hp": 10 }
+      },
+      "note": "PLACEHOLDER. A severed arm keeps attacking: physics only PUBLISHES this flag (on the fighter state and on the cut event); the game runs the swipe and the piece's hp. Budgets and multipliers stay on the global rows.",
+      "source": "Strategy request 2026-10-28 (cut piece keeps attacking); attack id and hp are OWN start values, Dom/Strategy tune later"
+    }
+  ]
+}
