@@ -328,10 +328,10 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
 
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "gargantua-106", "minotaur-106", "minotaur-65", "psyche-106", "psyche-65", "veteran-65", "warrior-65"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "brute-106", "demon-106", "gargantua-106", "maw-106", "minotaur-106", "minotaur-65", "psyche-106", "psyche-65", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
   }
-  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
+  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
 });

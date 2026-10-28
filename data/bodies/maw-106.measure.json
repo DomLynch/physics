@@ -1,0 +1,120 @@
+{
+ "id": "maw-106",
+ "source": "maw-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.901,
+ "neck_len": 0.0982,
+ "torso_len": 0.5764,
+ "shoulder_w": 0.6648,
+ "upper_arm_len": 0.3125,
+ "forearm_len": 0.3403,
+ "thigh_len": 0.373,
+ "shin_len": 0.4038,
+ "foot_len": 0.264,
+ "chest_w": 0.6774,
+ "waist_w": 0.6249,
+ "hip_w": 0.3988,
+ "chest_d": 0.5284,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9739,
+   0.0058
+  ],
+  "Spine": [
+   0,
+   1.1106,
+   -0.0061
+  ],
+  "Spine1": [
+   0,
+   1.2707,
+   -0.0217
+  ],
+  "Spine2": [
+   0,
+   1.3882,
+   -0.0332
+  ],
+  "Neck": [
+   0,
+   1.6852,
+   0.0394
+  ],
+  "Head": [
+   0,
+   1.7596,
+   0.1035
+  ],
+  "LeftArm": [
+   0.3324,
+   1.5579,
+   -0.0493
+  ],
+  "LeftForeArm": [
+   0.6449,
+   1.5579,
+   -0.0493
+  ],
+  "LeftHand": [
+   0.9851,
+   1.5579,
+   -0.0434
+  ],
+  "RightArm": [
+   -0.3324,
+   1.5579,
+   -0.0493
+  ],
+  "RightForeArm": [
+   -0.6449,
+   1.5579,
+   -0.0493
+  ],
+  "RightHand": [
+   -0.9851,
+   1.5579,
+   -0.0434
+  ],
+  "LeftUpLeg": [
+   0.1162,
+   0.898,
+   -0.0014
+  ],
+  "LeftLeg": [
+   0.1162,
+   0.5269,
+   0.0363
+  ],
+  "LeftFoot": [
+   0.1162,
+   0.1281,
+   -0.027
+  ],
+  "LeftToeBase": [
+   0.2095,
+   0,
+   0.1842
+  ],
+  "RightUpLeg": [
+   -0.1162,
+   0.898,
+   -0.0014
+  ],
+  "RightLeg": [
+   -0.1162,
+   0.5269,
+   0.0363
+  ],
+  "RightFoot": [
+   -0.1162,
+   0.1281,
+   -0.027
+  ],
+  "RightToeBase": [
+   -0.2095,
+   0,
+   0.1842
+  ]
+ }
+}

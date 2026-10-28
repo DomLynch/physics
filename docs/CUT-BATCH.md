@@ -63,6 +63,17 @@ Both Minotaur-106 and Psyche-106 regenerate byte-identical (sha256 below; `cmp` 
 - **warrior-65, watertight.** Measured: the skin shell `EXO_BrowsLashes` (material `Exo_MAT`, 9,352 vertices; the body under the `Steel` suit) is open geometry with about 2,170 native open edges. The shoulder, waist and hip planes cross it where it has holes: 195 section chains do not close (`cap_open_chains`), leaving 696 cap-loop edges open (166 root, 234 torso, 89 + 89 arms, 58 + 58 legs). Leaving that mesh out of the cut gives 0 introduced open edges (a leave-one-out run on the VPS, one mesh at a time), but it carries the face, hands and neck skin, so it cannot be dropped. Inferred, not tested: closing the chains by bridging would cap over geometry that is not there. Fix is on the source side (a closed or hand-capped skin shell); every other check passes.
 - **veteran-65, watertight and orientation.** Measured: the body `CreatureBody` (47,360 vertices) is a non-manifold sculpt, 2,003 open edges, 1,765 over-used edges and 49 flipped-winding edges natively (`cut-validate --self`), with six overlapping skinned meshes; the section loops through them are tangled (117 loops, 38 holes, 44 forced ears, 50 inward cap triangles). The cut introduces 36 open and 22 over-used edges and 1,054 flipped-winding edges in `piece_root`. Conservation, weights, bone side, caps and planes pass. Inferred, not tested: the 1,054 flipped edges come from cap loops built through the overlapping shells at the hips. Needs a cleaned body mesh.
 
+### Four more 106 bosses (Frankendom-v3 PRs 182 to 185; run on the Mac, same tool, twice, identical bytes)
+
+| body | source head | result | sha256 of the cut GLB | triangles (all pieces) |
+|---|---|---|---|---|
+| demon-106 | 4e32b08 | **BLOCKED** (watertight, orientation, planes) | e74fe0f5ad99053323571ddcceae77efdfa7e9feedd9990ee6911bb016a5c5b3 | 18,829 |
+| warrok-106 | 0aee9ea | **BLOCKED** (watertight, caps) | d7a04ee5c53c52f20320ffb7f722855645dea34148b29045efec40653b74bdc9 | 16,010 |
+| brute-106 | 20dcf39 | **PASS** | 6cb36078bf6380626959eaf7e05ade1a63809c56316966696350c7abccaa9ad5 | 25,467 |
+| maw-106 | 54d6706 | **BLOCKED** (watertight, planes) | 49b86f2ba0e54d883b174b0b9ca55f2dd1d58cdf68a54d9b15a46797d01493c4 | 17,038 |
+
+Demon, Warrok and Maw are one skinned mesh, one material, no hair material: the open shell at the cut planes is in the source, and no plane fraction (81 combinations each), `home_min_weight` or `crotch_planes` row fixed it (causes in the `blocked` text of each row). Only Brute carries `expect_sha256` (the blocked rows have none, like warrior-65 and veteran-65).
+
 ## Tests
 
 `test/cut-batch.test.mjs` (synthetic bodies only, no real body in the repo): two bodies through measure, cut, validate and the receipt (8 PASS each, props and a one-sided `TEXCOORD_1` in the source), the per-body plane row, explicit default rows giving the same bytes as no rows, two runs giving the same bytes, a failing hash and a missing source failing the run, a blocked row reported only when exactly its `blocked_checks` fail (an error or a different failing set is FAIL) and an unblocked one flagged, a missing COLOR_0 filled with white and a missing NORMAL or TANGENT refused, and the row checks.
