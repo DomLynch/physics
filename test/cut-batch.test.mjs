@@ -390,14 +390,15 @@ test("the-boss-106 (V3 boss The Boss, rebuilt body, Frankendom-v3 PR 242): a pin
   assert.match(b.note, /crotch/i, "the note records that the pass is sensitive near the crotch");
 });
 
-test("big-vegas-106 (V3 boss The King): a blocked row that names exactly the checks it still fails and why (not a validator bypass)", () => {
+test("big-vegas-106 (V3 boss The King): a pinned, unblocked row; the midline wall cap makes all 8 checks pass (no validator bypass)", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
   const b = bodies.find((x) => x.name === "big-vegas-106");
   assert.equal(b.source, "big-vegas-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
-  assert.deepEqual(b.blocked_checks, ["watertight", "orientation", "caps"]);
-  assert.match(b.blocked, /midline/);
-  assert.equal(b.expect_sha256, undefined);
+  assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
+  assert.equal(b.blocked_checks, undefined);
+  assert.match(b.expect_sha256, /^643bffb5[0-9a-f]{56}$/);
+  assert.match(b.note, /midline/);
 });
 
 test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records the 3 position-only source repairs and the native open edges", () => {
