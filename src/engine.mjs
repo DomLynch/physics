@@ -245,6 +245,28 @@ export async function createWorld(opts = {}) {
         parked = false;
         return true;
       },
+      // back to the pool: like reset() (spawn pose, alive, full strength, no state) but then asleep and PARK_DROP_M under the floor, rd.parked true; acquire() works again.
+      // Returns false and does nothing if a cut removed joints (destroy and recreate, same rule as reset()). Parking a parked ragdoll is a no-op that returns true.
+      park() {
+        if (parked) return true;
+        if (api.cuts.some((c) => !row.severable.find((s) => s.id === c).visual_only)) return false;
+        cut.clear();
+        const zero = new Jolt.Vec3(0, 0, 0);
+        for (let i = 0; i < n; i++) { bi.SetLinearVelocity(bodies[i].GetID(), zero); bi.SetAngularVelocity(bodies[i].GetID(), zero); }
+        Jolt.destroy(zero);
+        bi.SetMotionType(bodies[0].GetID(), kinematic ? Jolt.EMotionType_Kinematic : Jolt.EMotionType_Dynamic, Jolt.EActivation_DontActivate);
+        parkTo(0, -PARK_DROP_M, 0, Jolt.EActivation_DontActivate);
+        for (const k of cons) { // joint targets back to the spawn pose (setTargetPose moved them)
+          if (k.kind === "hinge") k.c.SetTargetAngle(0);
+          else { const t = new Jolt.Quat(...k.rel); k.c.SetTargetOrientationBS(t); Jolt.destroy(t); }
+        }
+        for (const b of bodies) bi.DeactivateBody(b.GetID());
+        for (const k of cons) k.c.ResetWarmStart(); // a joint keeps its accumulated impulse from the last life: zero it so acquire() starts like a fresh one
+        state = "alive"; st = null; frozen = false; calm = 0; targetQ = null; lastRoot = null; rootMove = null;
+        base.fill(1); want.fill(1); strength.fill(NaN);
+        parked = true;
+        return true;
+      },
       get awake() { return bodies.some((b) => bi.IsActive(b.GetID())); },
       // rows: a number (all joints) or { all, <role>: s, <partId>: s }; later keys win (all < role < partId). 1 = full, 0.01 = limp.
       setMotorStrength(rows) {
