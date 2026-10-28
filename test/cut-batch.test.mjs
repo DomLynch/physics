@@ -366,6 +366,20 @@ test("the shipped rows file is valid and lists every V3 body", () => {
   for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106", "anime-boy-black-106", "sporty-granny-106", "the-boss-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
 });
 
+test("psyche-106: pinned to V3's own source (Frankendom-v3 3e2a48c0 = main src/assets/psyche-106.glb), not the unknown-origin plain copy", () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "psyche-106");
+  assert.equal(b.source, "psyche-106.glb", "V3's compressed file; the batch decompresses it");
+  assert.equal(b.plain, undefined, "not a plain row: the batch decompresses the V3 file");
+  assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
+  assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
+  assert.equal(b.expect_sha256, "204e7674e4e3118fee3ea768a8306505a8d96240946b0b3fec36d3abbe61690e");
+  assert.notEqual(b.expect_sha256, "b684b455188cad8e2e46742ea16b40faa6357d1b260fb427bdf61fe1d7798477", "the old pin (unknown-origin copy) is gone");
+  assert.match(b.note, /3e2a48c0/, "the note names the V3 commit");
+  assert.match(b.note, /11c8e72da363f3b04e1d2d2bd5b68ffca00dfa9b2e759565b395b689057c8c74/, "the note records the V3 source sha256");
+  assert.match(b.note, /e9f15ce7/, "the note records the replaced unknown-origin copy");
+});
+
 test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
   const b = bodies.find((x) => x.name === "parasite-106");
