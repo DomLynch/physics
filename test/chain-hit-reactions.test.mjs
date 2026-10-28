@@ -18,8 +18,10 @@ const JOINTED = chainBodyNames().filter((n) => n !== "drone");
 const load = (name) => pkg.loadChainReactions(name);
 const validate = (d) => pkg.validateChainReactions(d);
 
-test("the ten chain bodies are listed, drone has no joints", () => {
-  assert.equal(JOINTED.length, 9);
+test("the eleven chain bodies are listed (roach included), drone has no joints", () => {
+  assert.equal(chainBodyNames().length, 11);
+  assert.ok(chainBodyNames().includes("roach"));
+  assert.equal(JOINTED.length, 10);
   assert.deepEqual(DATA.no_joints, ["drone"]);
 });
 

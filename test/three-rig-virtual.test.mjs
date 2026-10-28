@@ -120,8 +120,8 @@ test("chainRigOptions: bones are the driven parts only, options carry virtual id
   assert.deepEqual(sal.options.follow, {});
 });
 
-test("salamander and spider: pose output is identical with and without the (empty) new options", async () => {
-  for (const name of ["salamander", "spider"]) {
+test("salamander, spider and roach: pose output is identical with and without the (empty) new options", async () => {
+  for (const name of ["salamander", "spider", "roach"]) {
     const run = async (useOpts) => {
       const p = await createPhysics({ seed: 5 });
       const body = loadChainBody(name), rd = p.createRagdoll(body.row, { id: "x" });

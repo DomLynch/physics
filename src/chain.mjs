@@ -19,6 +19,8 @@ import { frameQuat, severableRow } from "./generate.mjs";
 
 import SPIDER_SPEC from "../data/bodies/spider.chain.json" with { type: "json" };
 import SPIDER_BONES from "../data/bodies/spider.bones.json" with { type: "json" };
+import ROACH_SPEC from "../data/bodies/roach.chain.json" with { type: "json" };
+import ROACH_BONES from "../data/bodies/roach.bones.json" with { type: "json" };
 import CENTIPEDE_SPEC from "../data/bodies/centipede.chain.json" with { type: "json" };
 import CENTIPEDE_BONES from "../data/bodies/centipede.bones.json" with { type: "json" };
 import RAT_KING_SPEC from "../data/bodies/rat-king.chain.json" with { type: "json" };
@@ -37,6 +39,7 @@ const BODIES = {
   drone: { spec: DRONE_SPEC, bones: DRONE_BONES },
   spider: { spec: SPIDER_SPEC, bones: SPIDER_BONES },
   centipede: { spec: CENTIPEDE_SPEC, bones: CENTIPEDE_BONES },
+  roach: { spec: ROACH_SPEC, bones: ROACH_BONES },
 };
 const round = (x, n = 5) => Math.round(x * 10 ** n) / 10 ** n;
 const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
