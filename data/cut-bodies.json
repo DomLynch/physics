@@ -74,6 +74,14 @@
       "note": "V3 boss Maw, Frankendom-v3 PR 185 head 54d6706"
     },
     {
+      "name": "hunter-pitborn-106",
+      "source": "hunter-pitborn-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/hunter-pitborn-106.measure.json",
+      "expect_sha256": "b677d29d085cdc27b8b54d87f6814b210d11099a045cfef456ae22946ab82377",
+      "note": "Armagedom marked hunter (Pitborn), ARMAGEDOM main blob a3cad1dc (1,211,976 bytes, sha256 5a20aa18...e5ca): the V3 minotaur body (measure row identical to minotaur-106) plus a baked cleaver (WeaponDrawn_1, WeaponDrawn_2: plain mesh nodes under RightHand > fk_socket_hand_r > WeaponDrawn). Gear follows its bone: plain nodes are kept untouched under the same parents, only the one skinned mesh Steel is cut. Default planes, no hair material; measured at bind pose, scale 1 (the scene applies 1.1 in code)."
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",
