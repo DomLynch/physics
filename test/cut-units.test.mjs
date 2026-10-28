@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Document, NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, KHRMeshQuantization } from "@gltf-transform/extensions";
-import { cutGlb, decompressGlb, weldReport, triangulateLoops, buildPlanes, REGIONS, CAPS } from "../tools/cut-units.mjs";
+import { cutGlb, decompressGlb, weldReport, triangulateLoops, buildPlanes, shoulderTiltFor, REGIONS, CAPS } from "../tools/cut-units.mjs";
 import { validate } from "../tools/cut-validate.mjs";
 import { sha256HexBytes } from "../src/sha256.mjs";
 
@@ -957,4 +957,60 @@ test("rigid accessory: an empty list is the same cut as no option (shipped rows 
     assert.equal(plain.manifest.rigid_accessories, undefined);
     assert.equal(plain.manifest.stats.rigid_accessory_triangles, undefined);
   }
+});
+
+// ---------------------------------------------------------------- shoulder_mode: a narrow-shouldered body over a wide waist, hips or skirt
+const narrowJoints = () => ({ ...hipJoints([0.188, 0.45, 0], [-0.188, 0.45, 0]), LeftArm: [0.108, 1.23, 0], LeftForeArm: [0.33, 1.22, 0], RightArm: [-0.108, 1.23, 0], RightForeArm: [-0.33, 1.22, 0] });
+test("shoulder_mode tilt: shoulderTiltFor clears the wide body below the joint, ignores shoulder tissue and a narrow body", () => {
+  const A = [0.108, 1.23, 0], n = [1, 0, 0];
+  assert.deepEqual(shoulderTiltFor(A, n, [[0.05, 0.9, 0], [0.09, 0.5, 0]]), { t: 0, binding: null }, "a body inside the joint's width needs no tilt");
+  const skirt = [[0.2, 0.63, 0], [0.15, 0.9, 0.1]];
+  const { t, binding } = shoulderTiltFor(A, n, skirt, 0);
+  assert.ok(Math.abs(t - (0.2 - 0.108) / 0.6) < 1e-12, "the widest-per-drop vertex sets t: " + t);
+  assert.deepEqual(binding, skirt[0]);
+  for (const p of skirt) assert.ok(n[0] * (p[0] - A[0]) + t * (p[1] - A[1]) <= 1e-12, "every clearing vertex is on or inside the turned plane");
+  assert.equal(shoulderTiltFor(A, n, [[0.3, 1.2, 0]], 0, 0.055).t, 0, "a vertex within minDrop below the joint (deltoid) is left to the weights");
+  assert.ok(shoulderTiltFor(A, n, [[0.3, 1.2, 0]], 0, 0).t > 5, "without the skip a deltoid vertex would turn the plane almost flat");
+  assert.ok(shoulderTiltFor(A, n, [[0.2, 0.63, 0]], 0.01).t > shoulderTiltFor(A, n, [[0.2, 0.63, 0]], 0).t, "the margin adds clearance");
+});
+test("shoulder_mode tilt: the plane keeps its joint and horizontal normal at tilt 0, and turns about the joint otherwise; default and joint are the same planes", () => {
+  const J = narrowJoints();
+  const dflt = buildPlanes(J), joint = buildPlanes(J, null, { shoulder_mode: "joint" }), t0 = buildPlanes(J, null, { shoulder_mode: "tilt" }, { left: 0, right: 0 });
+  for (const s of ["shoulder_left", "shoulder_right"]) {
+    assert.deepEqual({ ...joint[s], d: 0 }, { ...dflt[s], d: 0 }); // same n, c, point, source
+    assert.deepEqual(t0[s].n, dflt[s].n);
+    assert.deepEqual(t0[s].point, dflt[s].point);
+  }
+  const f = buildPlanes(J, null, { shoulder_mode: "tilt" }, { left: 0.4, right: 0.25 });
+  for (const [s, A, t, sgn] of [["shoulder_left", J.LeftArm, 0.4, 1], ["shoulder_right", J.RightArm, 0.25, -1]]) {
+    assert.ok(Math.abs(f[s].d(A)) < 1e-12, s + " still passes through its arm joint");
+    assert.ok(Math.abs(vlenOf(f[s].n) - 1) < 1e-12);
+    assert.ok(Math.abs(f[s].n[1] / Math.abs(f[s].n[0]) - t) < 1e-12, s + " tilt " + f[s].n);
+    assert.ok(sgn * f[s].n[0] > 0, s + " still faces outward along the arm");
+    assert.match(f[s].source, /turned about the joint/);
+  }
+  const wide = [0.21, 0.7, 0];
+  assert.ok(dflt.shoulder_left.d(wide) > 0 && f.shoulder_left.d(wide) < 0, "the skirt vertex is on the arm's side of today's plane and on the body's side of the turned one");
+});
+test("shoulder_mode: an unknown mode and tilt with a moved shoulder_frac are refused", () => {
+  assert.throws(() => buildPlanes(narrowJoints(), null, { shoulder_mode: "slant" }), /shoulder_mode must be one of joint, tilt/);
+  assert.throws(() => buildPlanes(narrowJoints(), null, { shoulder_mode: "tilt", shoulder_frac: 0.3 }), /shoulder_frac must stay 0/);
+});
+test("shoulder_mode tilt: a wide skirt over the joint-width arms cuts and validates with the mode, the arm bones keep the arm side, and joint mode is the unchanged cut", async () => {
+  const b = await buildBody({ skirt: true }); // skirt half width 0.22 against the arm joints at x = 0.2: narrower shoulders than hips
+  const plain = await cut(b);
+  const joint = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planes: { shoulder_mode: "joint" } });
+  assert.equal(sha256HexBytes(joint.glb), sha256HexBytes(plain.glb), "mode joint is the default cut, byte for byte");
+  assert.equal(JSON.stringify(joint.manifest), JSON.stringify(plain.manifest));
+  assert.equal(plain.report.shoulder_tilt, undefined);
+  const tilt = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planes: { shoulder_mode: "tilt" } });
+  const t = tilt.report.shoulder_tilt;
+  assert.ok(t.left.tilt > 0 && t.right.tilt > 0, "the skirt (x 0.22 at y 0.8) needs a turn: " + JSON.stringify(t));
+  assert.ok(Math.abs(t.left.tilt - t.right.tilt) < 1e-9, "a symmetric body turns both sides alike");
+  const v = validateAll(b, tilt);
+  assert.deepEqual(failedChecks(v), [], "all checks pass with the mode");
+  const pl = tilt.manifest.planes.shoulder_left;
+  assert.ok(pl.normal[1] > 0 && Math.abs(pl.point[0] - 0.2) < 1e-4, "the plane passes through the LeftArm joint and is turned: " + JSON.stringify(pl.normal));
+  const again = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planes: { shoulder_mode: "tilt" } });
+  assert.equal(sha256HexBytes(again.glb), sha256HexBytes(tilt.glb), "deterministic");
 });

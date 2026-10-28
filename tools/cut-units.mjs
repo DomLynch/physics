@@ -94,20 +94,54 @@ export const PLANE_ROWS = {
   waist_frac: 1, // Hips -> Spine: at the Spine joint
   shoulder_frac: 0, // Arm -> ForeArm: at the Arm joint
   hip_frac: 0, // UpLeg -> Leg: at the UpLeg joint
+  // "joint": the shoulder plane stands square to the horizontal part of the upper arm bone (today's cut). "tilt": the same plane through the same joint,
+  // turned about the arm joint toward the vertical until it clears every vertex the other regions own (a narrow-shouldered body over a wide waist,
+  // hips or skirt); the plane keeps its joint, so the skeleton's sides of it, and so bone_side, do not change. See shoulderTiltFor.
+  shoulder_mode: "joint",
 };
+export const SHOULDER_MODES = ["joint", "tilt"];
+export const SHOULDER_TILT_MAX = 1; // tan 45 degrees: a plane turned further than this is no shoulder cut; the cut refuses rather than clip
+export const SHOULDER_TILT_MARGIN = 0.0005; // metres: a clearing vertex ends this far from the plane, past the snap band
+// The tilt that clears the body below the shoulder. The plane is d(p) = n.(p - A) + t (p_y - A_y) with n the unit shoulder normal (square to the upper
+// arm, vertical part dropped) and A the arm joint, so t = 0 is today's plane and t > 0 lowers the outer side of the plane down the body (its foot swings out).
+// `below` = positions of the vertices NOT owned by this arm (bones of the other regions) lying below the joint by at least minDrop: each needs d <= -margin,
+// which is t >= (n.(p - A) + margin) / (A_y - p_y); t is the largest of those, never below 0. Returns { t, binding } (binding = the position that set t).
+export const shoulderNormalOf = (A, B) => { const d = sub(B, A), h = [d[0], 0, d[2]]; return vlen(h) >= 0.5 * vlen(d) ? h : d; };
+export const SHOULDER_TILT_SKIP_ARM_LEN = 0.25; // vertices within this fraction of the upper arm's length below the joint are shoulder tissue (deltoid, trapezius), not the wide body below
+export function shoulderTiltFor(A, n, below, margin = SHOULDER_TILT_MARGIN, minDrop = 0) {
+  let t = 0, binding = null;
+  for (const p of below) {
+    const drop = A[1] - p[1];
+    if (!(drop > 0) || drop < minDrop) continue;
+    const need = (dot(n, sub(p, A)) + margin) / drop;
+    if (need > t) { t = need; binding = p; }
+  }
+  return { t, binding };
+}
 export const HIP_SPLIT_PARALLEL = 0.1; // |left hip normal - right hip normal| under this: thighs parallel, hip_split is the midline plane (shipped bodies: 0.20 and up)
 const alongPair = (a, b, f) => (f === 0 ? a : f === 1 ? b : lerp3(a, b, f));
-export function buildPlanes(J, apex = null, planeRows = PLANE_ROWS) {
+export function buildPlanes(J, apex = null, planeRows = PLANE_ROWS, shoulderTilts = null) {
   const PR = { ...PLANE_ROWS, ...planeRows };
   const need = ["Hips", "Spine", "Neck", "Head", "LeftArm", "LeftForeArm", "RightArm", "RightForeArm", "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg"];
   for (const r of need) if (!J[r]) throw new Error("measure row has no joint " + r);
   const fns = {};
   fns.neck = makeFn("neck", alongPair(J.Neck, J.Head, PR.neck_frac), sub(J.Head, J.Neck), (PR.neck_frac === 0.5 ? "half way" : PR.neck_frac + " of the way") + " from the Neck joint to the Head joint, normal along Neck to Head");
   // the upper arm bone with its vertical part dropped: a plane square to a drooping arm tilts into the flank and gives the arm a slab of ribs
-  const shoulderNormal = (A, B) => { const d = sub(B, A), h = [d[0], 0, d[2]]; return vlen(h) >= 0.5 * vlen(d) ? h : d; };
+  const shoulderNormal = shoulderNormalOf;
   const shSrc = "joint, normal along the upper arm bone with its vertical part dropped (a plane square to a drooping arm would cut into the flank)";
-  fns.shoulder_left = makeFn("shoulder_left", alongPair(J.LeftArm, J.LeftForeArm, PR.shoulder_frac), shoulderNormal(J.LeftArm, J.LeftForeArm), "LeftArm " + shSrc);
-  fns.shoulder_right = makeFn("shoulder_right", alongPair(J.RightArm, J.RightForeArm, PR.shoulder_frac), shoulderNormal(J.RightArm, J.RightForeArm), "RightArm " + shSrc);
+  if (!SHOULDER_MODES.includes(PR.shoulder_mode)) throw new Error(`shoulder_mode must be one of ${SHOULDER_MODES.join(", ")}, got ${JSON.stringify(PR.shoulder_mode)}`);
+  if (PR.shoulder_mode === "tilt") {
+    if (PR.shoulder_frac !== 0) throw new Error("shoulder_mode tilt turns the plane about the arm joint: shoulder_frac must stay 0");
+    // the unit normal of each plane before the turn, and how far to turn it (cutGlb measures that from the mesh; without it the plane is today's)
+    for (const [side, A, B] of [["left", J.LeftArm, J.LeftForeArm], ["right", J.RightArm, J.RightForeArm]]) {
+      const n0 = norm(shoulderNormal(A, B)), t = (shoulderTilts && shoulderTilts[side]) || 0;
+      fns["shoulder_" + side] = makeFn("shoulder_" + side, A, [n0[0], n0[1] + t, n0[2]],
+        (side === "left" ? "LeftArm " : "RightArm ") + shSrc.replace(/\)$/, "), turned about the joint toward the vertical until it clears the other regions' vertices below the shoulder") + (t ? " (tilt " + r6(t) + ", " + r6(Math.atan(t) * 180 / Math.PI) + " degrees)" : " (no vertex below the shoulder needs it: tilt 0)"));
+    }
+  } else {
+    fns.shoulder_left = makeFn("shoulder_left", alongPair(J.LeftArm, J.LeftForeArm, PR.shoulder_frac), shoulderNormal(J.LeftArm, J.LeftForeArm), "LeftArm " + shSrc);
+    fns.shoulder_right = makeFn("shoulder_right", alongPair(J.RightArm, J.RightForeArm, PR.shoulder_frac), shoulderNormal(J.RightArm, J.RightForeArm), "RightArm " + shSrc);
+  }
   const hipNormal = (H, K) => {
     const t = norm(sub(K, H));
     if (!apex) return t;
@@ -625,7 +659,30 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     if (apex) report.crotch_apex = apex.map(r6);
     else report.notes.push("no crotch apex found: hip planes are the plain thigh-normal planes");
   }
-  const fns = buildPlanes(J, apex, opts.planes || PLANE_ROWS);
+  // shoulder_mode "tilt": measure how far each shoulder plane must turn about its arm joint to clear the vertices the other regions own below the shoulder
+  // (the heaviest region of a vertex's skin weight owns it; the head's hair and the other arm are left out: the head is cut by the neck plane, the other arm is on the far side)
+  let shoulderTilts = null;
+  if (opts.planes && opts.planes.shoulder_mode === "tilt") {
+    shoulderTilts = {};
+    const dominant = new Array(verticesIn);
+    for (let v = 0; v < verticesIn; v++) {
+      const share = {};
+      for (const [j, w] of V.skin[v]) share[owner[j]] = (share[owner[j]] || 0) + w;
+      let best = "root", bw = -1;
+      for (const k of Object.keys(share).sort()) if (share[k] > bw) { bw = share[k]; best = k; }
+      dominant[v] = best;
+    }
+    report.shoulder_tilt = {};
+    for (const [side, A, B] of [["left", J.LeftArm, J.LeftForeArm], ["right", J.RightArm, J.RightForeArm]]) {
+      const n0 = norm(shoulderNormalOf(A, B)), below = [];
+      for (let v = 0; v < verticesIn; v++) if (dominant[v] !== "arm_" + side && dominant[v] !== "head" && dominant[v] !== "arm_" + (side === "left" ? "right" : "left")) below.push(V.pos[v]);
+      const { t, binding } = shoulderTiltFor(A, n0, below, SHOULDER_TILT_MARGIN, SHOULDER_TILT_SKIP_ARM_LEN * vlen(sub(B, A)));
+      if (t > SHOULDER_TILT_MAX) throw new Error(`shoulder_mode tilt: the ${side} shoulder plane would have to turn ${r6(Math.atan(t) * 180 / Math.PI)} degrees (tilt ${r6(t)}) to clear a vertex at ${binding.map(r6)}; more than the ${SHOULDER_TILT_MAX} allowed, so this body needs its source fixed or another rule`);
+      shoulderTilts[side] = t;
+      report.shoulder_tilt[side] = { tilt: r6(t), degrees: r6(Math.atan(t) * 180 / Math.PI), binding_vertex: binding ? binding.map(r6) : null };
+    }
+  }
+  const fns = buildPlanes(J, apex, opts.planes || PLANE_ROWS, shoulderTilts);
   // optional cuts (rows above): off unless asked for
   const headSplit = opts.headSplit ? rowOf(HEAD_SPLIT, opts.headSplit) : null, bellyOpen = opts.bellyOpen ? rowOf(BELLY_OPEN, opts.bellyOpen) : null;
   if (headSplit) fns.head_split = buildHeadSplitPlane(J, headSplit);

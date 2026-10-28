@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { basename, dirname, join, resolve, isAbsolute, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { cutGlb, decompressGlb, rigidAccessorySpecs } from "./cut-units.mjs";
+import { cutGlb, decompressGlb, rigidAccessorySpecs, SHOULDER_MODES } from "./cut-units.mjs";
 import { validate } from "./cut-validate.mjs";
 import { sha256HexBytes } from "../src/sha256.mjs";
 
@@ -19,7 +19,7 @@ export const SCHEMA = "cut-bodies/1";
 // the row keys a body may carry (anything else is refused: a typo in a row must not silently cut with defaults)
 const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "expect_sha256", "blocked", "blocked_checks", "note"]);
 const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open", "rigid_accessory_materials", "plane_snap_m"]);
-const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac"]);
+const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac", "shoulder_mode"]);
 
 // Reads and checks a body-row file. `defaults` fills every body's missing keys (rig_map, overrides merge one level deep).
 export function loadRows(path) {
@@ -36,7 +36,9 @@ export function loadRows(path) {
     for (const k of Object.keys(row.overrides.planes || {})) if (!PLANE_KEYS.has(k)) throw new Error(`${where}: unknown plane row ${k}`);
     // override values: a typo in a value must not silently cut with defaults either
     const ov = row.overrides, isFrac = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
-    for (const [k, v] of Object.entries(ov.planes || {})) if (!isFrac(v)) throw new Error(`${where}: overrides.planes.${k} must be a number from 0 to 1, got ${JSON.stringify(v)}`);
+    if (ov.planes && ov.planes.shoulder_mode !== undefined && !SHOULDER_MODES.includes(ov.planes.shoulder_mode)) throw new Error(`${where}: overrides.planes.shoulder_mode must be one of ${SHOULDER_MODES.join(", ")}, got ${JSON.stringify(ov.planes.shoulder_mode)}`);
+    if (ov.planes && ov.planes.shoulder_mode === "tilt" && ov.planes.shoulder_frac) throw new Error(`${where}: overrides.planes.shoulder_mode tilt turns the plane about the arm joint, so shoulder_frac must be absent or 0`);
+    for (const [k, v] of Object.entries(ov.planes || {})) if (k !== "shoulder_mode" && !isFrac(v)) throw new Error(`${where}: overrides.planes.${k} must be a number from 0 to 1, got ${JSON.stringify(v)}`);
     if (ov.home_min_weight !== undefined && !isFrac(ov.home_min_weight)) throw new Error(`${where}: overrides.home_min_weight must be a number from 0 to 1, got ${JSON.stringify(ov.home_min_weight)}`);
     if (ov.hair_materials !== undefined && !(Array.isArray(ov.hair_materials) && ov.hair_materials.every((m) => typeof m === "string" && m))) throw new Error(`${where}: overrides.hair_materials must be a list of material names`);
     if (ov.plane_snap_m !== undefined && !(typeof ov.plane_snap_m === "number" && ov.plane_snap_m > 0 && ov.plane_snap_m <= 1e-4)) throw new Error(`${where}: overrides.plane_snap_m must be a number from 0 (exclusive) to 0.0001 metres (the validator's plane tolerance), got ${JSON.stringify(ov.plane_snap_m)}`);
