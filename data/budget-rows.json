@@ -1,0 +1,39 @@
+{
+  "schema": "budget-rows/1",
+  "about": "Input rows for tools/budget-seven.mjs: per-frame CPU physics-step cost for N = 1..7 simultaneous ragdolls, with and without cuts. Nothing about the scenes is hard-coded in the tool. This is the cost of one 60 Hz tick of the shared physics world (motors, Jolt step, readPose for every body), NOT GPU render cost, skinning or draw calls.",
+  "ticks": 240,
+  "warm_ticks": 30,
+  "repeats": 3,
+  "counts": [1, 2, 3, 4, 5, 6, 7],
+  "spacing_m": 2.5,
+  "spacing_source": "own start value: a boss is about 2.1 m tall, so 2.5 m keeps the ragdolls from touching each other; the cost under crowding is a separate row to add",
+  "budget_ms": 3,
+  "budget_source": "docs/BRIEF.md: the 3 ms physics budget (five fighters + one cut) that test/budget.test.mjs guards",
+  "motor_strength": { "high": 1, "low": 0.8, "period_ticks": 120, "high_ticks": 60, "source": "test/budget.test.mjs: same motor pattern as the M3 proof scene" },
+  "sets": [
+    {
+      "id": "boss106_mix",
+      "bodies": ["warrok-106", "gargantua-106", "demon-106", "maw-106", "brute-106", "arachne-106", "hunter-pitborn-106"],
+      "note": "seven different Mixamo-106 boss bodies; ragdoll N uses the first N of this list. All are 20-part ragdolls, so the part count does not change with the rig, only masses and lengths do."
+    },
+    { "id": "boss106_warrok_x7", "bodies": ["warrok-106", "warrok-106", "warrok-106", "warrok-106", "warrok-106", "warrok-106", "warrok-106"], "note": "heaviest measured boss (140 kg clamp) repeated: the worst mass case" },
+    { "id": "rig65_mix", "bodies": ["minotaur", "psyche", "warrior", "veteran", "minotaur", "psyche", "warrior"], "note": "the four 65-joint V3 bodies, repeated to seven" }
+  ],
+  "scenarios": [
+    { "id": "alive_idle", "about": "all N standing, motors on, hips kinematic, no cut", "cuts": [] },
+    { "id": "alive_one_cut", "about": "N standing, ragdoll 0 loses an arm at tick 60 (same shape as test/budget.test.mjs)", "cut_who": 1, "cuts": [{ "tick": 60, "unit": "arm_right" }] },
+    { "id": "alive_all_cut", "about": "N standing, every ragdoll loses an arm at tick 60 (worst case for the 120 Hz high-rate window)", "cut_who": "all", "cuts": [{ "tick": 60, "unit": "arm_right" }] },
+    {
+      "id": "dying_all_cut",
+      "about": "every ragdoll is cut (arm) at tick 60, killed at tick 70 with a hit impulse and falls free (released hips, limp motors, self-collision)",
+      "cut_who": "all", "cuts": [{ "tick": 60, "unit": "arm_right" }],
+      "kill": { "tick": 70, "part": "spine2", "impulse": [0, 0, 60], "source": "test/bodies.test.mjs: the kill impulse the body tests use" }
+    },
+    {
+      "id": "dying_multi_cut",
+      "about": "worst case: every ragdoll takes three cuts (arm, arm, head) at ticks 60, 66, 72 and is killed at tick 70",
+      "cut_who": "all", "cuts": [{ "tick": 60, "unit": "arm_right" }, { "tick": 66, "unit": "arm_left" }, { "tick": 72, "unit": "head" }],
+      "kill": { "tick": 70, "part": "spine2", "impulse": [0, 0, 60], "source": "test/bodies.test.mjs" }
+    }
+  ]
+}
