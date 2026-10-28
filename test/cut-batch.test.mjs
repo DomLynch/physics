@@ -318,6 +318,12 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, sourse: "x" }] })), /unknown key sourse/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { hair: [] } }] })), /unknown override hair/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { neck: 1 } } }] })), /unknown plane row neck/);
+  // shoulder_mode: a named mode, "joint" (today) or "tilt"; tilt keeps the plane at the arm joint
+  for (const m of ["joint", "tilt"]) assert.equal(loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: m } } }] })).bodies.length, 1);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: "slant" } } }] })), /shoulder_mode must be one of joint, tilt/);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: 0.3 } } }] })), /shoulder_mode must be one of/);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: "tilt", shoulder_frac: 0.3 } } }] })), /shoulder_frac must be absent or 0/);
+  assert.deepEqual(cutOpts({ name: "a", rig_map: "data/rig-maps/v1-65.json", overrides: { planes: { shoulder_mode: "tilt" } } }).planes, { shoulder_mode: "tilt" });
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [ok, ok] })), /duplicate/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, expect_sha256: "abc" }] })), /expect_sha256/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, name: "../x" }] })), /plain file stem/);
@@ -390,15 +396,14 @@ test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records th
   assert.match(b.note, /repair/i);
 });
 
-test("anime-girl-blonde-106 (V3 body): a blocked row that names exactly the checks it still fails and why (narrow shoulders over a wide waist; not a validator bypass)", () => {
+test("anime-girl-blonde-106 (V3 body): a pinned, unblocked row whose only override is the general narrow-shoulder mode (planes.shoulder_mode tilt)", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
   const b = bodies.find((x) => x.name === "anime-girl-blonde-106");
   assert.equal(b.source, "anime-girl-blonde-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
-  assert.deepEqual(b.blocked_checks, ["watertight", "orientation"]);
-  assert.match(b.blocked, /shoulder/);
-  assert.match(b.blocked, /bone_side/);
-  assert.match(b.blocked, /0\.3/);
-  assert.deepEqual(b.overrides ?? {}, {}, "the blocked row is the default planes: no per-body hack");
-  assert.equal(b.expect_sha256, undefined);
+  assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
+  assert.equal(b.blocked_checks, undefined);
+  assert.deepEqual(b.overrides, { planes: { shoulder_mode: "tilt" } }, "no per-body plane numbers, no weights, no accessory sets");
+  assert.match(b.expect_sha256, /^[0-9a-f]{64}$/);
+  assert.match(b.note, /narrow/i);
 });
