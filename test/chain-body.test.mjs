@@ -212,7 +212,7 @@ test("humanoid rows are unaffected: pose and state behave as before (hash of a p
 
 // ---- the rat rig family: rat king (mini-boss) and crow, both on the 24-bone rat rig (root > pelvis > spine > chest > neck > head > jaw > bite_tip; tail_1..4; leg_B*/leg_F* > shin > paw) ----
 const RIG = {
-  "rat-king": { scale: 3, mass: [20, 80], impulse: 40, species: "rat king" },
+  "rat-king": { scale: 6, mass: [150, 500], impulse: 320, species: "rat king" }, // x6 in the game (PR #435); masses cubed from the old x3 row (37 kg x 8)
   crow: { scale: 4, mass: [2, 20], impulse: 10, species: "crow" },
 };
 const EXPECTED_MAP = {
@@ -266,9 +266,9 @@ for (const [name, cfg] of Object.entries(RIG)) {
 
   test(`${name}: the built row has capsules sized to the creature (scale ${cfg.scale}) and every pivot above the floor`, () => {
     const { row } = loadChainBody(name);
-    assert.ok(row.height_m > 0.2 && row.height_m < 1, `height ${row.height_m} m`);
+    assert.ok(row.height_m > 0.2 && row.height_m < 0.34 * cfg.scale, `height ${row.height_m} m`);
     for (const r of row.roles) {
-      assert.ok(r.radius_m > 0.005 && r.radius_m < 0.25, `${r.id}: radius ${r.radius_m}`);
+      assert.ok(r.radius_m > 0.005 && r.radius_m < 0.07 * cfg.scale, `${r.id}: radius ${r.radius_m}`);
       assert.ok(r.rest.pivot[1] > 0, `${r.id}: pivot above the floor`);
     }
   });
@@ -281,7 +281,7 @@ for (const [name, cfg] of Object.entries(RIG)) {
     let worst = 0;
     const p1 = rd.readPose();
     for (let i = 0; i < 13; i++) worst = Math.max(worst, Math.hypot(p1[i * 10] - p0[i * 10], p1[i * 10 + 1] - p0[i * 10 + 1], p1[i * 10 + 2] - p0[i * 10 + 2]));
-    assert.ok(worst < 0.15, `${name}: a part drifted ${worst} m while alive`);
+    assert.ok(worst < 0.05 * cfg.scale, `${name}: a part drifted ${worst} m while alive`);
     const hipsY0 = rd.readPose()[1];
     rd.kill({ part: "chest", impulse: [0, 0, cfg.impulse] });
     for (let t = 0; t < 900; t++) p.step(1 / 60);
@@ -316,11 +316,13 @@ for (const [name, cfg] of Object.entries(RIG)) {
   });
 }
 
-test("the crow is the lighter one and the rat king the heavier; no crow capsule is fatter; both GLBs share the same 24-bone skeleton", () => {
+test("the crow is the lighter one and the rat king the heavier; no crow capsule is fatter in metres (except the wing bones); both GLBs share the same 24-bone skeleton", () => {
   const rat = read("rat-king.chain.json"), crow = read("crow.chain.json");
   const mass = (s) => s.segments.reduce((a, x) => a + x.mass, 0);
   assert.ok(mass(crow) < mass(rat), `crow ${mass(crow)} kg vs rat king ${mass(rat)} kg`);
-  assert.ok(crow.segments.every((s) => s.radius <= rat.segments.find((x) => x.id === s.id).radius + 1e-9), "crow capsule fatter than the rat king's (model units)");
+  // metres, not model units: the king is x6 and the crow x4. The crow's front uppers carry the wing skin (game radius about 0.09), so they may be fatter than the king's front legs.
+  const WING = new Set(["leg_FL_up", "leg_FR_up"]);
+  assert.ok(crow.segments.every((s) => WING.has(s.id) || s.radius * crow.scale <= rat.segments.find((x) => x.id === s.id).radius * rat.scale + 1e-9), "crow capsule fatter than the rat king's (metres)");
   assert.deepEqual(read("rat-king.bones.json").bones, read("crow.bones.json").bones);
 });
 
