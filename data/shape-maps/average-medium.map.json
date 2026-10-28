@@ -1,0 +1,15 @@
+{"schema":"shape-map/1","shape":"average-medium","rig":"mixamo-106","prefix":"mixamorig:","table":"ragdoll-role-table/1","n":177,"height_m":[1.4738,1.742,1.9127],"mass_kg":[18,49.55,99.55],"use":"radius_m = r * height * girth; length_m = l * height; mass_kg = m * body_mass; node = prefix + key with {S} -> Left / Right; end null + ext = extension of ext * height beyond the joint along the parent bone. Limits are the role table's, in degrees.","roles":{
+  "Hips":{"end":"Spine","parent":null,"r":0.04351,"l":0.05639,"m":0.20372,"j":null},
+  "Spine":{"end":"Spine1","parent":"Hips","r":0.03519,"l":0.06214,"m":0.05614,"j":["ball",20,15]},
+  "Spine1":{"end":"Spine2","parent":"Spine","r":0.04182,"l":0.07075,"m":0.06737,"j":["ball",18,12]},
+  "Spine2":{"end":"Neck","parent":"Spine1","r":0.04996,"l":0.08913,"m":0.0802,"j":["ball",18,12]},
+  "Neck":{"end":"Head","parent":"Spine2","r":0.03,"l":0.03632,"m":0.00802,"j":["ball",50,60]},
+  "Head":{"end":null,"ext":0.13,"parent":"Neck","r":0.043,"l":0.13,"m":0.0802,"j":["ball",55,70]},
+  "{S}Arm":{"end":"{S}ForeArm","parent":"Spine2","r":0.03213,"l":0.14181,"m":0.03256,"j":["ball",150,100]},
+  "{S}ForeArm":{"end":"{S}Hand","parent":"{S}Arm","r":0.02193,"l":0.13934,"m":0.01925,"j":["hinge",-30,150]},
+  "{S}Hand":{"end":null,"ext":0.055,"parent":"{S}ForeArm","r":0.022,"l":0.055,"m":0.00802,"j":["ball",80,70]},
+  "{S}UpLeg":{"end":"{S}Leg","parent":"Hips","r":0.04408,"l":0.23184,"m":0.11886,"j":["ball",85,45]},
+  "{S}Leg":{"end":"{S}Foot","parent":"{S}UpLeg","r":0.03386,"l":0.23595,"m":0.05598,"j":["hinge",-3.2,136.8]},
+  "{S}Foot":{"end":"{S}ToeBase","parent":"{S}Leg","r":0.026,"l":0.08417,"m":0.01444,"j":["ball",40,20]},
+  "{S}ToeBase":{"end":null,"ext":0.05,"parent":"{S}Foot","r":0.02,"l":0.05,"m":0.00305,"j":["ball",30,5]}
+}}
