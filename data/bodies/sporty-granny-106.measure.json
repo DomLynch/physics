@@ -1,0 +1,120 @@
+{
+ "id": "sporty-granny-106",
+ "source": "sporty-granny-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.6388,
+ "neck_len": 0.1046,
+ "torso_len": 0.3915,
+ "shoulder_w": 0.257,
+ "upper_arm_len": 0.3129,
+ "forearm_len": 0.3172,
+ "thigh_len": 0.3292,
+ "shin_len": 0.3207,
+ "foot_len": 0.19,
+ "chest_w": 0.2619,
+ "waist_w": 0.2416,
+ "hip_w": 0.4074,
+ "chest_d": 0.2043,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.8715,
+   0.0227
+  ],
+  "Spine": [
+   0,
+   0.95,
+   0.0618
+  ],
+  "Spine1": [
+   0,
+   1.0644,
+   0.0687
+  ],
+  "Spine2": [
+   0,
+   1.1949,
+   0.0507
+  ],
+  "Neck": [
+   0,
+   1.3363,
+   -0.0019
+  ],
+  "Head": [
+   0,
+   1.4406,
+   -0.0102
+  ],
+  "LeftArm": [
+   0.1285,
+   1.2776,
+   0.0092
+  ],
+  "LeftForeArm": [
+   0.4414,
+   1.2776,
+   0.0092
+  ],
+  "LeftHand": [
+   0.7586,
+   1.2776,
+   0.0092
+  ],
+  "RightArm": [
+   -0.1285,
+   1.2776,
+   0.0092
+  ],
+  "RightForeArm": [
+   -0.4414,
+   1.2776,
+   0.0092
+  ],
+  "RightHand": [
+   -0.7586,
+   1.2776,
+   0.0092
+  ],
+  "LeftUpLeg": [
+   0.1187,
+   0.7778,
+   -0.0017
+  ],
+  "LeftLeg": [
+   0.1187,
+   0.4487,
+   0.0068
+  ],
+  "LeftFoot": [
+   0.1187,
+   0.1294,
+   -0.0235
+  ],
+  "LeftToeBase": [
+   0.1187,
+   0,
+   0.1156
+  ],
+  "RightUpLeg": [
+   -0.1187,
+   0.7778,
+   -0.0017
+  ],
+  "RightLeg": [
+   -0.1187,
+   0.4487,
+   0.0068
+  ],
+  "RightFoot": [
+   -0.1187,
+   0.1294,
+   -0.0235
+  ],
+  "RightToeBase": [
+   -0.1187,
+   0,
+   0.1156
+  ]
+ }
+}
