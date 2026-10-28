@@ -20,8 +20,11 @@
     "targets": {
       "arm": 0.9, "forearm": 0.6, "hand": 0.12,
       "spine": 0.6, "spine1": 0.6, "spine2": 0.6, "neck": 0.6, "head": 0.6,
-      "thigh": 0.6, "shin": 0.6, "foot": 0.6, "toe": 0.6
+      "thigh": 0.6, "shin": 0.6, "foot": 0.6, "toe": 0.6,
+      "tail": 0.4, "leg_upper": 0.6, "leg_lower_front": 0.6, "leg_lower_hind": 0.6, "leg_lower": 0.6, "leg_whole": 0.6, "leg_bank": 0.6,
+      "body": 0.6, "thorax": 0.6, "abdomen": 0.6, "body_segment": 0.6
     },
+    "chain_targets_source": "own: the chain bodies' roles (src/chain.mjs spec role, default the part id) get the same torso/leg value 0.6 as the humanoid rows, and the tail goes looser at 0.4 (nothing holds it up, it should whip); spine and head already had 0.6. The humanoid keys above are unchanged. Retune on our clips.",
     "targets_source": "BRIEF M3 'arm 0.9 / torso 0.6 / 0.12' read as HQ HandMuscleWeakener muscle weights arm 0.9 / forearm 0.6 / hand 0.12 for the arm chain, torso and legs at the torso value 0.6 (own reading of the ambiguous '0.12'); retune on our clips"
   },
   "cut": {
