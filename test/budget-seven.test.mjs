@@ -14,7 +14,7 @@ test("budget rows: schema, 1..7 counts, every named body exists, every scenario 
   assert.ok(rows.spacing_source && rows.budget_source);
   for (const s of rows.sets) {
     assert.equal(s.bodies.length, 7, s.id);
-    for (const b of s.bodies) assert.ok(existsSync(new URL(`../data/bodies/${b}.measure.json`, import.meta.url)), `${s.id}: ${b}`);
+    for (const b of s.bodies) assert.ok(existsSync(new URL(`../data/bodies/${b}.${s.kind === "chain" ? "chain" : "measure"}.json`, import.meta.url)), `${s.id}: ${b}`);
   }
   const units = new Set(["head", "arm_left", "arm_right", "leg_left", "leg_right", "torso_waist"]);
   for (const sc of rows.scenarios) for (const c of sc.cuts) assert.ok(units.has(c.unit) && Number.isInteger(c.tick), `${sc.id}: ${c.unit}`);

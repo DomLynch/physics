@@ -46,9 +46,10 @@ export function buildDefinition(row, position = [0, 0, 0], flex = WORLD.hinge_fl
       // a knee backward. The generator's hinge axis is the same side-less world axis on both arms, so the left elbow's flexion is the NEGATIVE angle.
       const hax = qrot(roles[i].rest.quat, [1, 0, 0]);
       const moved = [d[0] + (hax[1] * d[2] - hax[2] * d[1]) * 0.2, d[1] + (hax[2] * d[0] - hax[0] * d[2]) * 0.2, d[2] + (hax[0] * d[1] - hax[1] * d[0]) * 0.2];
-      const row_flex = flex ? flex[roles[i].role] : undefined;
+      // a chain row (src/chain.mjs) carries its own role -> +-1 map in row.hinge_flex_z; it replaces the world row and the humanoid shin fallback (a role not in it is +1)
+      const row_flex = row.hinge_flex_z ? row.hinge_flex_z[roles[i].role] : flex ? flex[roles[i].role] : undefined;
       if (row_flex !== undefined && row_flex !== 1 && row_flex !== -1) throw new Error(`hinge_flex_z.${roles[i].role} must be 1 or -1, got ${JSON.stringify(row_flex)}`);
-      const want = row_flex !== undefined ? row_flex : roles[i].role === "shin" ? -1 : 1, flipped = (moved[2] - d[2]) * want < 0;
+      const want = row_flex !== undefined ? row_flex : !row.hinge_flex_z && roles[i].role === "shin" ? -1 : 1, flipped = (moved[2] - d[2]) * want < 0;
       return flipped ? { hingeMin: bend - rad(j.hinge_max_deg), hingeMax: bend - rad(j.hinge_min_deg) } : { hingeMin: rad(j.hinge_min_deg) - bend, hingeMax: rad(j.hinge_max_deg) - bend };
     }
     return { swing: rad(j.swing_deg), twist: rad(j.twist_deg) };
