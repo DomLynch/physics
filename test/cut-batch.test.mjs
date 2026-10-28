@@ -352,12 +352,12 @@ test("rows: overrides.rigid_accessory_materials is a list of names or {name, pie
 
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "arachne-106", "big-vegas-106", "brute-106", "castle-guard-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "kachujin-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "the-boss-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "arachne-106", "big-vegas-106", "brute-106", "castle-guard-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "kachujin-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "sporty-granny-106", "the-boss-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
   }
-  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106", "anime-boy-black-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
+  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106", "anime-boy-black-106", "sporty-granny-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
 });
 
 test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {

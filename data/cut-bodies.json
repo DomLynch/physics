@@ -115,6 +115,14 @@
       "note": "V3 boss/body anime-boy-black, Frankendom-v3 PR 235 head 30978b8 (src/assets/anime-boy-black-106.glb, 853,344 bytes, sha256 cf907471...91de, meshopt-compressed, 106 joints = 64 mixamorig + 42 VRM extras for hair, spring and eye that are unanimated and ignored by the rig map; stem anime-boy-black; confidential source, not committed). Source repairs by OpenTrident Dev, position-only: 94 leg vertices, 70 pelvis-flank vertices, 12 crotch-seam vertices; all 8 checks pass unmodified with no bypass. The source keeps native open edges that the cut leaves alone (face cards, collar, shoes): OpenTrident counted 602; the validator counts 606 on the source surface (584 open, 22 over-used) and on the pieces (head 538 incl. 22 over-used, upper torso 34, root 10, legs 12 + 12), none introduced by a cut and none crossing a cut plane. Default planes, no hair material; 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; cut GLB 3,263,772 bytes, 1,321,434 gzipped."
     },
     {
+      "name": "sporty-granny-106",
+      "source": "sporty-granny-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/sporty-granny-106.measure.json",
+      "expect_sha256": "bdd5dca31f12d252d04d17565aa46c4edd9a57dd352f16844f1b2c45a65a8bef",
+      "note": "V3 boss Sporty Granny (Nan the Impaler), Frankendom-v3 PR 230 head b373905 (src/assets/sporty-granny-106.glb, 782,760 bytes, sha256 f0b76d70...6db1, 106 joints, stem sporty-granny; confidential source, not committed). Source repairs by OpenTrident Dev, before this cut: capped eight open loops, nudged three vertices, reweighted 38 crotch vertices. All 8 checks pass unmodified with no bypass and default settings (no rigid accessory layers, no plane_snap_m); re-verified here at physics ba2daea. The source keeps native open edges that the cut leaves alone (hair and brows, eyes): the validator counts 688 on the source surface (676 open, 12 over-used) and 728 on the pieces (all in the head: 715 open, 13 over-used), none introduced by a cut and none crossing a cut plane. Default planes; the brows (FitGrandma_Brows_MAT1, 80 head vertices) go whole to piece_head (plane_exempt); 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; measured height 1.6388 m; cut GLB 1,826,360 bytes, 699,141 gzipped."
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",
