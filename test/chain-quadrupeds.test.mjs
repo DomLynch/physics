@@ -200,6 +200,14 @@ test("elephant and wolf: same skeleton, the elephant is much heavier with thicke
   assert.deepEqual(e.hinge_flex_z, w.hinge_flex_z);
 });
 
+test("elephant: hips and chest are a real barrel, radius at least 0.11 model units (0.55 m at scale 5), never a thin stick on wide legs", () => {
+  const spec = read("elephant.chain.json"), row = loadChainBody("elephant").row;
+  for (const id of ["hips", "chest"]) {
+    assert.ok(spec.segments.find((s) => s.id === id).radius >= 0.11, `${id} spec radius`);
+    assert.ok(row.roles.find((r) => r.id === id).radius_m >= 0.55 - 1e-6, `${id} row radius_m`);
+  }
+});
+
 test("budget rows: eel, elephant and wolf each have a chain set of 7, with tail-cut and chest-hit maps", () => {
   for (const name of NAMES) {
     const set = rows.sets.find((s) => s.id === `${name}_x7`);
