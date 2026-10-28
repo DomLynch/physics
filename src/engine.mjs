@@ -274,7 +274,7 @@ export async function createWorld(opts = {}) {
       },
       // put every capsule on the last setTargetPose / setRoot pose now (no motor lag, velocities zeroed): hides the lag at the moment of death
       snapToTarget() {
-        if (!targetQ || !lastRoot) return false;
+        if (parked || !targetQ || !lastRoot) return false;
         const at = (i) => [targetQ[i * 4], targetQ[i * 4 + 1], targetQ[i * 4 + 2], targetQ[i * 4 + 3]];
         const delta = D.def.map((_, i) => qmul(at(i), qconj(roles[i].rest.quat)));
         const pivot = new Array(n), centre = new Array(n);
@@ -297,6 +297,7 @@ export async function createWorld(opts = {}) {
       },
       // back to the spawn pose, alive, full strength. Only before any cut (a cut removes joints): returns false then, destroy and recreate instead.
       reset() {
+        if (parked) return false; // a parked ragdoll is already at rest; acquire() brings it out
         if (api.cuts.some((c) => !row.severable.find((s) => s.id === c).visual_only)) return false;
         cut.clear(); // visual-only cuts (head_split, belly_open) removed nothing: the caps hide again with the empty set
         const zero = new Jolt.Vec3(0, 0, 0);
@@ -347,6 +348,7 @@ export async function createWorld(opts = {}) {
       // M3 death: motor strength ramps to 0.01 over 1 s with the limp damper, limits and self-collision stay on, the hit impulse lands this same tick,
       // the ragdoll freezes (sleeps) once every body is under the freeze speed. hit = { part, impulse: [x,y,z] } (optional). Hips are released.
       kill(hit) {
+        if (parked) return false;
         if (state === "dying" || state === "frozen") return;
         state = "dying"; st = { t: 0, from: Float64Array.from(want) };
         calm = 0;
@@ -355,6 +357,7 @@ export async function createWorld(opts = {}) {
       },
       // M3 stagger: brief motor dip on the living body (arm 0.9 / torso 0.6 / hand 0.12, hold 0.5 s, back over 0.35 s). Ignored while dying or knocked down.
       stagger(hit) {
+        if (parked) return false;
         if (state !== "alive" && state !== "stagger") return;
         state = "stagger"; st = { t: 0 };
         if (hit) api.applyImpulse(hit.part, hit.impulse);
@@ -362,6 +365,7 @@ export async function createWorld(opts = {}) {
       // M3 knockdown (TABG start values): kind "damage" or "push" picks the fall time; hips are released, strength falls to fall_strength, stays down, then recovers
       // at recover_per_s. The game re-pins the root (setRoot) when state returns to "alive".
       knockdown(kind = "damage", hit) {
+        if (parked) return false;
         if (state !== "alive" && state !== "stagger") return;
         const g = S.knockdown;
         state = "knockdown"; st = { t: 0, fall_s: (kind === "push" ? g.push_over : g.damage_over).fall_s };
@@ -369,9 +373,10 @@ export async function createWorld(opts = {}) {
         if (hit) api.applyImpulse(hit.part, hit.impulse);
       },
       // the hips follow the game's pose while kinematic; applied at the next step
-      setRoot(position, quaternion) { rootMove = [position, quaternion]; lastRoot = [position, quaternion]; },
-      release() { bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate); },
+      setRoot(position, quaternion) { if (parked) return false; rootMove = [position, quaternion]; lastRoot = [position, quaternion]; },
+      release() { if (parked) return false; bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate); },
       applyImpulse(part, v) {
+        if (parked) return false;
         const i = D.idx[part];
         if (i === undefined) throw new Error("unknown part " + part);
         if (frozen) { for (const b of bodies) bi.ActivateBody(b.GetID()); frozen = false; if (state === "frozen") { state = "dying"; st = { t: S.death.ramp.seconds, from: Float64Array.from(want) }; calm = 0; } }
@@ -383,6 +388,7 @@ export async function createWorld(opts = {}) {
       // copts: { helmet: true | { radius_m, mass_kg } } spawns the head gear as a rigid prop (a head cut only), { impulse: [x,y,z] } pushes the severed piece.
       // Works on a frozen corpse too: the severed piece wakes, the rest stays asleep. Returns { unit, mass_kg, carries_roles, gear_slots, cap, props } or null.
       cut(unit, copts = {}) {
+        if (parked) return false;
         const u = row.severable.find((s) => s.id === unit);
         if (!u) throw new Error("unknown severable unit " + unit);
         if (u.visual_only) {
