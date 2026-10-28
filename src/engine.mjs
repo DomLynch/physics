@@ -141,7 +141,7 @@ export async function createWorld(opts = {}) {
       bcs.mMassPropertiesOverride.mMass = b.mass;
       bcs.mInertiaMultiplier = row.inertia_multiplier;
       bcs.mFriction = body.friction; bcs.mLinearDamping = body.linear_damping; bcs.mAngularDamping = body.angular_damping;
-      if (ground && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast; // sampled ground is a thin shell: sweep, do not jump
+      if (ground && ground.kind !== "plane" && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast; // sampled ground is a thin shell: sweep, do not jump
       bcs.mCollisionGroup.SetGroupFilter(gf); bcs.mCollisionGroup.SetGroupID(groupId); bcs.mCollisionGroup.SetSubGroupID(i);
       const bd = bi.CreateBody(bcs);
       bi.AddBody(bd.GetID(), parkedAtCreate ? Jolt.EActivation_DontActivate : Jolt.EActivation_Activate);
@@ -546,7 +546,7 @@ export async function createWorld(opts = {}) {
       bcs.mOverrideMassProperties = Jolt.EOverrideMassProperties_CalculateInertia;
       bcs.mMassPropertiesOverride.mMass = p.mass;
       bcs.mFriction = W.body.friction; bcs.mRestitution = p.restitution ?? 0.2; bcs.mLinearDamping = W.body.linear_damping; bcs.mAngularDamping = W.body.angular_damping;
-      if (ground && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast;
+      if (ground && ground.kind !== "plane" && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast;
       const body = bi.CreateBody(bcs);
       bi.AddBody(body.GetID(), Jolt.EActivation_Activate);
       Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot);

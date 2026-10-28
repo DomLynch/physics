@@ -11,7 +11,7 @@
     "enabled": true,
     "test_sphere_radii_m": [0.03, 0.13], "test_speed_m_s": 12,
     "max_drop_m": 4,
-    "source": "own: sampled ground (heightfield, mesh) is a thin shell, so a small fast body can jump through it in one tick (reviewer: a 0.03 m sphere dropped from 1 m, a 0.13 m sphere at 12 m/s, ragdolls from 2 to 4 m went 0.15 to 0.5 m deep). With ground set, ragdoll parts and props are created with Jolt linear-cast (continuous) motion. max_drop_m: the highest spawn above groundMax that the tunnel test proves; createRagdoll and createProp throw above it. Box rows are solid and also get it, harmless."
+    "source": "own: sampled ground (heightfield, mesh) is a thin shell, so a small fast body can jump through it in one tick (reviewer: a 0.03 m sphere dropped from 1 m, a 0.13 m sphere at 12 m/s, ragdolls from 2 to 4 m went 0.15 to 0.5 m deep). With ground set, ragdoll parts and props are created with Jolt linear-cast (continuous) motion. max_drop_m: the highest spawn above groundMax that the tunnel test proves; createRagdoll and createProp throw above it. Plane rows are a solid 1 m box and keep the default motion (so the flat row stays hash-identical to the default floor); the drop limit applies to every ground."
   },
   "roll": {
     "coefficient": 0.8, "contact_m": 0.05,

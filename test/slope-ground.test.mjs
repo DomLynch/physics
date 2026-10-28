@@ -266,7 +266,7 @@ for (const shape of ["heightfield", "mesh"]) {
   test(`${shape}: a vagrant-106 and a dog killed from max_drop_m rest on the ground, within sink_epsilon_m`, async () => {
     for (const [bname, body] of Object.entries(BODIES)) {
       const p = await createPhysics({ seed: 1, ground: { groundHeight: SLOPE_FN(15), shape } }), row = body.make();
-      const rd = p.createRagdoll(row, { position: [0, p.groundMax(0, 0, body.radius) + CT.max_drop_m, 0], id: bname });
+      const rd = p.createRagdoll(row, { position: [0, p.groundHeight(0, 0) + CT.max_drop_m, 0], id: bname });
       rd.kill();
       assert.ok(settle(p, rd) < Infinity, `${bname} never settled`);
       const c = clearance(p, rd.row, rd.readPose(), allIds(rd.row));
