@@ -83,6 +83,7 @@ Returns `{ update(), pieces, caps, setCapMaterial(rows) }`. `pieces` = region id
 
 - Deterministic: same inputs and same call order give the same per-tick hash (CI test `test/determinism.test.mjs`, twice). No `Math.random`, no `Date.now`, no `performance.now` in `src/` (the test greps for it).
 - Every tuning number is a data row with a named source: `data/world.json` (step, solver, damping, high-rate window) and `data/ragdoll-role-table.json` (masses, radii, joint limits, motor gain, severable units, armour tiers). The generator lints any `block` / `immune` field and throws (armour only raises a dismember threshold).
+- **Ragdoll cap:** `data/budget-rows.json` row `max_simultaneous_ragdolls` (3) keeps the 3 ms budget when many bosses die at once (#64 measured seven dying+cut bosses at 3-4 ms p95 CPU). `admit(activeCount, rows)` (package export, pure) returns `'ragdoll'` while fewer than the cap are active, else `'baked'`: the game counts its active ragdolls, asks before creating the next, and plays the baked death for a `'baked'` answer (no body, no cut). The library never creates or refuses bodies itself; the games (ARMAGEDOM, V3) own their pools and read the row from this repo. `node tools/budget-seven.mjs --cap` measures with the cap applied.
 - Budget: DUEL = four active ragdolls, M3 proof = five, under 3 ms a frame on a mid phone; `test/budget.test.mjs` guards it in Node on CI, the phone number comes from the bench page in each milestone PR.
 
 ## Not yet (M3 to M6)

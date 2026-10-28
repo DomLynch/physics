@@ -8,6 +8,8 @@
   "spacing_m": 2.5,
   "spacing_source": "own start value: a boss is about 2.1 m tall, so 2.5 m keeps the ragdolls from touching each other; the cost under crowding is a separate row to add",
   "budget_ms": 3,
+  "max_simultaneous_ragdolls": 3,
+  "max_simultaneous_ragdolls_source": "Strategy ruling 2026-10-28: the 3 ms budget stays and the count is capped instead. #64 measured seven simultaneous dying+cut bosses at 3-4 ms p95 CPU, over budget; bosses past the cap take the baked death. Games read this row and call admit() from the package.",
   "budget_source": "docs/BRIEF.md: the 3 ms physics budget (five fighters + one cut) that test/budget.test.mjs guards",
   "motor_strength": { "high": 1, "low": 0.8, "period_ticks": 120, "high_ticks": 60, "source": "test/budget.test.mjs: same motor pattern as the M3 proof scene" },
   "sets": [

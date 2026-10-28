@@ -4,6 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { runBudget } from "../tools/budget-seven.mjs";
+import { admit } from "../src/index.mjs";
 
 const rows = JSON.parse(readFileSync(new URL("../data/budget-rows.json", import.meta.url), "utf8"));
 
@@ -32,4 +33,37 @@ test("reduced run: finite timings, cuts land, deterministic hash, more ragdolls 
   assert.equal(cell("alive_one_cut", 7).cuts, 1);
   assert.equal(cell("alive_all_cut", 7).cuts, 7);
   assert.equal(cell("dying_multi_cut", 7).cuts, 21);
+});
+
+// Cap on simultaneous ragdolls (Strategy ruling 2026-10-28: the 3 ms budget stays; bosses over the cap take the baked death). The row is
+// data/budget-rows.json max_simultaneous_ragdolls; admit() is the pure helper the games call; the tool applies it with over.apply_cap.
+test("cap row: integer 1..7 with a source note citing the seven-boss numbers", () => {
+  const cap = rows.max_simultaneous_ragdolls;
+  assert.ok(Number.isInteger(cap) && cap >= 1 && cap <= 7, "max_simultaneous_ragdolls is an integer 1..7");
+  assert.ok(typeof rows.max_simultaneous_ragdolls_source === "string" && rows.max_simultaneous_ragdolls_source.includes("#64"), "source note cites #64");
+});
+
+test("admit(): the first `cap` bodies are ragdolls, every one after takes the baked death", () => {
+  const cap = rows.max_simultaneous_ragdolls;
+  for (let active = 0; active < cap; active++) assert.equal(admit(active, rows), "ragdoll", `active ${active}`);
+  for (let active = cap; active <= 12; active++) assert.equal(admit(active, rows), "baked", `active ${active}`);
+  assert.throws(() => admit(-1, rows));
+  assert.throws(() => admit(0, {}), /max_simultaneous_ragdolls/);
+});
+
+test("N=7 dying with cuts under the cap: only `cap` bosses are ragdolls and cut, the rest are baked, and the world is the N=cap world", async () => {
+  const cap = rows.max_simultaneous_ragdolls;
+  const small = { ticks: 100, warm_ticks: 10, repeats: 1, sets: ["boss106_mix"], scenarios: ["dying_multi_cut"] };
+  const capped = (await runBudget(rows, { ...small, counts: [7], apply_cap: true })).cells[0];
+  assert.equal(capped.n, 7);
+  assert.equal(capped.ragdolls, cap);
+  assert.equal(capped.baked, 7 - cap);
+  assert.equal(capped.cuts, 3 * cap, "three cuts on each ragdoll, none on the baked");
+  const uncapped = (await runBudget(rows, { ...small, counts: [7] })).cells[0];
+  assert.equal(uncapped.ragdolls, 7);
+  assert.equal(uncapped.baked, 0);
+  assert.equal(uncapped.cuts, 21);
+  const atCap = (await runBudget(rows, { ...small, counts: [cap] })).cells[0];
+  assert.equal(capped.hash, atCap.hash, "the capped N=7 world is exactly the N=cap world");
+  assert.equal(capped.deterministic, true);
 });
