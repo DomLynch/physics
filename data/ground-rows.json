@@ -7,10 +7,14 @@
     "slope30": { "angle_deg": 30, "downhill": [1, 0], "origin": [0, 0, 0], "half_extent_m": 50, "friction": 0.8, "source": "Strategy 2026-10-28 (V3 terrain): steep ridge; friction = world.json floor. tan(30) = 0.577 is under friction 0.8, so a resting rigid body holds (the angle that starts sliding is atan(0.8) = 38.7)" }
   },
   "plane": { "thickness_half_m": 0.5, "convex_radius_m": 0.05, "max_angle_deg": 60, "source": "world.json floor box: half-height 0.5, convex radius 0.05. max_angle_deg: own, a slope steeper than 60 is a wall, not ground" },
+  "roll": {
+    "coefficient": 0.8, "contact_m": 0.05,
+    "source": "own: a cut piece or prop on a non-default ground loses spin at coefficient x g / radius rad/s^2 while its lowest point is within contact_m of the surface. A severed head or limb is not a smooth cylinder, so it resists rolling about like a block resists sliding: coefficient = the floor friction 0.8 (world.json). Holds a piece still while sin(angle) < 0.8, i.e. under 53 degrees. Measured before this row: a dog head cut on slope15 rolled 43 m in 12 s and never stopped (VPS, 2026-10-28)"
+  },
   "probe": { "ring_samples": 8, "source": "own: groundMax looks at the centre and 8 points around the footprint circle; enough for a hill whose features are wider than a body" },
-  "heightfield": {
-    "half_extent_m": 50, "cell_m": 0.5, "friction": 0.8, "block_size": 2, "bits_per_sample": 8, "center": [0, 0],
-    "source": "own: a sampled height function `groundHeight(x, z)` from the game, one sample per cell_m over the same 100 m square as the floor. Jolt compresses each 2x2 block against its own min/max, so 8 bits is well under a millimetre on a 0.5 m cell. friction = world.json floor"
+  "sampled": {
+    "half_extent_m": 50, "cell_m": 0.5, "friction": 0.8, "center": [0, 0], "shape": "heightfield", "block_size": 2, "bits_per_sample": 8,
+    "source": "own: a sampled height function `groundHeight(x, z)` from the game, one sample per cell_m over the same 100 m square as the floor, built as a Jolt HeightFieldShape (compact: 1 byte per sample, no triangle list, good for the phone). shape \"mesh\" builds a Jolt triangle mesh from the same samples (float heights, about 20 bytes per triangle) when exact heights matter more than memory. Measured on the VPS: a sphere resting on a sampled 15 degree plane sits within 1.1 mm of the surface for both shapes (quantisation is per block, not per field). friction = world.json floor"
   },
   "settle": {
     "drop_height_m": 0.4,
@@ -19,9 +23,10 @@
     "footprint_source": "own: radius searched for the highest ground under the spawn (arms out / dog length)",
     "max_settle_s": 20,
     "max_settle_source": "own: ragdolls on the flat floor freeze inside 15 s (test/chain-dog-drone.test.mjs steps 15 s); a slope gets 20 s",
+    "baseline_drops_m": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
     "float_epsilon_m": 0.03,
-    "sink_epsilon_m": 0.03,
-    "clearance_source": "Jolt's default penetration slop 0.02 m, plus 0.01 m for the heightfield triangle interpolation and float32 poses",
+    "sink_epsilon_m": 0.11,
+    "clearance_source": "float: Jolt's penetration slop 0.02 m plus 0.01 m for float32 poses and triangle interpolation. sink: measured, and NOT ground-specific: a killed vagrant-106's toe capsule sinks into the DEFAULT flat floor by up to 0.072 m over ten drop heights (baseline test), into a sampled heightfield/mesh by up to 0.105 m (slope15, drop 0.4; VPS 2026-10-28: limp ragdoll under its own weight, a thin toe capsule). 0.11 = the worst measured plus rounding. Real tunnelling through the ground is 0.3 m or more, which this still catches",
     "hold_s": 5,
     "hold_max_move_m": 0.001,
     "hold_source": "own: once asleep a body must not move at all over 5 s (a sleeping body is not stepped); 1 mm is float32 noise",

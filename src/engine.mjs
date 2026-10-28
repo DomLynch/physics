@@ -100,6 +100,26 @@ export async function createWorld(opts = {}) {
   let acc = 0, tick = 0, highRateTicks = 0, nextGroup = 1;
   const rand = mulberry32(opts.seed ?? 1);
 
+  // Rolling resistance for loose round things (cut pieces, props) on a non-default ground: a capsule or sphere has no rolling friction in Jolt, so on a
+  // slope it rolls for ever, which a severed head or limb does not. While the lowest point is within contact_m of the surface the spin loses
+  // roll.coefficient x g / radius rad/s each second (the deceleration a Coulomb coefficient gives a rolling body), never past zero. Only when opts.ground is set.
+  const rollDrag = (b, halfH, r) => {
+    const R = ground.rows.roll, id = b.GetID();
+    if (!bi.IsActive(id)) return;
+    const w = b.GetAngularVelocity(), m = Math.hypot(w.GetX(), w.GetY(), w.GetZ());
+    if (m < 1e-9) return;
+    const p = b.GetPosition(), q = b.GetRotation(), ax = qrot([q.GetX(), q.GetY(), q.GetZ(), q.GetW()], [0, 1, 0]);
+    let low = Infinity;
+    for (const s of [-1, 1]) {
+      const cx = p.GetX() + ax[0] * halfH * s, cy = p.GetY() + ax[1] * halfH * s, cz = p.GetZ() + ax[2] * halfH * s;
+      low = Math.min(low, (cy - ground.height(cx, cz)) * ground.normal(cx, cz)[1] - r);
+    }
+    if (low > R.contact_m) return;
+    const k = Math.max(0, m - ((R.coefficient * -W.gravity_m_s2) / r) * tickDt) / m, nw = new Jolt.Vec3(w.GetX() * k, w.GetY() * k, w.GetZ() * k);
+    bi.SetAngularVelocity(id, nw);
+    Jolt.destroy(nw);
+  };
+
   function makeRagdoll(row, ropts = {}) {
     const D = buildDefinition(row, ropts.position || [0, 0, 0], W.hinge_flex_z), roles = row.roles;
     const parkedAtCreate = ropts.parked === true; // pooled ragdoll: bodies added asleep (no step cost), moved out of the way until rd.acquire()
@@ -221,6 +241,7 @@ export async function createWorld(opts = {}) {
     if (parked) parkTo(0, -PARK_DROP_M, 0, Jolt.EActivation_DontActivate);
     let rootMove = null;
     const cut = new Set();
+    const loose = []; // indices of parts a cut set free (they roll on a slope: see rollDrag)
     const buf = new Float32Array(n * FLOATS);
     const api = {
       id: ropts.id ?? `rd${groupId}`,
@@ -438,6 +459,7 @@ export async function createWorld(opts = {}) {
         cut.add(unit);
         highRateTicks = W.cut_high_rate_ticks;
         const carried = u.carries_roles.map((id) => D.idx[id]);
+        loose.push(ci, ...carried.filter((i) => i !== ci)); // detached: on a non-flat ground these lose spin on contact (rollDrag)
         if (frozen) for (const i of carried) bi.ActivateBody(bodies[i].GetID());
         if (copts.impulse) { const iv = new Jolt.Vec3(...copts.impulse); bi.AddImpulse(bodies[ci].GetID(), iv); Jolt.destroy(iv); }
         const props = [];
@@ -477,6 +499,7 @@ export async function createWorld(opts = {}) {
       _pre() {
         if (parked) return;
         applyMotors();
+        if (ground && loose.length) for (const i of loose) rollDrag(bodies[i], D.def[i].halfH, D.def[i].r);
         if (rootMove) {
           const p = new Jolt.RVec3(...rootMove[0]), q = new Jolt.Quat(...rootMove[1]);
           bi.MoveKinematic(bodies[0].GetID(), p, q, tickDt);
@@ -521,6 +544,7 @@ export async function createWorld(opts = {}) {
       const buf = new Float32Array(10);
       const prop = {
         id: p.id || "prop", _live: true,
+        _pre() { rollDrag(body, 0, p.radius); },
         readPose() {
           const b = body.GetPosition(), r = body.GetRotation(), v = body.GetLinearVelocity();
           buf.set([b.GetX(), b.GetY(), b.GetZ(), r.GetX(), r.GetY(), r.GetZ(), r.GetW(), v.GetX(), v.GetY(), v.GetZ()]);
@@ -538,6 +562,7 @@ export async function createWorld(opts = {}) {
       if (ticks > W.max_dt_ticks_per_step) { ticks = W.max_dt_ticks_per_step; acc = 0; } else acc -= ticks * tickDt;
       for (let t = 0; t < ticks; t++) {
         for (const r of ragdolls) r._pre();
+        if (ground) for (const pr of props) pr._pre();
         jolt.Step(tickDt, highRateTicks > 0 ? W.collision_substeps.cut_or_thrown : W.collision_substeps.standing);
         if (highRateTicks > 0) highRateTicks--;
         tick++;

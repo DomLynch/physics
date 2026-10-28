@@ -1,10 +1,21 @@
 // Ground that is not y = 0 (data/ground-rows.json, src/ground.mjs): a plane tipped 15 and 30 degrees, and a height function the game passes in.
 // Bodies, ragdolls, cut pieces and corpses must land on it, settle (sleep / freeze), rest ON the ground (no sink, no float beyond the row epsilons),
 // not slide off for ever, and stay put once asleep. Every tolerance is a row (ground-rows.json settle.*); nothing is tuned here.
-import { test } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createPhysics, loadChainBody, loadGroundRows, validateGround } from "../src/index.mjs";
+import { createPhysics as create, loadChainBody, loadGroundRows, validateGround } from "../src/index.mjs";
+
+// every world made here is destroyed after its test, passed or failed (a failed assert would otherwise leak the wasm heap into the next test)
+const made = [];
+const createPhysics = async (o) => {
+  const p = await create(o), d = p.destroy;
+  let gone = false;
+  p.destroy = () => { if (!gone) { gone = true; d(); } };
+  made.push(p);
+  return p;
+};
+afterEach(() => { while (made.length) made.pop().destroy(); });
 import { qrot } from "../src/math.mjs";
 
 const GR = JSON.parse(readFileSync(new URL("../data/ground-rows.json", import.meta.url), "utf8"));
@@ -53,7 +64,7 @@ test("ground rows: flat, slope15, slope30 with angles 0, 15, 30 and the world fl
   assert.deepEqual(Object.values(GR.rows).map((r) => r.angle_deg), [0, 15, 30]);
   const world = JSON.parse(readFileSync(new URL("../data/world.json", import.meta.url), "utf8"));
   for (const r of Object.values(GR.rows)) { assert.equal(r.friction, world.floor.friction); assert.equal(r.half_extent_m, world.floor.half_extent_m); assert.ok(r.source); }
-  assert.ok(GR.heightfield.source && GR.settle.max_settle_source && GR.settle.clearance_source);
+  assert.ok(GR.sampled.source && GR.settle.max_settle_source && GR.settle.clearance_source);
 });
 
 test("validateGround: names the problem; createPhysics throws on a bad option", async () => {
@@ -93,6 +104,19 @@ test("default behaviour unchanged: the flat ground row builds the same body as t
     return hs;
   };
   assert.deepEqual(await run({ ground: "flat" }), await run({}));
+});
+
+test("baseline behind sink_epsilon_m: on the DEFAULT flat floor a killed vagrant-106 dropped from ten heights sinks no more than the row says", async () => {
+  let worst = 0;
+  for (const drop of ST.baseline_drops_m) {
+    const p = await createPhysics({ seed: 1 }), rd = p.createRagdoll(measure("vagrant-106"), { position: [0, drop, 0], id: "v" });
+    rd.kill();
+    assert.ok(settle(p, rd) < Infinity);
+    worst = Math.min(worst, clearance(p, rd.row, rd.readPose(), allIds(rd.row)));
+    p.destroy();
+  }
+  log("default floor vagrant-106 worst sink over", ST.baseline_drops_m.length, "drops", worst.toFixed(4));
+  assert.ok(worst > -ST.sink_epsilon_m, `the flat floor itself sinks ${-worst} m, row says ${ST.sink_epsilon_m}`);
 });
 
 // ------------------------------------------------------------------ a body dropped dead on each slope
@@ -182,18 +206,18 @@ test("a cut on a FROZEN corpse on slope30: the piece wakes, slides or rolls, set
 
 // ------------------------------------------------------------------ a game's own height function
 const SLOPE_FN = (deg) => (x) => -TAN(deg) * x;
-for (const slope of SLOPES) {
-  test(`groundHeight(x, z) sampler equal to ${slope}: dog and vagrant settle on the heightfield, rest on it within the row epsilons`, async () => {
+for (const slope of SLOPES) for (const shape of ["heightfield", "mesh"]) {
+  test(`groundHeight(x, z) sampler equal to ${slope} as a ${shape}: dog and vagrant settle on it, rest on it within the row epsilons`, async () => {
     const a = GR.rows[slope].angle_deg;
     for (const [bname, body] of Object.entries(BODIES)) {
-      const p = await createPhysics({ seed: 1, ground: { groundHeight: SLOPE_FN(a) } }), { rd, row } = spawn(p, body, bname);
+      const p = await createPhysics({ seed: 1, ground: { groundHeight: SLOPE_FN(a), shape } }), { rd, row } = spawn(p, body, bname);
       rd.kill();
       const secs = settle(p, rd);
       const pose = rd.readPose();
       finite(pose);
       assert.ok(secs < Infinity, `${bname} on the ${slope} heightfield still awake`);
       const lowest = clearance(p, row, pose, allIds(row));
-      log(bname, slope, "heightfield settled_s", secs.toFixed(2), "lowest_clearance_m", lowest.toFixed(4));
+      log(bname, slope, shape, "settled_s", secs.toFixed(2), "lowest_clearance_m", lowest.toFixed(4));
       assert.ok(lowest > -ST.sink_epsilon_m && lowest < ST.float_epsilon_m, `${bname} clearance ${lowest} m`);
       p.destroy();
     }

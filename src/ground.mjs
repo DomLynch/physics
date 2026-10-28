@@ -16,6 +16,7 @@ export function validateGround(opt, rows = GROUND) {
   if (!opt || typeof opt !== "object") return ["ground must be a row name or an object"];
   if (opt.groundHeight !== undefined) {
     if (typeof opt.groundHeight !== "function") errs.push("groundHeight must be a function (x, z) => y");
+    if (opt.shape !== undefined && opt.shape !== "mesh" && opt.shape !== "heightfield") errs.push('shape must be "mesh" or "heightfield"');
     for (const k of ["half_extent_m", "cell_m"]) if (opt[k] !== undefined && !(isNum(opt[k]) && opt[k] > 0)) errs.push(`${k} must be a positive number`);
   } else {
     if (!isNum(opt.angle_deg) || opt.angle_deg < 0 || opt.angle_deg > rows.plane.max_angle_deg) errs.push(`angle_deg must be a number in [0, ${rows.plane.max_angle_deg}]`);
@@ -32,36 +33,55 @@ export function resolveGround(opt, rows = GROUND) {
   const errs = validateGround(opt, rows);
   if (errs.length) throw new Error("ground: " + errs.join("; "));
   if (typeof opt === "string") opt = rows.rows[opt];
-  const friction = opt.friction ?? rows.heightfield.friction;
+  const sm = rows.sampled, friction = opt.friction ?? sm.friction;
   if (opt.groundHeight === undefined) return plane(opt, rows);
-  const h = rows.heightfield, fn = opt.groundHeight;
-  const half = opt.half_extent_m ?? h.half_extent_m, cell = opt.cell_m ?? h.cell_m, center = opt.center ?? h.center;
-  const block = opt.block_size ?? h.block_size, bits = opt.bits_per_sample ?? h.bits_per_sample;
-  // sample count: the 2*half span in cells plus one, rounded up to a multiple of the block size (Jolt's rule)
-  let N = Math.round((2 * half) / cell) + 1;
-  N = Math.ceil(N / block) * block;
-  const ox = center[0] - ((N - 1) * cell) / 2, oz = center[1] - ((N - 1) * cell) / 2;
-  const height = (x, z) => fn(x, z);
+  const fn = opt.groundHeight, half = opt.half_extent_m ?? sm.half_extent_m, cell = opt.cell_m ?? sm.cell_m, center = opt.center ?? sm.center;
+  // vertex grid: the 2*half span in cells plus one, centred on `center`; two triangles per cell, wound so the face normal points up
+  const N = Math.round((2 * half) / cell) + 1, ox = center[0] - ((N - 1) * cell) / 2, oz = center[1] - ((N - 1) * cell) / 2;
+  const height = (x, z) => fn(x, z), shapeKind = opt.shape ?? sm.shape;
+  const addStatic = (Jolt, bi, shape) => {
+    const pos = new Jolt.RVec3(0, 0, 0), rot = new Jolt.Quat(0, 0, 0, 1), bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Static, 0);
+    bcs.mFriction = friction;
+    const b = bi.CreateBody(bcs);
+    bi.AddBody(b.GetID(), Jolt.EActivation_DontActivate);
+    Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot);
+    return b;
+  };
+  const heightfield = (Jolt, bi) => {
+    // Jolt HeightFieldShape: sample count a multiple of the block size; heights quantised to bits_per_sample
+    const block = opt.block_size ?? sm.block_size, M = Math.ceil(N / block) * block, hx = center[0] - ((M - 1) * cell) / 2, hz = center[1] - ((M - 1) * cell) / 2;
+    const s = new Jolt.HeightFieldShapeSettings(), off = new Jolt.Vec3(hx, 0, hz), scl = new Jolt.Vec3(cell, 1, cell);
+    s.mOffset = off; s.mScale = scl; s.mSampleCount = M; s.mBlockSize = block; s.mBitsPerSample = opt.bits_per_sample ?? sm.bits_per_sample;
+    for (let r = 0; r < M; r++) for (let c = 0; c < M; c++) {
+      const y = fn(hx + c * cell, hz + r * cell);
+      if (!isNum(y)) { Jolt.destroy(s); Jolt.destroy(off); Jolt.destroy(scl); throw new Error(`ground: groundHeight(${hx + c * cell}, ${hz + r * cell}) is not a number`); }
+      s.mHeightSamples.push_back(y);
+    }
+    const res = s.Create();
+    if (res.HasError()) { const e = res.GetError().c_str(); Jolt.destroy(s); Jolt.destroy(off); Jolt.destroy(scl); throw new Error("ground: Jolt heightfield: " + e); }
+    const b = addStatic(Jolt, bi, res.Get());
+    Jolt.destroy(s); Jolt.destroy(off); Jolt.destroy(scl);
+    return b;
+  };
   return {
-    kind: "heightfield", friction, height, normal: normalOf(height), samples: N, cell_m: cell,
+    kind: shapeKind, rows, friction, height, normal: normalOf(height), samples: N, cell_m: cell,
     create(Jolt, bi) {
-      const s = new Jolt.HeightFieldShapeSettings();
-      const off = new Jolt.Vec3(ox, 0, oz), scl = new Jolt.Vec3(cell, 1, cell);
-      s.mOffset = off; s.mScale = scl; s.mSampleCount = N; s.mBlockSize = block; s.mBitsPerSample = bits;
-      s.mHeightSamples.resize(0);
+      if (shapeKind === "heightfield") return heightfield(Jolt, bi);
+      const verts = new Jolt.VertexList(), tris = new Jolt.IndexedTriangleList();
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-        const y = fn(ox + c * cell, oz + r * cell);
-        if (!isNum(y)) throw new Error(`ground: groundHeight(${ox + c * cell}, ${oz + r * cell}) is not a number`);
-        s.mHeightSamples.push_back(y);
+        const x = ox + c * cell, z = oz + r * cell, y = fn(x, z);
+        if (!isNum(y)) { Jolt.destroy(verts); Jolt.destroy(tris); throw new Error(`ground: groundHeight(${x}, ${z}) is not a number`); }
+        const f = new Jolt.Float3(x, y, z); verts.push_back(f); Jolt.destroy(f);
       }
-      const res = s.Create();
-      if (res.HasError()) { const e = res.GetError().c_str(); Jolt.destroy(s); Jolt.destroy(off); Jolt.destroy(scl); throw new Error("ground: Jolt heightfield: " + e); }
-      const shape = res.Get(), pos = new Jolt.RVec3(0, 0, 0), rot = new Jolt.Quat(0, 0, 0, 1);
-      const bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Static, 0);
-      bcs.mFriction = friction;
-      const b = bi.CreateBody(bcs);
-      bi.AddBody(b.GetID(), Jolt.EActivation_DontActivate);
-      Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot); Jolt.destroy(s); Jolt.destroy(off); Jolt.destroy(scl);
+      const at = (r, c) => r * N + c;
+      for (let r = 0; r < N - 1; r++) for (let c = 0; c < N - 1; c++) {
+        const a = at(r, c), b = at(r + 1, c), d = at(r + 1, c + 1), e = at(r, c + 1);
+        for (const [i, j, k] of [[a, b, e], [b, d, e]]) { const t = new Jolt.IndexedTriangle(i, j, k, 0); tris.push_back(t); Jolt.destroy(t); }
+      }
+      const mats = new Jolt.PhysicsMaterialList(), s = new Jolt.MeshShapeSettings(verts, tris, mats), res = s.Create(); // (the 2-argument form reads the vertex list as triangles)
+      if (res.HasError()) { const e = res.GetError().c_str(); Jolt.destroy(s); Jolt.destroy(verts); Jolt.destroy(tris); Jolt.destroy(mats); throw new Error("ground: Jolt mesh: " + e); }
+      const b = addStatic(Jolt, bi, res.Get());
+      Jolt.destroy(s); Jolt.destroy(verts); Jolt.destroy(tris); Jolt.destroy(mats);
       return b;
     },
   };
@@ -92,7 +112,7 @@ function plane(row, rows) {
   const height = (x, z) => o[1] - t * ((x - o[0]) * dx + (z - o[2]) * dz);
   const n = [Math.sin(a) * dx, Math.cos(a), Math.sin(a) * dz];
   return {
-    kind: "plane", friction: row.friction, angle_deg: row.angle_deg, height, normal: () => n.slice(),
+    kind: "plane", rows, friction: row.friction, angle_deg: row.angle_deg, height, normal: () => n.slice(),
     create(Jolt, bi) {
       // box rotated by `a` about the horizontal axis y x downhill; its top face passes through the origin point
       const k = [dz, 0, -dx], s = Math.sin(a / 2), c = Math.cos(a / 2);

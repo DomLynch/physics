@@ -16,7 +16,8 @@ const pose = rd.readPose();                                         // Float32Ar
 
 | call | what it does |
 |---|---|
-| `createPhysics({ seed, rows?, roleTable? })` | async, once. Loads Jolt, builds the world and a floor. `rows` overrides keys of `data/world.json`. |
+| `createPhysics({ seed, rows?, roleTable?, ground? })` | async, once. Loads Jolt, builds the world and a floor. `rows` overrides keys of `data/world.json`. `ground` (default absent = the flat floor, byte-identical to before): a row name from `data/ground-rows.json` (`"flat"`, `"slope15"`, `"slope30"`), a row object `{ angle_deg, downhill: [x, z], origin, half_extent_m, friction }`, or `{ groundHeight: (x, z) => y, shape?: "heightfield" \| "mesh", half_extent_m?, cell_m?, center?, friction? }` for a terrain sampled from your height function (see Ground below). |
+| `physics.groundHeight(x, z)` / `groundNormal(x, z)` / `groundMax(x, z, r)` | Surface y, unit normal, and the highest surface y within `r` of (x, z). Flat floor: 0, `[0,1,0]`, 0. Use `groundMax(x, z, footprint) + drop` as `position[1]` when you spawn a ragdoll on a slope (the position y is the lowest point of the body), and `groundHeight` / `groundNormal` for `setRoot`, camps and props. |
 | `physics.createRagdoll(bodyMeasureRow, opts?)` | Builds a 20-body ragdoll from ONE body measure row (`height_m`, lengths, widths and the 20 role-joint positions: see `test/fixtures/body-0002.measure.json`). No bone names beyond those 20 role joints, so the 65-joint and 106-joint rigs use the same call. A generated `ragdoll-row/2` is accepted as well. `opts`: `position` [x,y,z] (feet on the floor), `id`, `rootKinematic` (default true: the hips follow your pose while alive), `motorStrength` (default 1). Returns the ragdoll. |
 | `rd.setMotorStrength(rows)` | A number, or `{ all, <role>, <partId> }` with values 0 to 1 (1 full, 0.01 limp; at or below 0.011 the limp damper applies). Later keys win: `all` < role (`arm`, `forearm`, `hand`, `spine`, `thigh`, `shin`...) < part id (`armLeft`). The stagger dip (arm 0.9 / torso 0.6 / hand 0.12) is three keys. You call it each tick you want a ramp; M3 adds `startDeath` / `startStagger` that run the ramps from data rows. |
 | `rd.applyImpulse(part, [x, y, z])` | World-space impulse (N s) on one part by id (`head`, `spine2`, `armRight`...). Applied at the moment you call it, effective on the next step. |
@@ -27,6 +28,14 @@ const pose = rd.readPose();                                         // Float32Ar
 | `physics.hash()` | FNV-1a over every ragdoll's pose floats: the determinism check, compare per tick between phone, server and replay. |
 | `physics.rand()` | Seeded mulberry32 for sim draws (finisher rolls). The game owns what it draws. |
 | `rd.destroy()`, `physics.destroy()` | Free bodies and constraints. |
+
+## Ground (slopes and terrain): `createPhysics({ ground })`
+
+- Rows: `data/ground-rows.json` (`ground-rows/1`). `flat` (angle 0, builds the same body as the built-in floor), `slope15`, `slope30`: a static box tipped by `angle_deg` toward `downhill` ([x, z], default +x), top face through `origin`, friction 0.8 (the world floor row). `validateGround(option)` lists problems; `loadGroundRows()` returns the rows.
+- Terrain from a height function: `{ groundHeight: (x, z) => y }` samples it every `cell_m` (0.5) over `half_extent_m` (50) around `center` and builds a Jolt `HeightFieldShape` (1 byte per sample; `shape: "mesh"` builds a triangle mesh instead). One static body, one friction. The same function is what `physics.groundHeight` returns, so your render mesh and the physics agree to the cell interpolation. Flat pads at camps are just a flat stretch of the function. The field is finite (like the floor): nothing exists outside `half_extent_m`.
+- Spawn: `position[1]` of `createRagdoll` is the lowest point of the body, so pass `physics.groundMax(x, z, footprintRadius) + drop`. A ragdoll with the hips kinematic (alive) is held by your `setRoot`; compute its y from `groundHeight`. Dead bodies, cut pieces and corpses settle on their own.
+- Rolling: Jolt capsules and spheres have no rolling friction, so on a slope a severed head or limb (and a prop like the helmet) would roll for ever. With `ground` set, cut pieces and props lose spin at `roll.coefficient` x g / radius rad/s^2 while touching (`ground-rows.json` `roll`). Not applied on the default floor, so existing runs are unchanged.
+- Measured (VPS, vagrant-106 and dog killed from 0.4 m): both freeze in 2.4 to 3.4 s on 15 and 30 degrees, slide 1.2 to 2.8 m downhill, rest on the surface within the row epsilons, and do not move once asleep. A friction 0.8 corpse stays put on any slope under atan(0.8) = 38.7 degrees once it has landed; on a 45 degree row it never stops. See `test/slope-ground.test.mjs`.
 
 ## three.js glue: `@frankendom/physics/three-rig`
 
