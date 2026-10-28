@@ -51,6 +51,26 @@ test("admit(): the first `cap` bodies are ragdolls, every one after takes the ba
   assert.throws(() => admit(0, {}), /max_simultaneous_ragdolls/);
 });
 
+test("admit(): rejects a bad activeCount (NaN, 1.5, Infinity, -Infinity, string, null, undefined) and a bad cap row (0, negative, 1.5, NaN, Infinity, string, missing)", () => {
+  const ok = { max_simultaneous_ragdolls: 3 };
+  for (const bad of [NaN, 1.5, Infinity, -Infinity, "1", null, undefined]) {
+    assert.throws(() => admit(bad, ok), /activeCount/, `activeCount ${String(bad)}`);
+  }
+  for (const bad of [0, -1, -3, 1.5, NaN, Infinity, "3", null, undefined]) {
+    assert.throws(() => admit(0, { max_simultaneous_ragdolls: bad }), /max_simultaneous_ragdolls/, `cap ${String(bad)}`);
+  }
+  assert.throws(() => admit(0, undefined), /max_simultaneous_ragdolls/);
+  assert.throws(() => admit(0, null), /max_simultaneous_ragdolls/);
+});
+
+test("admit(): cap boundaries - cap 1 admits only the first body; a cap above 7 is accepted by admit() (the 1..7 limit lives in the row test, not the helper)", () => {
+  assert.equal(admit(0, { max_simultaneous_ragdolls: 1 }), "ragdoll");
+  assert.equal(admit(1, { max_simultaneous_ragdolls: 1 }), "baked");
+  assert.equal(admit(7, { max_simultaneous_ragdolls: 8 }), "ragdoll");
+  assert.equal(admit(8, { max_simultaneous_ragdolls: 8 }), "baked");
+  assert.equal(admit(99, { max_simultaneous_ragdolls: 100 }), "ragdoll");
+});
+
 test("N=7 dying with cuts under the cap: only `cap` bosses are ragdolls and cut, the rest are baked, and the world is the N=cap world", async () => {
   const cap = rows.max_simultaneous_ragdolls;
   const small = { ticks: 100, warm_ticks: 10, repeats: 1, sets: ["boss106_mix"], scenarios: ["dying_multi_cut"] };
