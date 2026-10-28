@@ -60,6 +60,72 @@ test("a parked ragdoll that is acquired, then killed, falls exactly like a fresh
   assert.deepEqual(pooled.hashes, fresh.hashes, "same per-tick hash");
 });
 
+const posErr = (a, b) => { let m = 0; for (let i = 0; i < a.length; i++) if (i % 10 < 3) m = Math.max(m, Math.abs(a[i] - b[i])); return m; };
+
+test("setRoot while parked is a no-op: it does not leak into acquire", async () => {
+  const run = async (stale) => {
+    const physics = await createPhysics({ seed: 1 });
+    const rd = physics.createRagdoll(body, { position: [0, 0, 0], id: "a", parked: true });
+    if (stale) assert.equal(rd.setRoot([50, 1, 50], [0, 0, 0, 1]), false);
+    rd.acquire([10, 0, 0]);
+    for (let t = 0; t < 20; t++) physics.step(1 / 60);
+    const p = Array.from(rd.readPose()); physics.destroy(); return p;
+  };
+  const clean = await run(false), leaked = await run(true);
+  assert.deepEqual(leaked, clean, "hips end where they would without the stale setRoot");
+  assert.ok(Math.abs(leaked[0] - 10) < 0.5 && Math.abs(leaked[2]) < 0.5, "near (10, 0) not (50, 50)");
+});
+
+test("reset() on a parked ragdoll returns false and changes nothing", async () => {
+  const physics = await createPhysics({ seed: 1 });
+  const rd = physics.createRagdoll(body, { position: [0, 0, 0], id: "a", parked: true });
+  const pose = Array.from(rd.readPose());
+  assert.equal(rd.reset(), false);
+  assert.equal(rd.parked, true);
+  assert.equal(rd.awake, false);
+  assert.deepEqual(Array.from(rd.readPose()), pose);
+  physics.destroy();
+});
+
+test("kill, applyImpulse, release, stagger, knockdown, cut, snapToTarget are no-ops returning false while parked", async () => {
+  const physics = await createPhysics({ seed: 1 });
+  const rd = physics.createRagdoll(body, { position: [0, 0, 0], id: "a", parked: true });
+  const pose = Array.from(rd.readPose());
+  assert.equal(rd.kill({ part: "spine2", impulse: [0, 0, 60] }), false);
+  assert.equal(rd.applyImpulse("head", [0, 0, 50]), false);
+  assert.equal(rd.release(), false);
+  assert.equal(rd.stagger({ part: "head", impulse: [0, 0, 5] }), false);
+  assert.equal(rd.knockdown("damage", { part: "head", impulse: [0, 0, 5] }), false);
+  assert.equal(rd.cut("arm_left"), false);
+  assert.equal(rd.snapToTarget(), false);
+  for (let t = 0; t < 120; t++) physics.step(1 / 60);
+  assert.equal(rd.parked, true);
+  assert.equal(rd.awake, false);
+  assert.equal(rd.state, "alive");
+  assert.deepEqual(rd.cuts, []);
+  assert.deepEqual(Array.from(rd.readPose()), pose, "nothing moved, nothing fell below the park depth");
+  rd.acquire();
+  assert.equal(rd.awake, true);
+  physics.destroy();
+});
+
+test("far acquire: acquire([200,0,-150]) then a kill stays within 2e-3 m of a fresh ragdoll created there, and is deterministic", async () => {
+  const at = [200, 0, -150];
+  const run = async (parked) => {
+    const physics = await createPhysics({ seed: 3 });
+    const rd = physics.createRagdoll(body, parked ? { position: [0, 0, 0], id: "a", parked: true } : { position: at, id: "a" });
+    if (parked) rd.acquire(at);
+    for (let t = 0; t < 10; t++) physics.step(1 / 60);
+    rd.kill({ part: "spine2", impulse: [0, 0, 60] });
+    const hashes = [];
+    for (let t = 0; t < 120; t++) { physics.step(1 / 60); hashes.push(physics.hash()); }
+    const pose = Array.from(rd.readPose()); physics.destroy(); return { pose, hashes };
+  };
+  const fresh = await run(false), a = await run(true), b = await run(true);
+  assert.deepEqual(a.hashes, b.hashes, "two identical acquire runs: same per-tick hash");
+  assert.ok(posErr(a.pose, fresh.pose) < 2e-3, "position error " + posErr(a.pose, fresh.pose));
+});
+
 test("acquire(position) puts the ragdoll at that position", async () => {
   const physics = await createPhysics({ seed: 1 });
   const rd = physics.createRagdoll(body, { position: [0, 0, 0], id: "a", parked: true });
