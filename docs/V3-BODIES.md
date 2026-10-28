@@ -28,3 +28,17 @@ Demon (PR 182, head 4e32b08), Warrok (PR 183, head 0aee9ea), Brute (PR 184, head
 Known gap, same as above: the widths are proportions of the reference body, not mesh girths, so these masses are estimates (Warrok sits at the 140 kg clamp).
 
 **Known gaps:** the masses (32 to 46 kg) are low for fighters of this height because the widths are proportions, not mesh girths; the heights assume the head reaches 1.9 times the neck-to-head joint span above the head joint. Both should be replaced by measures from the skinned mesh when V3 or OpenTrident has them (OpenTrident owns measure rows). Mesh node scale (the GLBs carry a 0.9 / 0.97 scale on the mesh node) is not applied.
+
+## Hub NPC bodies (ARMAGEDOM PR 452, `npc-*.glb`, 106 joints, rig map `mixamo-106.json`)
+
+Rows are named by BODY id: `mh-male-01` (Brannock), `mh-gen-v2-0036` (Ines), `mh-gen-v2-0020` (Marrow). Built with `tools/glb-measure.mjs` (unchanged), then `height_m` replaced by the real mesh height.
+
+| body | glb-measure height | real mesh height | lookup height (`data/shape-maps/body-shapes.json`) | row mass (kg) |
+|---|---|---|---|---|
+| mh-male-01 | 1.5744 | 1.7387 | 1.774 | 46.51 |
+| mh-gen-v2-0036 | 1.5402 | 1.7137 | 1.749 | 48.34 |
+| mh-gen-v2-0020 | 1.4562 | 1.6582 | 1.693 | 35.27 |
+
+Why glb-measure read 9 to 12 percent short: not accessor quantisation (it reads joint node transforms, never accessors). These GLBs are gltfpack output: POSITION is normalised int16 filling [-1, 1] and the dequantisation (scale about 0.83 to 0.87) is folded into the inverse bind matrices, so the mesh node carries no transform. The shortfall is the head-top heuristic (head joint + 1.9 x neck-to-head span; a Mixamo neck span is about 0.04 m) plus the toe joint sitting above the sole. The real height is the skinned mesh at the bind pose (meshopt decode, then joint world x inverse bind per vertex). The lookup heights (1.774, 1.749, 1.693 m) are this repo's `data/shape-maps/body-shapes.json`, `bodies["mh-male-01"]` etc., second field in mm (OpenTrident measure rows, `docs/SHAPE-MAPS.md`). ARMAGEDOM's `Web/src/data/hubNpcs.json` (PR 452) carries only the body ids, no heights. The lookup is the mesh height plus about 0.035 m on all three; the cause of that offset is not established.
+
+Mass stays an estimate (widths are proportions of the reference body): the generator gives 35 to 48 kg against the 65 kg lookup mass for mh-male-01 (46.5 kg). Mesh girths are the fix and are not in this PR.
