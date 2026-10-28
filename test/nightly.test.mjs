@@ -56,7 +56,7 @@ test("runNightly records the real vCPU count, not the host's", async () => {
 test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the only way to write; help says so", () => {
   const dir = mkdtempSync(join(tmpdir(), "np-")), bin = join(dir, "bin"), res = join(dir, "res"), base = join(dir, "base"), log = join(dir, "gh.log");
   mkdirSync(bin); mkdirSync(res); mkdirSync(base);
-  writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*) echo https://example.test/1;; esac\n`);
+  writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*|*"issue edit"*) cat >/dev/null; echo https://example.test/1;; esac\n`);
   chmodSync(join(bin, "gh"), 0o755);
   writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells: { "a/b/n1/cap": { p95_ms: 1.2 } }, skipped: [] }));
   const run = (...extra) => spawnSync(process.execPath, [new URL("../scripts/nightly-post.mjs", import.meta.url).pathname, "--target", "physics-main", "--from-dir", res, "--baseline-dir", base, ...extra], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
@@ -77,6 +77,24 @@ test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the on
   const p = run("--post");
   assert.equal(p.status, 0, p.stderr);
   assert.match(readFileSync(log, "utf8"), /issue create/, "--post writes");
+});
+
+test("nightly-post --post: a gh that exits 0 without reading its stdin (EPIPE on the body) still counts as posted; a gh that fails still fails", () => {
+  const dir = mkdtempSync(join(tmpdir(), "np-epipe-")), bin = join(dir, "bin"), res = join(dir, "res"), base = join(dir, "base");
+  mkdirSync(bin); mkdirSync(res); mkdirSync(base);
+  // a body far larger than the 64 KB pipe buffer, so the write cannot finish before the child is gone: EPIPE every time
+  const cells = {};
+  for (let i = 0; i < 3000; i++) cells[`set${i}/scenario/n1/cap`] = { p95_ms: 1 };
+  writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells, skipped: [] }));
+  const fake = (create) => { writeFileSync(join(bin, "gh"), `#!/bin/sh\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*) ${create};; esac\n`); chmodSync(join(bin, "gh"), 0o755); };
+  const run = () => spawnSync(process.execPath, [new URL("../scripts/nightly-post.mjs", import.meta.url).pathname, "--post", "--target", "physics-main", "--from-dir", res, "--baseline-dir", base], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  fake("echo https://example.test/1");   // never reads stdin, exits 0
+  const ok = run();
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /created https:\/\/example\.test\/1/);
+  fake("echo boom >&2; exit 3");          // never reads stdin, exits non-zero: a real failure must not be masked
+  const bad = run();
+  assert.notEqual(bad.status, 0);
 });
 
 test("data/nightly-rows.json records the n7/cap calibration against budget-seven --cap on the same commit (within 15%)", () => {
