@@ -261,9 +261,7 @@ export async function createWorld(opts = {}) {
           else { const t = new Jolt.Quat(...k.rel); k.c.SetTargetOrientationBS(t); Jolt.destroy(t); }
         }
         for (const b of bodies) bi.DeactivateBody(b.GetID());
-        // a joint keeps its accumulated impulse (warm start) from the last life: take every joint out of the world and put it back, so acquire() starts from zero like a fresh one
-        for (const k of cons) physics.RemoveConstraint(k.c);
-        for (const k of cons) physics.AddConstraint(k.c);
+        for (const k of cons) k.c.ResetWarmStart(); // a joint keeps its accumulated impulse from the last life: zero it so acquire() starts like a fresh one
         state = "alive"; st = null; frozen = false; calm = 0; targetQ = null; lastRoot = null; rootMove = null;
         base.fill(1); want.fill(1); strength.fill(NaN);
         parked = true;
