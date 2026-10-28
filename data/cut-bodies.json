@@ -109,6 +109,20 @@
       "source": "v3/psyche.glb",
       "rig_map": "data/rig-maps/v1-65.json",
       "measure": "data/bodies/psyche.measure.json"
+    },
+    {
+      "name": "vagrant-106",
+      "source": "vagrant-106.glb",
+      "rig_map": "data/rig-maps/mixamo-19.json",
+      "measure": "data/bodies/vagrant-106.measure.json",
+      "note": "Armagedom player Vagrant (Web/public/assets/appearances/vagrant-106.glb): 19-joint Mixamo skeleton, so Spine1 is a node outside the skin and the toes are synthesised from the Foot (rig map mixamo-19)"
+    },
+    {
+      "name": "hale-pitborn",
+      "source": "hale-pitborn.glb",
+      "rig_map": "data/rig-maps/v1-65.json",
+      "measure": "data/bodies/hale-pitborn.measure.json",
+      "note": "Armagedom player Hale (Web/public/assets/appearances/hale-pitborn.glb): 65-joint UE-style rig (v1-65)"
     }
   ]
 }
