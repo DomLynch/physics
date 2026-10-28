@@ -9,8 +9,9 @@
       "plain": true,
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/minotaur-106.measure.json",
-      "expect_sha256": "e409cd5088b773a580ba714f419c48190931af23fe77a428981f7b80d7ad45d7",
-      "note": "published 2026-10-27 (hair-fix 3f3bfe6); the cut must stay byte-identical"
+      "overrides": { "head_split": true, "belly_open": true },
+      "expect_sha256": "813e13c1c914f8fe2df950ba8bb74d4ec3bfa106264fb021bc39e7a4a157182c",
+      "note": "published 2026-10-27 (hair-fix 3f3bfe6); with head-split and belly-open (piece_head_left, piece_head_right, 3 caps) as shipped in V3 #111 (physics 9056ef7); the cut must stay byte-identical"
     },
     {
       "name": "psyche-106",
