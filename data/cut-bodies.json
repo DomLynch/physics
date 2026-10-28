@@ -98,6 +98,15 @@
       "note": "V3 boss Parasite (The Titan's Envoy), Frankendom-v3 PR 226 head 017f932 (src/assets/parasite-106.glb, 2,009,476 bytes, sha256 e3014ea7...ee1f, 10,930 tris, 106 joints, stem parasite; confidential source, not committed). OpenTrident Dev capped 66 open edges (throat ring + 2 jaw holes) in the source; all 8 checks pass with no bypass. The source keeps native boundary edges that the cut leaves alone: OpenTrident counted 410 (eye loops); the validator counts 438 on the source surface and 442 on the pieces (head 296, upper torso 50, root 38, legs 29 + 29), none introduced by a cut and none crossing a cut plane. Capping them would cover the eyeballs. Default planes, no hair material; 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; cut GLB 2,848,452 bytes, 1,943,703 gzipped."
     },
     {
+      "name": "big-vegas-106",
+      "source": "big-vegas-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/big-vegas-106.measure.json",
+      "blocked_checks": ["watertight", "orientation", "caps"],
+      "blocked": "V3 boss Big Vegas (The King), Frankendom-v3 PR 229 head 7327835 (src/assets/big-vegas-106.glb, 678,832 bytes, one skinned mesh Steel 4,584 vertices plus eyes, brows and mouth). With the hip bisector fixed (parallel thighs: the midline plane) the cut still fails 3 of 8 checks: the belly and the Hips-skinned pants run across the midline between the legs (the legs never reach it: left and right inner thigh at x = +-0.10 m, crotch underside at y = 0.76 m), so mesh sits under both plain hip planes and the cut leaves 14 over-used edges and 32 flipped-winding edges in the two leg pieces, cap_shoulder_left_arm with 2 of 50 triangles wound against their normals and 1 over-used edge in piece_upper_torso. Turning the hip planes to a crotch apex at the pants underside instead moves the failure into piece_root (71 flipped edges, 2 root caps inward) because the turned planes climb to the flanks at y = 1.06. A wall cap on the midline, or a crotch apex that does not tilt the planes into the flanks, is the open tool work.",
+      "note": "hip_split noise fix: tools/cut-units.mjs HIP_SPLIT_PARALLEL; the 8 shipped cut rows regenerate byte-identical"
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",
