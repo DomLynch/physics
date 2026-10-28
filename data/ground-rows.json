@@ -1,0 +1,31 @@
+{
+  "schema": "ground-rows/1",
+  "about": "Ground the world stands bodies on. Absent `ground` option = the flat floor of world.json, unchanged. Every number names its source. Nothing is hard-coded in src/ground.mjs.",
+  "rows": {
+    "flat": { "angle_deg": 0, "downhill": [1, 0], "origin": [0, 0, 0], "half_extent_m": 50, "friction": 0.8, "source": "world.json floor row (same box, same friction): angle 0 builds the identical body, so its per-tick hash equals the default floor" },
+    "slope15": { "angle_deg": 15, "downhill": [1, 0], "origin": [0, 0, 0], "half_extent_m": 50, "friction": 0.8, "source": "Strategy 2026-10-28 (V3 terrain: hills and ridges): gentle slope; friction = world.json floor" },
+    "slope30": { "angle_deg": 30, "downhill": [1, 0], "origin": [0, 0, 0], "half_extent_m": 50, "friction": 0.8, "source": "Strategy 2026-10-28 (V3 terrain): steep ridge; friction = world.json floor. tan(30) = 0.577 is under friction 0.8, so a resting rigid body holds (the angle that starts sliding is atan(0.8) = 38.7)" }
+  },
+  "plane": { "thickness_half_m": 0.5, "convex_radius_m": 0.05, "max_angle_deg": 60, "source": "world.json floor box: half-height 0.5, convex radius 0.05. max_angle_deg: own, a slope steeper than 60 is a wall, not ground" },
+  "probe": { "ring_samples": 8, "source": "own: groundMax looks at the centre and 8 points around the footprint circle; enough for a hill whose features are wider than a body" },
+  "heightfield": {
+    "half_extent_m": 50, "cell_m": 0.5, "friction": 0.8, "block_size": 2, "bits_per_sample": 8, "center": [0, 0],
+    "source": "own: a sampled height function `groundHeight(x, z)` from the game, one sample per cell_m over the same 100 m square as the floor. Jolt compresses each 2x2 block against its own min/max, so 8 bits is well under a millimetre on a 0.5 m cell. friction = world.json floor"
+  },
+  "settle": {
+    "drop_height_m": 0.4,
+    "drop_height_source": "own: spawn the body this far above the highest ground under its footprint, so it lands on its own weight",
+    "footprint_radius_m": { "humanoid": 0.5, "chain": 1.2 },
+    "footprint_source": "own: radius searched for the highest ground under the spawn (arms out / dog length)",
+    "max_settle_s": 20,
+    "max_settle_source": "own: ragdolls on the flat floor freeze inside 15 s (test/chain-dog-drone.test.mjs steps 15 s); a slope gets 20 s",
+    "float_epsilon_m": 0.03,
+    "sink_epsilon_m": 0.03,
+    "clearance_source": "Jolt's default penetration slop 0.02 m, plus 0.01 m for the heightfield triangle interpolation and float32 poses",
+    "hold_s": 5,
+    "hold_max_move_m": 0.001,
+    "hold_source": "own: once asleep a body must not move at all over 5 s (a sleeping body is not stepped); 1 mm is float32 noise",
+    "max_slide_m": 8,
+    "max_slide_source": "own: a limp body that lands on a 30 degree slope may roll and slide, but must stop inside the runway; measured on the VPS, see the PR body"
+  }
+}

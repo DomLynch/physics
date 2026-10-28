@@ -5,6 +5,7 @@ import WORLD from "../data/world.json" with { type: "json" };
 import STATES from "../data/states.json" with { type: "json" };
 import { qmul, qconj, qrot, vadd, vsub, vdot, vcross, qaxis, rad } from "./math.mjs";
 import { segSegDist } from "./generate.mjs";
+import { resolveGround, heightMax, FLAT } from "./ground.mjs";
 
 
 let joltPromise = null;
@@ -82,7 +83,10 @@ export async function createWorld(opts = {}) {
   const bi = physics.GetBodyInterface();
   { const g = new Jolt.Vec3(0, W.gravity_m_s2, 0); physics.SetGravity(g); Jolt.destroy(g); }
   { const ps = physics.GetPhysicsSettings(); ps.mNumVelocitySteps = W.velocity_iterations; physics.SetPhysicsSettings(ps); }
-  { // floor
+  // opts.ground (data/ground-rows.json: a row name, a row, or { groundHeight(x, z) }) replaces the flat floor; absent = the floor below, unchanged
+  const ground = opts.ground === undefined ? null : resolveGround(opts.ground);
+  if (ground) ground.create(Jolt, bi);
+  else { // floor
     const f = W.floor, half = new Jolt.Vec3(f.half_extent_m, 0.5, f.half_extent_m);
     const shape = new Jolt.BoxShape(half, 0.05, null), pos = new Jolt.RVec3(0, -0.5, 0), rot = new Jolt.Quat(0, 0, 0, 1);
     const bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Static, 0);
@@ -495,6 +499,11 @@ export async function createWorld(opts = {}) {
     tickDt,
     get tick() { return tick; },
     rand,
+    // ground queries (flat floor: 0 and straight up). groundHeight(x, z) = surface y; groundNormal(x, z) = unit normal; groundMax(x, z, r) = highest surface
+    // y within r of (x, z): the y to spawn a ragdoll at so no foot starts inside a slope (createRagdoll position y is the lowest point of the body).
+    groundHeight: (x, z) => (ground ? ground.height(x, z) : 0),
+    groundNormal: (x, z) => (ground ? ground.normal(x, z) : [0, 1, 0]),
+    groundMax: (x, z, r = 0) => heightMax(ground || FLAT, x, z, r),
     // body measure row (a measure row, or an already generated ragdoll-row/2) -> ragdoll. opts: { position, id, rootKinematic (default true), motorStrength (default 1) }
     createRagdoll(input, ropts) { return makeRagdoll(input, ropts); },
     // a loose rigid sphere (helmet, thrown part, loot): { radius, mass, position, velocity, spin, id }. Returns { id, readPose() (10 floats), destroy() }.
