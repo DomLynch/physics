@@ -321,7 +321,8 @@ test("the crow is the lighter one and the rat king the heavier; no crow capsule 
   const mass = (s) => s.segments.reduce((a, x) => a + x.mass, 0);
   assert.ok(mass(crow) < mass(rat), `crow ${mass(crow)} kg vs rat king ${mass(rat)} kg`);
   // metres, not model units: the king is x6 and the crow x4. The crow's front uppers carry the wing skin (game radius about 0.09), so they may be fatter than the king's front legs.
-  const WING = new Set(["leg_FL_up", "leg_FR_up"]);
+  // The crow's hind lowers (game radius 0.0256) are also fatter than the king's (game 0.007, left at the 0.009 placeholder): a real difference between the two meshes.
+  const WING = new Set(["leg_FL_up", "leg_FR_up", "leg_BL_low", "leg_BR_low"]);
   assert.ok(crow.segments.every((s) => WING.has(s.id) || s.radius * crow.scale <= rat.segments.find((x) => x.id === s.id).radius * rat.scale + 1e-9), "crow capsule fatter than the rat king's (metres)");
   assert.deepEqual(read("rat-king.bones.json").bones, read("crow.bones.json").bones);
 });
