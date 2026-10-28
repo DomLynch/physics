@@ -380,6 +380,24 @@ test("psyche-106: pinned to V3's own source (Frankendom-v3 3e2a48c0 = main src/a
   assert.match(b.note, /e9f15ce7/, "the note records the replaced unknown-origin copy");
 });
 
+test("minotaur-106 row reproduces the shipped cut: head_split and belly_open are on in the row (V3 #111, physics 9056ef7)", async () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "minotaur-106");
+  assert.deepEqual(b.overrides, { head_split: true, belly_open: true });
+  assert.deepEqual(cutOpts(b), { body: "minotaur-106", rig: "mixamo-106", headSplit: true, bellyOpen: true });
+  assert.match(b.note, /head-split/i);
+  // the confidential source is only on the VPS: with it, the pinned row's cut carries the extra pieces
+  const src = join(process.env.CUT_SOURCES || "/root/cut-out", b.source);
+  if (!existsSync(src)) return;
+  const json = (p) => JSON.parse(readFileSync(new URL("../" + p, import.meta.url), "utf8"));
+  const { glb, manifest } = await cutGlb(readFileSync(src), json(b.measure), json(b.rig_map), cutOpts(b, { source: b.source }));
+  assert.ok(glb.byteLength > 0);
+  const meshes = manifest.regions.map((r) => r.mesh).concat(manifest.optional_units.belly_open.caps ?? []);
+  for (const n of ["piece_head_left", "piece_head_right"]) assert.ok(meshes.includes(n), n);
+  assert.ok(!meshes.includes("piece_head"), "the head halves replace piece_head");
+  assert.ok(manifest.optional_units.head_split.enabled && manifest.optional_units.belly_open.enabled);
+});
+
 test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
   const b = bodies.find((x) => x.name === "parasite-106");
