@@ -35,7 +35,7 @@ function fakeModel(body, rd, rootInit) {
   root.updateMatrixWorld(true);
   return { root, find };
 }
-const qdiff = (a, b) => 1 - Math.abs(a.dot(b));
+const qdiff = (a, b) => 1 - Math.abs(a.clone().normalize().dot(b.clone().normalize())); // the pose quaternions are float32, not exactly unit
 const hit = (rd, z) => rd.kill({ part: rd.row.roles[1].id, impulse: [0, 0, z] });
 
 async function centipede() {
