@@ -94,7 +94,7 @@ for (const [label, spec, msg] of [
   ["empty node", { node: "", along_local_y_m: 0.2 }, /LeftToeBase.*node/],
   ["null entry", null, /LeftToeBase/],
   ["array entry", ["B"], /LeftToeBase/],
-  ["unknown node", { node: "Nope", along_local_y_m: 0.2 }, /LeftToeBase.*Nope/],
+  ["unknown node", { node: "Nope", along_local_y_m: 0.2 }, /Nope.*LeftToeBase/],
 ]) {
   test(`glb-measure rejects a map entry with ${label}`, () => {
     const r = runMeasure({ LeftToeBase: spec });
