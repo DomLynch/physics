@@ -115,14 +115,19 @@
       "source": "vagrant-106.glb",
       "rig_map": "data/rig-maps/mixamo-19.json",
       "measure": "data/bodies/vagrant-106.measure.json",
-      "note": "Armagedom player Vagrant (Web/public/assets/appearances/vagrant-106.glb): 19-joint Mixamo skeleton, so Spine1 is a node outside the skin and the toes are synthesised from the Foot (rig map mixamo-19)"
+      "overrides": { "hair_materials": [] },
+      "blocked_checks": ["watertight", "caps"],
+      "blocked": "six overlapping skinned garment meshes on one skin (Backpack, Feet boots, Legs trousers, Protection vest, Torso jacket, Vagrant body; 28,640 vertices, 1,639 open source edges: hems, openings and layers that are not closed shells), so every cut plane passes through several unclosed layers: 589 open edges at the cuts, 7 of 7 pieces with open edges introduced by the cut (187 root, 76 torso, 16 + 16 arms, 115 + 177 legs, plus 1 over-used edge on leg_left), and winding that disagrees with the normals on 2 of 161 triangles of cap_shoulder_left_arm and 3 of 166 of cap_hip_left_leg (caps). Orientation, weights, bone_side, conservation and planes pass. A sweep of neck_frac {0.5, 0.2, 0.8} x waist_frac {1, 0.8, 0.6} x shoulder_frac {0, 0.1, 0.2} x hip_frac {0, 0.1, 0.2} (81 cuts) gave no PASS. Needs the garments merged into one closed (or hand-capped) shell in the source.",
+      "note": "Armagedom player Vagrant (Web/public/assets/appearances/vagrant-106.glb): 19-joint Mixamo skeleton, so Spine1 is a node outside the skin and the toes are synthesised from the Foot (rig map mixamo-19). hair_materials is empty: the default hair pattern (hair|lash|brow) matches 'browser' in every material name (Backpack browser, Torso jacket browser, ...), which sent every triangle to piece_head; the Vagrant has no hair mesh. The machete (WeaponDrawn_1, WeaponDrawn_2) is unskinned and not cut"
     },
     {
       "name": "hale-pitborn",
       "source": "hale-pitborn.glb",
       "rig_map": "data/rig-maps/v1-65.json",
       "measure": "data/bodies/hale-pitborn.measure.json",
-      "note": "Armagedom player Hale (Web/public/assets/appearances/hale-pitborn.glb): 65-joint UE-style rig (v1-65)"
+      "blocked_checks": ["watertight", "orientation"],
+      "blocked": "nine skinned meshes on eight 65-joint skins, layered over one another (Photo, PhotoEyes, PhotoTeeth, Bone, Pitborn_L3_Armour, OriginalHead_Steel, OriginalHead_Wrap, Fitted joint sleeves, Recovered donor lower neck; 54,628 vertices, 2,769 open source edges): 2,371 open edges at the cuts, 9 pieces with open or over-used edges introduced by the cut (493 open edges on upper_torso and 400 on head at the neck plane, over-used edges on the root, both arms, both legs) and 5 pieces with flipped winding (142 root, 664 torso, 92 head, 194 + 366 arms). Caps, weights, bone_side, conservation and planes pass. A sweep of neck_frac {0.5, 0.2, 0.8} x waist_frac {1, 0.8, 0.6} x shoulder_frac {0, 0.2} (18 cuts), home_min_weight 0.5 and crotch_planes false gave no PASS (crotch_planes false leaves a region with no triangles). Needs the armour, sleeves and head layers merged into one closed (or hand-capped) shell at the neck, shoulders and hips in the source.",
+      "note":"Armagedom player Hale (Web/public/assets/appearances/hale-pitborn.glb): 65-joint UE-style rig (v1-65)"
     }
   ]
 }
