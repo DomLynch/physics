@@ -31,6 +31,11 @@ const joints = {};
 // a map value is a node name, or { node, along_local_y_m }: a joint the rig lacks (toes on a 19-joint Mixamo rig), put that many metres from the node along
 // the node's own +Y axis (Mixamo bones point down their length) in the bind pose
 for (const [role, spec] of Object.entries(map)) {
+  if (typeof spec !== "string") {
+    if (spec === null || typeof spec !== "object" || Array.isArray(spec)) throw new Error("rig map entry for " + role + " must be a node name or { node, along_local_y_m }");
+    if (typeof spec.node !== "string" || spec.node === "") throw new Error("rig map entry for " + role + ": node must be a non-empty string");
+    if (typeof spec.along_local_y_m !== "number" || !Number.isFinite(spec.along_local_y_m)) throw new Error("rig map entry for " + role + ": along_local_y_m must be a finite number");
+  }
   const name = typeof spec === "string" ? spec : spec.node;
   if (byName[name] === undefined) throw new Error("rig has no node " + name + " for " + role);
   const m = W(byName[name]);
