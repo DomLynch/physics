@@ -396,6 +396,17 @@ test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records th
   assert.match(b.note, /repair/i);
 });
 
+test("shoulder_mode tilt reaches the plane: the shipped anime-girl row's override turns the shoulder plane away from today's vertical one (fails on a tool without the mode)", async () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const o = cutOpts(bodies.find((x) => x.name === "anime-girl-blonde-106"));
+  assert.equal(o.planes.shoulder_mode, "tilt");
+  const { buildPlanes } = await import("../tools/cut-units.mjs");
+  const J = { Hips: [0, 0.87, 0], Spine: [0, 0.92, 0], Neck: [0, 1.27, 0], Head: [0, 1.35, 0], LeftArm: [0.108, 1.23, 0], LeftForeArm: [0.33, 1.22, 0], RightArm: [-0.108, 1.23, 0], RightForeArm: [-0.33, 1.22, 0], LeftUpLeg: [0.077, 0.83, 0], LeftLeg: [0.057, 0.48, 0], RightUpLeg: [-0.077, 0.83, 0], RightLeg: [-0.057, 0.48, 0] };
+  const skirt = [0.2, 0.7, 0];
+  assert.ok(buildPlanes(J).shoulder_left.d(skirt) > 0, "today's plane puts a 0.2 m wide skirt vertex on the arm side");
+  assert.ok(buildPlanes(J, null, o.planes, { left: 0.65, right: 0.65 }).shoulder_left.d(skirt) < 0, "the turned plane puts it on the body side");
+});
+
 test("anime-girl-blonde-106 (V3 body): a pinned, unblocked row whose only override is the general narrow-shoulder mode (planes.shoulder_mode tilt)", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
   const b = bodies.find((x) => x.name === "anime-girl-blonde-106");
