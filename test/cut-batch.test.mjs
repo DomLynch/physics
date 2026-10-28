@@ -328,10 +328,20 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
 
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
   }
-  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
+  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
+});
+
+test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "parasite-106");
+  assert.equal(b.source, "parasite-106.glb");
+  assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
+  assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
+  assert.match(b.note, /410/, "the note records the 410 native boundary edges (eye loops)");
+  assert.match(b.note, /eye/i);
 });
