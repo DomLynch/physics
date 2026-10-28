@@ -13,7 +13,7 @@ export async function createPhysics(opts = {}) {
   world.createRagdoll = (input, ropts = {}) => {
     let row = input && input.schema === "ragdoll-row/2" ? input : generateRow(ropts.id || input.id || "body", input, table);
     // a ragdoll-row/2 generated before the visual-only units existed: add them from the role table (the row passed in is not changed)
-    if (row === input) {
+    if (row === input && row.kind !== "chain") { // a chain row (src/chain.mjs) is not a humanoid: it has no head_split / belly_open parts
       const have = new Set(row.severable.map((s) => s.id)), add = table.severable.units.filter((u) => u.visual_only && !have.has(u.id));
       if (add.length) row = { ...row, severable: [...row.severable, ...add.map((u) => severableRow(u, row.roles))] };
     }
@@ -23,6 +23,7 @@ export async function createPhysics(opts = {}) {
 }
 
 export { generateRow, loadTable, lintNoBlock, mulberry32 };
+export { buildChainRow, validateChainSpec, loadChainBody, chainBoneMap, chainBoneObjects, chainBodyNames } from "./chain.mjs";
 export { createEvaluator, createFighterState, rollFinisher } from "./rules-eval.mjs";
 export { admit } from "./budget.mjs";
 export { validateRules, assertRules, loadRules, rulesHash } from "./rules.mjs";

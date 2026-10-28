@@ -19,6 +19,13 @@
       "note": "seven different Mixamo-106 boss bodies; ragdoll N uses the first N of this list. All are 20-part ragdolls, so the part count does not change with the rig, only masses and lengths do."
     },
     { "id": "boss106_warrok_x7", "bodies": ["warrok-106", "warrok-106", "warrok-106", "warrok-106", "warrok-106", "warrok-106", "warrok-106"], "note": "heaviest measured boss (140 kg clamp) repeated: the worst mass case" },
+    {
+      "id": "salamander_x7", "kind": "chain",
+      "bodies": ["salamander", "salamander", "salamander", "salamander", "salamander", "salamander", "salamander"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" },
+      "note": "chain-kind quadruped (data/bodies/salamander.chain.json, 13 capsules, about 3.6 m long, 282 kg placeholder mass); the scenario's arm cut becomes a tail cut and the spine2 hit lands on the chest; the multi-cut scenario is left out (one severable unit)"
+    },
     { "id": "rig65_mix", "bodies": ["minotaur", "psyche", "warrior", "veteran", "minotaur", "psyche", "warrior"], "note": "the four 65-joint V3 bodies, repeated to seven" }
   ],
   "scenarios": [

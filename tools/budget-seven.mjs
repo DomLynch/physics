@@ -2,10 +2,11 @@
 // Usage: node tools/budget-seven.mjs [rows.json] [--cap] [--out results.json]   (prints one line "BUDGET_JSON {...}" so a job log carries the result)
 // This is the cost of one 60 Hz tick (motors + Jolt step + readPose) on whatever CPU runs it. It is NOT GPU render cost. src/ never reads a clock; the timing lives here.
 import { readFileSync, writeFileSync } from "node:fs";
-import { createPhysics, admit } from "../src/index.mjs";
+import { createPhysics, admit, loadChainBody } from "../src/index.mjs";
 
 const ROWS_URL = new URL("../data/budget-rows.json", import.meta.url);
-const loadBody = (name) => JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
+// a set of kind "chain" names chain bodies (data/bodies/<name>.chain.json, built by src/chain.mjs into a ragdoll-row/2); any other set names measure rows
+const loadBody = (name, set) => set.kind === "chain" ? loadChainBody(name).row : JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
 
 const pct = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
 export function summarize(times) {
@@ -20,14 +21,16 @@ export async function runCell(rows, set, scenario, n, over = {}) {
   // with over.apply_cap, bodies are admitted in order by admit(); the rest are baked (no ragdoll, no cut, no cost here)
   let ragdolls = 0;
   while (ragdolls < n && (!over.apply_cap || admit(ragdolls, rows) === "ragdoll")) ragdolls++;
-  const rds = set.bodies.slice(0, ragdolls).map((b, k) => physics.createRagdoll(loadBody(b), { position: [(k - (ragdolls - 1) / 2) * rows.spacing_m, 0, 0], id: "b" + k }));
+  const rds = set.bodies.slice(0, ragdolls).map((b, k) => physics.createRagdoll(loadBody(b, set), { position: [(k - (ragdolls - 1) / 2) * rows.spacing_m, 0, 0], id: "b" + k }));
   const who = scenario.cut_who === "all" ? ragdolls : Math.min(ragdolls, scenario.cut_who ?? ragdolls);
   const times = [];
   let cuts = 0;
+  // a set may rename the scenario's humanoid units and parts to its own (set.unit_map, set.part_map): a salamander loses its tail, not an arm
+  const unitOf = (u) => (set.unit_map && set.unit_map[u]) || u, partOf = (p) => (set.part_map && set.part_map[p]) || p;
   for (let t = 0; t < ticks; t++) {
     const t0 = performance.now();
-    for (const c of scenario.cuts) if (c.tick === t) for (let k = 0; k < who; k++) if (rds[k].cut(c.unit)) cuts++;
-    if (scenario.kill && scenario.kill.tick === t) for (const r of rds) r.kill({ part: scenario.kill.part, impulse: scenario.kill.impulse });
+    for (const c of scenario.cuts) if (c.tick === t) for (let k = 0; k < who; k++) if (rds[k].cut(unitOf(c.unit))) cuts++;
+    if (scenario.kill && scenario.kill.tick === t) for (const r of rds) r.kill({ part: partOf(scenario.kill.part), impulse: scenario.kill.impulse });
     if (!scenario.kill || t < scenario.kill.tick) for (const r of rds) r.setMotorStrength({ all: t % M.period_ticks < M.high_ticks ? M.high : M.low });
     physics.step(1 / 60);
     for (const r of rds) r.readPose();
@@ -45,6 +48,7 @@ export async function runBudget(rows = JSON.parse(readFileSync(ROWS_URL, "utf8")
   const cells = [];
   for (const set of sets) for (const scenario of scenarios) for (const n of counts) {
     if (n > set.bodies.length) continue;
+    if (set.scenarios && !set.scenarios.includes(scenario.id)) continue; // a set can list the scenarios that make sense for its body
     const all = [], hashes = new Set();
     let cuts = 0, ragdolls = n, hash = "";
     for (let r = 0; r < repeats; r++) { const c = await runCell(rows, set, scenario, n, over); all.push(...c.times); hashes.add(c.hash); cuts = c.cuts; ragdolls = c.ragdolls; hash = c.hash; }
@@ -57,8 +61,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2), oi = args.indexOf("--out");
   const out = oi >= 0 ? args.splice(oi, 2)[1] : null;
   const ci = args.indexOf("--cap"), apply_cap = ci >= 0 && !!args.splice(ci, 1); // --cap: apply max_simultaneous_ragdolls (bosses past it are baked, not simulated)
+  const sj = args.indexOf("--sets"), sets = sj >= 0 ? args.splice(sj, 2)[1].split(",") : undefined; // --sets a,b: only these set ids
   const rows = args[0] ? JSON.parse(readFileSync(args[0], "utf8")) : undefined;
-  const res = await runBudget(rows, { apply_cap });
+  const res = await runBudget(rows, { apply_cap, sets });
   if (out) writeFileSync(out, JSON.stringify(res, null, 2) + "\n");
   console.log("BUDGET_JSON " + JSON.stringify(res));
   for (const c of res.cells) console.log(`# ${c.set} ${c.scenario} n=${c.n} (ragdolls ${c.ragdolls}, baked ${c.baked}): avg ${c.avg_ms.toFixed(3)} p95 ${c.p95_ms.toFixed(3)} max ${c.max_ms.toFixed(3)} ms${c.deterministic ? "" : " NONDETERMINISTIC"}`);
