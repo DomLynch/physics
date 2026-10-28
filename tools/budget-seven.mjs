@@ -2,7 +2,8 @@
 // Usage: node tools/budget-seven.mjs [rows.json] [--cap] [--out results.json]   (prints one line "BUDGET_JSON {...}" so a job log carries the result)
 // This is the cost of one 60 Hz tick (motors + Jolt step + readPose) on whatever CPU runs it. It is NOT GPU render cost. src/ never reads a clock; the timing lives here.
 import { readFileSync, writeFileSync } from "node:fs";
-import { createPhysics, admit, loadChainBody } from "../src/index.mjs";
+import * as P from "../src/index.mjs"; // namespace import: an older pinned src/ without admit() or loadChainBody() still loads (tools/nightly.mjs skips those cells)
+const { createPhysics } = P, admit = (...a) => P.admit(...a), loadChainBody = (...a) => P.loadChainBody(...a);
 
 const ROWS_URL = new URL("../data/budget-rows.json", import.meta.url);
 // a set of kind "chain" names chain bodies (data/bodies/<name>.chain.json, built by src/chain.mjs into a ragdoll-row/2); any other set names measure rows

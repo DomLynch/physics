@@ -1,0 +1,72 @@
+// Nightly physics benchmark: runs the cells listed in data/nightly-rows.json `runs` times (5) and keeps the MEDIAN p95 per cell (one noisy run cannot move it).
+// Usage: node tools/nightly.mjs [--out results.json] [--target name] [--runs 5] [--rows data/nightly-rows.json]   (prints one "NIGHTLY_JSON {...}" line so a job log carries the result)
+// A cell whose tooling or data is absent at the checked-out sha (an old pin without admit(), loadChainBody(), a body file, or a tool) is SKIPPED, never failed. Run an older pin's src/ and data/ with the CURRENT tools/
+// (scripts/physics-nightly.sh does the overlay). This is the CPU cost of one 60 Hz physics tick on whatever machine runs it; src/ never reads a clock, the timing lives here.
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { cpus } from "node:os";
+import * as P from "../src/index.mjs";
+import { runCell, summarize } from "./budget-seven.mjs";
+import { cellKey, medianCells, SCHEMA } from "./nightly-gate.mjs";
+
+const ROOT = new URL("../", import.meta.url);
+
+// the reason a cell cannot run here, or null
+function whyNot(cell, br) {
+  if (cell.kind === "parked") return existsSync(new URL(cell.needs, ROOT)) ? null : `${cell.needs} absent`;
+  const set = br.sets.find((s) => s.id === cell.set);
+  if (!set) return `set ${cell.set} absent`;
+  if (!br.scenarios.some((s) => s.id === cell.scenario)) return `scenario ${cell.scenario} absent`;
+  if (set.kind === "chain" && typeof P.loadChainBody !== "function") return "loadChainBody absent";
+  if (cell.cap && typeof P.admit !== "function") return "admit absent";
+  return null;
+}
+
+// one timed run of one cell -> p95_ms
+async function once(cell, br, over) {
+  if (cell.kind === "parked") {
+    const out = execFileSync(process.execPath, [new URL(cell.needs, ROOT).pathname, "--parked", "--counts", `0,${cell.n}`, "--repeats", "1"], { encoding: "utf8", maxBuffer: 1 << 26 });
+    const line = out.split("\n").find((l) => l.startsWith("PARKED_COST_JSON "));
+    const c = JSON.parse(line.slice("PARKED_COST_JSON ".length)).cells.find((x) => x.parked_n === cell.n && !x.dying);
+    return c.p95_ms;
+  }
+  const set = br.sets.find((s) => s.id === cell.set), scenario = br.scenarios.find((s) => s.id === cell.scenario);
+  const res = await runCell({ ...br, ...(over.ticks ? { ticks: over.ticks } : {}), ...(over.warm_ticks ? { warm_ticks: over.warm_ticks } : {}) }, set, scenario, cell.n, { apply_cap: !!cell.cap });
+  return summarize(res.times).p95_ms;
+}
+
+// nr: the nightly rows, br: the budget rows. over: { runs, ticks, warm_ticks, target, sha, date }. Runs are interleaved across cells so slow drift on the box hits every cell alike.
+export async function runNightly(nr, br, over = {}) {
+  const runs = over.runs ?? nr.runs, skipped = [], skip_reasons = {}, live = [], perRun = Array.from({ length: runs }, () => ({}));
+  for (const cell of nr.cells) {
+    const why = whyNot(cell, br), key = cellKey(cell);
+    if (why) { skipped.push(key); skip_reasons[key] = why; } else live.push(cell);
+  }
+  const dead = new Set();
+  const warm = live.find((c) => c.kind !== "parked");
+  if (warm) try { await once(warm, br, { ticks: 30, warm_ticks: 5 }); } catch { /* JIT and WASM warm-up only, not recorded */ }
+  for (let r = 0; r < runs; r++) for (const cell of live) {
+    const key = cellKey(cell);
+    if (dead.has(key)) continue;
+    try { perRun[r][key] = await once(cell, br, over); }
+    catch (e) { dead.add(key); skipped.push(key); skip_reasons[key] = String(e.message || e).split("\n")[0].slice(0, 160); for (const pr of perRun) delete pr[key]; }
+  }
+  return {
+    schema: SCHEMA, target: over.target ?? "local", sha: over.sha ?? "0".repeat(40), date: over.date ?? new Date().toISOString().slice(0, 10),
+    node: process.version, cpus: cpus().length, runs, limit_ms: nr.limit_ms, regress_pct: nr.regress_pct,
+    cells: medianCells(perRun), skipped: skipped.sort(), skip_reasons,
+  };
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf("--" + k); return i < 0 ? d : args[i + 1]; };
+  const nr = JSON.parse(readFileSync(opt("rows", new URL("../data/nightly-rows.json", import.meta.url)), "utf8"));
+  const br = JSON.parse(readFileSync(new URL("../data/budget-rows.json", import.meta.url), "utf8"));
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT.pathname, encoding: "utf8" }).trim();
+  const res = await runNightly(nr, br, { runs: opt("runs") ? +opt("runs") : undefined, target: opt("target", "local"), sha });
+  const out = opt("out");
+  if (out) writeFileSync(out, JSON.stringify(res, null, 2) + "\n");
+  console.log("NIGHTLY_JSON " + JSON.stringify(res));
+  for (const [k, c] of Object.entries(res.cells)) console.log(`# ${k}: median p95 ${c.p95_ms.toFixed(3)} ms over ${c.runs} runs`);
+  for (const k of res.skipped) console.log(`# ${k}: SKIPPED (${res.skip_reasons[k]})`);
+}

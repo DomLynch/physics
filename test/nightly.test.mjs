@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { median, cellKey, medianCells, gate, flagLine, renderTable, validateResults, LIMIT_MS, REGRESS_PCT } from "../tools/nightly-gate.mjs";
+import { median, cellKey, medianCells, gate, flagLine, renderTable, renderReport, validateResults, LIMIT_MS, REGRESS_PCT } from "../tools/nightly-gate.mjs";
 import { runNightly } from "../tools/nightly.mjs";
 
 test("defaults: 3 ms limit, 20% regression", () => { assert.equal(LIMIT_MS, 3); assert.equal(REGRESS_PCT, 20); });
@@ -100,6 +100,23 @@ test("renderTable: golden string", () => {
     "| d/parked/n30/nocap | - | - | - | SKIPPED |",
   ].join("\n");
   assert.equal(renderTable(rows), want);
+});
+
+test("renderReport: flag line first, header facts, table, skipped note, baseline note", () => {
+  const res = { schema: "nightly/1", target: "armagedom", sha: "c".repeat(40), node: "v22.1.0", cpus: 8, runs: 5, date: "2026-10-28",
+    cells: { "a/b/n3/cap": { p95_ms: 3.5 }, "c/d/n3/cap": { p95_ms: 1 } }, skipped: ["e/f/n3/cap"] };
+  const withBase = renderReport(res, { schema: "nightly/1", sha: "d".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-27", cells: { "a/b/n3/cap": { p95_ms: 3.4 } } });
+  const lines = withBase.split("\n");
+  assert.equal(lines[0], "<!-- nightly-physics-benchmark -->");
+  assert.equal(lines[1], "**FLAG: 1 cell: a/b/n3/cap (OVER BUDGET)**");
+  assert.match(withBase, /armagedom at `cccccccccccc`/);
+  assert.match(withBase, /median p95 of 5 runs/);
+  assert.match(withBase, /compared with `dddddddddddd`/);
+  assert.match(withBase, /\| a\/b\/n3\/cap \| 3\.500 \| 3\.400 \| \+2\.9% \| OVER BUDGET \|/);
+  assert.match(withBase, /Skipped \(tooling absent at this sha\): e\/f\/n3\/cap/);
+  const noBase = renderReport({ ...res, cells: { "c/d/n3/cap": { p95_ms: 1 } } }, null);
+  assert.equal(noBase.split("\n")[1], "**PASS**");
+  assert.match(noBase, /no stored baseline yet/);
 });
 
 const good = () => ({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22.1.0", cpus: 8, runs: 5, date: "2026-10-28", cells: { "a/b/n1/cap": { p95_ms: 1.2 } }, skipped: ["c/d/n1/cap"] });
