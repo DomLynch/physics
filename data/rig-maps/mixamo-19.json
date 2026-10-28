@@ -1,0 +1,11 @@
+{
+  "schema": "rig-map/1",
+  "about": "Role joint -> node on the 19-joint Mixamo rig (Armagedom vagrant-106: skin joints Hips, Spine, Spine2, shoulders, arms, neck, head, legs; no Spine1 skin joint, no toes). Spine1 is the pass-through node Mixamo keeps between Spine and Spine2 (in the node tree, not in the skin), so it maps to itself. The rig has no toes: ToeBase is put 0.20 m from the Foot node along the foot bone (+Y, which points down-forward to the ball of the foot), about 0.106 of the 1.89 m height (brute-106: 0.21 m on 2.09 m). Used by tools/glb-measure.mjs only. In the game the toe parts have no bone: give them an empty Object3D child of the Foot bone (see docs).",
+  "joints": {
+    "Hips": "mixamorig:Hips", "Spine": "mixamorig:Spine", "Spine1": "mixamorig:Spine1", "Spine2": "mixamorig:Spine2", "Neck": "mixamorig:Neck", "Head": "mixamorig:Head",
+    "LeftArm": "mixamorig:LeftArm", "LeftForeArm": "mixamorig:LeftForeArm", "LeftHand": "mixamorig:LeftHand",
+    "RightArm": "mixamorig:RightArm", "RightForeArm": "mixamorig:RightForeArm", "RightHand": "mixamorig:RightHand",
+    "LeftUpLeg": "mixamorig:LeftUpLeg", "LeftLeg": "mixamorig:LeftLeg", "LeftFoot": "mixamorig:LeftFoot", "LeftToeBase": { "node": "mixamorig:LeftFoot", "along_local_y_m": 0.2 },
+    "RightUpLeg": "mixamorig:RightUpLeg", "RightLeg": "mixamorig:RightLeg", "RightFoot": "mixamorig:RightFoot", "RightToeBase": { "node": "mixamorig:RightFoot", "along_local_y_m": 0.2 }
+  }
+}

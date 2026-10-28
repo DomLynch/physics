@@ -28,10 +28,20 @@ const W = (i) => (world[i] ||= parent[i] < 0 ? local(nodes[i]) : mul(W(parent[i]
 const byName = {};
 nodes.forEach((n, i) => (byName[n.name] = i));
 const joints = {};
-for (const [role, name] of Object.entries(map)) {
+// a map value is a node name, or { node, along_local_y_m }: a joint the rig lacks (toes on a 19-joint Mixamo rig), put that many metres from the node along
+// the node's own +Y axis (Mixamo bones point down their length) in the bind pose
+for (const [role, spec] of Object.entries(map)) {
+  if (typeof spec !== "string") {
+    if (spec === null || typeof spec !== "object" || Array.isArray(spec)) throw new Error("rig map entry for " + role + " must be a node name or { node, along_local_y_m }");
+    if (typeof spec.node !== "string" || spec.node === "") throw new Error("rig map entry for " + role + ": node must be a non-empty string");
+    if (typeof spec.along_local_y_m !== "number" || !Number.isFinite(spec.along_local_y_m)) throw new Error("rig map entry for " + role + ": along_local_y_m must be a finite number");
+  }
+  const name = typeof spec === "string" ? spec : spec.node;
   if (byName[name] === undefined) throw new Error("rig has no node " + name + " for " + role);
   const m = W(byName[name]);
-  joints[role] = [m[12], m[13], m[14]];
+  const len = typeof spec === "string" ? 0 : spec.along_local_y_m;
+  const yl = Math.hypot(m[4], m[5], m[6]) || 1;
+  joints[role] = [m[12] + (m[4] / yl) * len, m[13] + (m[5] / yl) * len, m[14] + (m[6] / yl) * len];
 }
 const d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const J = joints, r4 = (x) => Math.round(x * 1e4) / 1e4;
