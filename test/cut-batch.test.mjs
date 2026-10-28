@@ -328,7 +328,7 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
 
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "big-vegas-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
@@ -344,4 +344,14 @@ test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it name
   assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
   assert.match(b.note, /410/, "the note records the 410 native boundary edges (eye loops)");
   assert.match(b.note, /eye/i);
+});
+
+test("big-vegas-106 (V3 boss The King): a blocked row that names exactly the checks it still fails and why (not a validator bypass)", () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "big-vegas-106");
+  assert.equal(b.source, "big-vegas-106.glb");
+  assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
+  assert.deepEqual(b.blocked_checks, ["watertight", "orientation", "caps"]);
+  assert.match(b.blocked, /midline/);
+  assert.equal(b.expect_sha256, undefined);
 });

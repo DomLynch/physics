@@ -1,0 +1,120 @@
+{
+ "id": "big-vegas-106",
+ "source": "big-vegas-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.8147,
+ "neck_len": 0.1372,
+ "torso_len": 0.3589,
+ "shoulder_w": 0.8195,
+ "upper_arm_len": 0.2974,
+ "forearm_len": 0.2773,
+ "thigh_len": 0.3221,
+ "shin_len": 0.3238,
+ "foot_len": 0.3021,
+ "chest_w": 0.8351,
+ "waist_w": 0.7703,
+ "hip_w": 0.6466,
+ "chest_d": 0.6514,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9615,
+   0.0439
+  ],
+  "Spine": [
+   0,
+   1.0668,
+   0.0386
+  ],
+  "Spine1": [
+   0,
+   1.1798,
+   0.0254
+  ],
+  "Spine2": [
+   0,
+   1.3177,
+   -0.0024
+  ],
+  "Neck": [
+   0,
+   1.4189,
+   -0.031
+  ],
+  "Head": [
+   0,
+   1.5554,
+   -0.0451
+  ],
+  "LeftArm": [
+   0.4078,
+   1.4006,
+   -0.1393
+  ],
+  "LeftForeArm": [
+   0.7057,
+   1.4004,
+   -0.1404
+  ],
+  "LeftHand": [
+   0.9847,
+   1.3993,
+   -0.1339
+  ],
+  "RightArm": [
+   -0.4117,
+   1.4026,
+   -0.1407
+  ],
+  "RightForeArm": [
+   -0.7085,
+   1.3995,
+   -0.1371
+  ],
+  "RightHand": [
+   -0.984,
+   1.3986,
+   -0.1322
+  ],
+  "LeftUpLeg": [
+   0.1884,
+   0.9062,
+   -0.0012
+  ],
+  "LeftLeg": [
+   0.187,
+   0.5854,
+   0.0267
+  ],
+  "LeftFoot": [
+   0.1874,
+   0.2655,
+   -0.0296
+  ],
+  "LeftToeBase": [
+   0.1982,
+   0,
+   0.1139
+  ],
+  "RightUpLeg": [
+   -0.1884,
+   0.9062,
+   -0.0049
+  ],
+  "RightLeg": [
+   -0.1886,
+   0.5857,
+   0.0274
+  ],
+  "RightFoot": [
+   -0.1912,
+   0.2678,
+   -0.0283
+  ],
+  "RightToeBase": [
+   -0.1978,
+   0.0015,
+   0.1144
+  ]
+ }
+}
