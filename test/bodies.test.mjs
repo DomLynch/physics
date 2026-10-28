@@ -7,7 +7,7 @@ import { createPhysics } from "../src/index.mjs";
 import { generateRow, loadTable } from "../src/index.mjs";
 
 // the ragdoll's capsule lengths must match the lengths measured from the GLB joints (the row is what the game's body really is)
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020", "sporty-granny-106"]) {
   test(`${name}: ragdoll part lengths match the measured bone lengths`, () => {
     const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
     const row = generateRow(name, m, loadTable());
@@ -17,7 +17,7 @@ for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", 
   });
 }
 
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020", "sporty-granny-106"]) {
   const body = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
   test(`${name}: holds its rest pose (hips kinematic), then dies and freezes on the floor`, async () => {
     const p = await createPhysics({ seed: 1 });
@@ -64,6 +64,17 @@ test("anime-boy-black-106: the measure row is a plausible humanoid boss and its 
   assert.ok(m.thigh_len > 0.2 && m.shin_len > 0.2 && m.torso_len > 0.2);
   const row = generateRow("anime-boy-black-106", m, loadTable());
   assert.ok(row.total_mass_kg > 30 && row.total_mass_kg < 250, `total mass ${row.total_mass_kg} kg`);
+});
+
+// sporty-granny-106 (V3 boss Nan the Impaler, Frankendom-v3 PR 230): a human-scale figure with a plausible generated row
+test("sporty-granny-106: measure row is plausible and the row mass is finite and bounded", () => {
+  const m = JSON.parse(readFileSync(new URL("../data/bodies/sporty-granny-106.measure.json", import.meta.url), "utf8"));
+  assert.ok(m.height_m > 1.0 && m.height_m < 2.5, `height ${m.height_m}`);
+  for (const k of ["neck_len", "torso_len", "shoulder_w", "upper_arm_len", "forearm_len", "thigh_len", "shin_len", "foot_len", "chest_w", "waist_w", "hip_w", "chest_d"]) assert.ok(Number.isFinite(m[k]) && m[k] > 0, k);
+  const row = generateRow("sporty-granny-106", m, loadTable());
+  const total = row.roles.reduce((a, r) => a + r.mass_kg, 0);
+  assert.ok(total > 20 && total < 300, `total mass ${total} kg`);
+  for (const r of row.roles) assert.ok(Number.isFinite(r.mass_kg) && r.mass_kg > 0, r.id);
 });
 
 // ARMAGEDOM hub NPCs (Art PR 452, GLBs npc-*.glb on the 106 rig). Rows are named by BODY id. height_m is the real skinned-mesh height (bind pose, meshopt
