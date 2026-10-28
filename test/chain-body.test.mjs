@@ -205,3 +205,130 @@ test("humanoid rows are unaffected: pose and state behave as before (hash of a p
   assert.equal(row.kind, undefined);
   assert.ok(row.severable.some((s) => s.id === "head_split"), "visual-only units still added to humanoid rows");
 });
+
+// ---- the rat rig family: rat king (mini-boss) and crow, both on the 24-bone rat rig (root > pelvis > spine > chest > neck > head > jaw > bite_tip; tail_1..4; leg_B*/leg_F* > shin > paw) ----
+const RIG = {
+  "rat-king": { scale: 3, mass: [20, 80], impulse: 40, species: "rat king" },
+  crow: { scale: 4, mass: [2, 20], impulse: 10, species: "crow" },
+};
+const EXPECTED_MAP = {
+  hips: "pelvis", chest: "chest", head: "neck", tail_a: "tail_1", tail_b: "tail_3",
+  leg_BL_up: "leg_BL", leg_BL_low: "shin_BL", leg_BR_up: "leg_BR", leg_BR_low: "shin_BR",
+  leg_FL_up: "leg_FL", leg_FL_low: "shin_FL", leg_FR_up: "leg_FR", leg_FR_low: "shin_FR",
+};
+
+for (const [name, cfg] of Object.entries(RIG)) {
+  const rspec = read(`${name}.chain.json`), rbones = read(`${name}.bones.json`);
+
+  test(`${name} spec: 13 capsules on the rat rig, parent-first, placeholder-marked, scale from Armagedom's model scale, mass plausible`, () => {
+    assert.equal(rspec.schema, "chain-body/1");
+    assert.equal(rspec.name, name);
+    assert.equal(rspec.segments.length, 13);
+    assert.equal(rspec.scale, cfg.scale);
+    assert.equal(rspec.placeholder, true);
+    assert.deepEqual(validateChainSpec(rspec, rbones), []);
+    const total = rspec.segments.reduce((a, s) => a + s.mass, 0);
+    assert.ok(total > cfg.mass[0] && total < cfg.mass[1], `${name}: total mass ${total} kg is not plausible for a ${cfg.species}`);
+    assert.equal(Object.keys(rbones.bones).length, 24, "the rat rig has 24 bones");
+    for (const b of ["root", "pelvis", "spine", "chest", "neck", "head", "jaw", "bite_tip", "tail_1", "tail_2", "tail_3", "tail_4", "leg_BL", "shin_BL", "paw_BL", "leg_FR", "shin_FR", "paw_FR"]) assert.ok(rbones.bones[b], `${name}.bones.json: ${b}`);
+  });
+
+  test(`${name}: boneMap is the pinned part -> bone table, and every bone with no body follows an owning bone in the scene graph`, () => {
+    const body = loadChainBody(name);
+    assert.deepEqual(body.boneMap, EXPECTED_MAP);
+    assert.deepEqual(chainBoneMap(rspec), EXPECTED_MAP);
+    assert.equal(body.row.bodies, 13);
+    assert.equal(body.row.kind, "chain");
+    assert.equal(body.row.body, name);
+    const owned = new Set(Object.values(EXPECTED_MAP));
+    for (const b of Object.keys(rbones.bones)) {
+      let cur = b;
+      while (!owned.has(cur) && rbones.bones[cur].parent) cur = rbones.bones[cur].parent;
+      assert.ok(owned.has(cur) || cur === "root", `${name}: bone ${b} has no owning body`);
+    }
+  });
+
+  test(`${name}: lower legs are hinges that flex the same way (+1 for hind and front: the joint point backward), the tail is the severable unit`, () => {
+    const body = loadChainBody(name);
+    assert.deepEqual(body.row.hinge_flex_z, { leg_lower_hind: 1, leg_lower_front: 1 });
+    for (const id of ["leg_BL_low", "leg_BR_low", "leg_FL_low", "leg_FR_low"]) {
+      const r = body.row.roles.find((x) => x.id === id);
+      assert.equal(r.joint.type, "hinge", id);
+      assert.ok(r.joint.hinge_min_deg < r.joint.hinge_max_deg, id);
+    }
+    assert.deepEqual(body.row.severable.map((s) => s.id), ["tail"]);
+    assert.deepEqual(body.spec.severable[0].carries_roles, ["tail_a", "tail_b"]);
+  });
+
+  test(`${name}: the built row has capsules sized to the creature (scale ${cfg.scale}) and every pivot above the floor`, () => {
+    const { row } = loadChainBody(name);
+    assert.ok(row.height_m > 0.2 && row.height_m < 1, `height ${row.height_m} m`);
+    for (const r of row.roles) {
+      assert.ok(r.radius_m > 0.005 && r.radius_m < 0.25, `${r.id}: radius ${r.radius_m}`);
+      assert.ok(r.rest.pivot[1] > 0, `${r.id}: pivot above the floor`);
+    }
+  });
+
+  test(`${name}: holds its rest pose with the hips kinematic, then a kill with a hit impulse falls, settles and freezes (no NaN, nothing below the floor)`, async () => {
+    const p = await createPhysics({ seed: 1 });
+    const rd = p.createRagdoll(loadChainBody(name).row, { id: "r" });
+    const p0 = Float32Array.from(rd.readPose());
+    for (let t = 0; t < 120; t++) p.step(1 / 60);
+    let worst = 0;
+    const p1 = rd.readPose();
+    for (let i = 0; i < 13; i++) worst = Math.max(worst, Math.hypot(p1[i * 10] - p0[i * 10], p1[i * 10 + 1] - p0[i * 10 + 1], p1[i * 10 + 2] - p0[i * 10 + 2]));
+    assert.ok(worst < 0.15, `${name}: a part drifted ${worst} m while alive`);
+    const hipsY0 = rd.readPose()[1];
+    rd.kill({ part: "chest", impulse: [0, 0, cfg.impulse] });
+    for (let t = 0; t < 900; t++) p.step(1 / 60);
+    const pose = rd.readPose();
+    for (const v of pose) assert.ok(Number.isFinite(v), "NaN or Infinity in the pose");
+    assert.ok(pose[1] < hipsY0 - 0.03, `${name}: hips at ${pose[1]} m, start ${hipsY0} m`);
+    let maxSpeed = 0, minY = Infinity;
+    for (let i = 0; i < 13; i++) { maxSpeed = Math.max(maxSpeed, Math.hypot(pose[i * 10 + 7], pose[i * 10 + 8], pose[i * 10 + 9])); minY = Math.min(minY, pose[i * 10 + 1]); }
+    assert.ok(maxSpeed < 0.2, `${name}: still moving at ${maxSpeed} m/s after 15 s`);
+    assert.ok(minY > -0.02, `${name}: a part is below the floor: y ${minY}`);
+    assert.equal(rd.state, "frozen");
+    p.destroy();
+  });
+
+  test(`${name}: a tail cut frees tail_a and tail_b, and two runs with the same inputs give the same per-tick hash`, async () => {
+    const run = async () => {
+      const p = await createPhysics({ seed: 3 });
+      const rd = p.createRagdoll(loadChainBody(name).row, { id: "r" });
+      const hashes = [];
+      for (let t = 0; t < 300; t++) {
+        if (t === 40) { const c = rd.cut("tail"); assert.deepEqual(c.carries_roles, ["tail_a", "tail_b"]); assert.equal(rd.cut("tail"), null); }
+        if (t === 60) rd.kill({ part: "chest", impulse: [cfg.impulse / 3, 2, cfg.impulse] });
+        p.step(1 / 60);
+        hashes.push(p.hash());
+      }
+      p.destroy();
+      return hashes;
+    };
+    const a = await run(), b = await run();
+    assert.deepEqual(a, b);
+    assert.notEqual(a[0], a[299], "the sim must actually move");
+  });
+}
+
+test("the crow is the lighter one and the rat king the heavier; no crow capsule is fatter; both GLBs share the same 24-bone skeleton", () => {
+  const rat = read("rat-king.chain.json"), crow = read("crow.chain.json");
+  const mass = (s) => s.segments.reduce((a, x) => a + x.mass, 0);
+  assert.ok(mass(crow) < mass(rat), `crow ${mass(crow)} kg vs rat king ${mass(rat)} kg`);
+  assert.ok(crow.segments.every((s) => s.radius <= rat.segments.find((x) => x.id === s.id).radius + 1e-9), "crow capsule fatter than the rat king's (model units)");
+  assert.deepEqual(read("rat-king.bones.json").bones, read("crow.bones.json").bones);
+});
+
+test("budget rows: rat_king_x7 and crow_x7 are chain sets of seven bodies, tail for the arm cut, chest for the spine2 hit, no multi-cut scenario", () => {
+  const rows = read("../budget-rows.json");
+  for (const [id, body] of [["rat_king_x7", "rat-king"], ["crow_x7", "crow"]]) {
+    const set = rows.sets.find((s) => s.id === id);
+    assert.ok(set, id);
+    assert.equal(set.kind, "chain");
+    assert.deepEqual(set.bodies, Array(7).fill(body));
+    assert.equal(set.unit_map.arm_right, "tail");
+    assert.equal(set.part_map.spine2, "chest");
+    assert.ok(!set.scenarios.includes("dying_multi_cut"));
+  }
+});
