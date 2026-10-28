@@ -82,6 +82,14 @@
       "note": "Armagedom marked hunter (Pitborn), ARMAGEDOM main blob a3cad1dc (1,211,976 bytes, sha256 5a20aa18...e5ca): the V3 minotaur body (measure row identical to minotaur-106) plus a baked cleaver (WeaponDrawn_1, WeaponDrawn_2: plain mesh nodes under RightHand > fk_socket_hand_r > WeaponDrawn). Gear follows its bone: plain nodes are kept untouched under the same parents, only the one skinned mesh Steel is cut. Default planes, no hair material; measured at bind pose, scale 1 (the scene applies 1.1 in code)."
     },
     {
+      "name": "pumpkinhulk-106",
+      "source": "pumpkinhulk-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/pumpkinhulk-106.measure.json",
+      "expect_sha256": "6613caf075ab8bf8133ffff0cdd05d036960de495e8fad9a2d53c5e69cb35573",
+      "note": "V3 boss Pumpkinhulk, Frankendom-v3 PR 224 head bbcf39c (1,514,336 bytes, sha256 42c32d30...e8b3, 9,648 tris, 106 joints); default planes, no hair material; the limb-loss row loadLimbLoss('pumpkinhulk') takes arm_left and arm_right as piece_hostile units"
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",

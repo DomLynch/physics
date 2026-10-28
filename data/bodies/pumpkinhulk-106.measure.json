@@ -1,0 +1,120 @@
+{
+ "id": "pumpkinhulk-106",
+ "source": "pumpkinhulk-106.glb bind pose via mixamo-106.json",
+ "height_m": 2.135,
+ "neck_len": 0.1644,
+ "torso_len": 0.5384,
+ "shoulder_w": 0.6328,
+ "upper_arm_len": 0.3752,
+ "forearm_len": 0.4186,
+ "thigh_len": 0.3708,
+ "shin_len": 0.381,
+ "foot_len": 0.275,
+ "chest_w": 0.6448,
+ "waist_w": 0.5948,
+ "hip_w": 0.5375,
+ "chest_d": 0.503,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   1.0129,
+   -0.0166
+  ],
+  "Spine": [
+   0,
+   1.1424,
+   -0.0036
+  ],
+  "Spine1": [
+   0,
+   1.2589,
+   -0.0027
+  ],
+  "Spine2": [
+   0,
+   1.3779,
+   -0.0029
+  ],
+  "Neck": [
+   0,
+   1.6765,
+   -0.0714
+  ],
+  "Head": [
+   0,
+   1.8346,
+   -0.0264
+  ],
+  "LeftArm": [
+   0.3164,
+   1.5995,
+   -0.1521
+  ],
+  "LeftForeArm": [
+   0.6916,
+   1.5973,
+   -0.1524
+  ],
+  "LeftHand": [
+   1.1102,
+   1.5947,
+   -0.1527
+  ],
+  "RightArm": [
+   -0.3164,
+   1.5995,
+   -0.1521
+  ],
+  "RightForeArm": [
+   -0.6916,
+   1.5973,
+   -0.1524
+  ],
+  "RightHand": [
+   -1.1102,
+   1.5947,
+   -0.1527
+  ],
+  "LeftUpLeg": [
+   0.1566,
+   0.9288,
+   -0.002
+  ],
+  "LeftLeg": [
+   0.1566,
+   0.5616,
+   0.0494
+  ],
+  "LeftFoot": [
+   0.1566,
+   0.1886,
+   -0.0284
+  ],
+  "LeftToeBase": [
+   0.2153,
+   0,
+   0.163
+  ],
+  "RightUpLeg": [
+   -0.1566,
+   0.9288,
+   -0.002
+  ],
+  "RightLeg": [
+   -0.1566,
+   0.5616,
+   0.0494
+  ],
+  "RightFoot": [
+   -0.1566,
+   0.1886,
+   -0.0284
+  ],
+  "RightToeBase": [
+   -0.2153,
+   0,
+   0.163
+  ]
+ }
+}
