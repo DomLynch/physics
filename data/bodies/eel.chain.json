@@ -9,18 +9,19 @@
   "scale": 0.9,
   "scale_source": "Armagedom Web/src/data/creatureDefinitions.json giant-eel scale.model 0.9 (the skeleton is the salamander's, so the eel is about 0.95 m long and 0.2 m tall at this scale): bones and radii below are in model units, the row is in metres at this scale",
   "mass_assumption": "placeholder: a thick-bodied river eel about 0.95 m long and 5 cm across weighs roughly 1.5 to 3 kg; 2.1 kg total. The game data gives hp 90 and no mass.",
+  "radius_source": "retuned 2026-10-28 to the game-measured radiusModel (Armagedom PR #435, model units; the old placeholders were 2-5x too thin): hips 0.032 -> 0.108 (game 0.1083), chest_a 0.032 -> 0.0995 and chest_b 0.028 -> 0.137 (game chest 0.1372 covers both), head 0.03 -> 0.098 (0.1362), tail_a / tail_b 0.026 / 0.02 -> 0.11 (game tail_a 0.1101 covers both), tail_c 0.014 -> 0.101 (game tail_b 0.1012). chest_a and head are limited to about 0.1 by each other (they are two capsules apart in the line). The masses were NOT changed, so the body is now a very light fat bean: revisit the 2.1 kg total.",
   "inertia_multiplier": 8,
   "inertia_source": "data/ragdoll-role-table.json motor.inertia_multiplier (M1 finding), same value as the humanoid rows",
   "hinge_flex_z": {},
   "hinge_flex_z_source": "no hinge joints: an eel has no knees or elbows in this chain",
   "segments": [
-    { "id": "hips", "role": "spine", "bone": "spine0", "tip": "spine2", "parent": null, "radius": 0.032, "mass": 0.4, "joint": null, "source": "placeholder: root, spine0 to spine2 (spine1 rides on it)" },
-    { "id": "chest_a", "role": "spine", "bone": "spine2", "tip": "spine4", "parent": "hips", "radius": 0.032, "mass": 0.45, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 15 }, "source": "placeholder: spine2 to spine4 (spine3 rides on it; the vestigial front legs follow it)" },
-    { "id": "chest_b", "role": "spine", "bone": "spine4", "tip": "neck", "parent": "chest_a", "radius": 0.028, "mass": 0.3, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 15 }, "source": "placeholder: spine4 to neck" },
-    { "id": "head", "role": "head", "bone": "neck", "tip": "jaw", "parent": "chest_b", "radius": 0.03, "mass": 0.3, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 30 }, "source": "placeholder: neck to jaw (neck + head + jaw, ears ride on it)" },
-    { "id": "tail_a", "role": "tail", "bone": "tail0", "tip": "tail1", "parent": "hips", "radius": 0.026, "mass": 0.35, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 20 }, "source": "placeholder: tail0 to tail1" },
-    { "id": "tail_b", "role": "tail", "bone": "tail1", "tip": "tail2", "parent": "tail_a", "radius": 0.02, "mass": 0.2, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 20 }, "source": "placeholder: tail1 to tail2" },
-    { "id": "tail_c", "role": "tail", "bone": "tail2", "tip": "tail3", "extend": 0.05, "parent": "tail_b", "radius": 0.014, "mass": 0.1, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 20 }, "source": "placeholder: tail2 to tail3 plus 0.05 model units past the last bone" }
+    { "id": "hips", "role": "spine", "bone": "spine0", "tip": "spine2", "parent": null, "radius": 0.108, "mass": 0.4, "joint": null, "source": "placeholder: root, spine0 to spine2 (spine1 rides on it)" },
+    { "id": "chest_a", "role": "spine", "bone": "spine2", "tip": "spine4", "parent": "hips", "radius": 0.0995, "mass": 0.45, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 15 }, "source": "placeholder: spine2 to spine4 (spine3 rides on it; the vestigial front legs follow it)" },
+    { "id": "chest_b", "role": "spine", "bone": "spine4", "tip": "neck", "parent": "chest_a", "radius": 0.137, "mass": 0.3, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 15 }, "source": "placeholder: spine4 to neck" },
+    { "id": "head", "role": "head", "bone": "neck", "tip": "jaw", "parent": "chest_b", "radius": 0.098, "mass": 0.3, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 30 }, "source": "placeholder: neck to jaw (neck + head + jaw, ears ride on it)" },
+    { "id": "tail_a", "role": "tail", "bone": "tail0", "tip": "tail1", "parent": "hips", "radius": 0.11, "mass": 0.35, "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 20 }, "source": "placeholder: tail0 to tail1" },
+    { "id": "tail_b", "role": "tail", "bone": "tail1", "tip": "tail2", "parent": "tail_a", "radius": 0.11, "mass": 0.2, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 20 }, "source": "placeholder: tail1 to tail2" },
+    { "id": "tail_c", "role": "tail", "bone": "tail2", "tip": "tail3", "extend": 0.05, "parent": "tail_b", "radius": 0.101, "mass": 0.1, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 20 }, "source": "placeholder: tail2 to tail3 plus 0.05 model units past the last bone" }
   ],
   "severable": [
     { "id": "tail", "cut_role": "tail_a", "cut_parent": "hips", "carries_roles": ["tail_a", "tail_b", "tail_c"], "gear_slots": [], "note": "tail_a joint removed; the three tail capsules fall free" },
