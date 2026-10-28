@@ -1,8 +1,8 @@
 // Per-frame CPU physics-step cost for N = 1..7 simultaneous ragdolls, with and without cuts, from the rows in data/budget-rows.json.
-// Usage: node tools/budget-seven.mjs [rows.json] [--out results.json]   (prints one line "BUDGET_JSON {...}" so a job log carries the result)
+// Usage: node tools/budget-seven.mjs [rows.json] [--cap] [--out results.json]   (prints one line "BUDGET_JSON {...}" so a job log carries the result)
 // This is the cost of one 60 Hz tick (motors + Jolt step + readPose) on whatever CPU runs it. It is NOT GPU render cost. src/ never reads a clock; the timing lives here.
 import { readFileSync, writeFileSync } from "node:fs";
-import { createPhysics } from "../src/index.mjs";
+import { createPhysics, admit } from "../src/index.mjs";
 
 const ROWS_URL = new URL("../data/budget-rows.json", import.meta.url);
 const loadBody = (name) => JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
@@ -17,8 +17,11 @@ export function summarize(times) {
 export async function runCell(rows, set, scenario, n, over = {}) {
   const ticks = over.ticks ?? rows.ticks, warm = over.warm_ticks ?? rows.warm_ticks, M = rows.motor_strength;
   const physics = await createPhysics({ seed: 1 });
-  const rds = set.bodies.slice(0, n).map((b, k) => physics.createRagdoll(loadBody(b), { position: [(k - (n - 1) / 2) * rows.spacing_m, 0, 0], id: "b" + k }));
-  const who = scenario.cut_who === "all" ? n : Math.min(n, scenario.cut_who ?? n);
+  // with over.apply_cap, bodies are admitted in order by admit(); the rest are baked (no ragdoll, no cut, no cost here)
+  let ragdolls = 0;
+  while (ragdolls < n && (!over.apply_cap || admit(ragdolls, rows) === "ragdoll")) ragdolls++;
+  const rds = set.bodies.slice(0, ragdolls).map((b, k) => physics.createRagdoll(loadBody(b), { position: [(k - (ragdolls - 1) / 2) * rows.spacing_m, 0, 0], id: "b" + k }));
+  const who = scenario.cut_who === "all" ? ragdolls : Math.min(ragdolls, scenario.cut_who ?? ragdolls);
   const times = [];
   let cuts = 0;
   for (let t = 0; t < ticks; t++) {
@@ -32,7 +35,7 @@ export async function runCell(rows, set, scenario, n, over = {}) {
   }
   const hash = physics.hash();
   physics.destroy();
-  return { times, hash, cuts };
+  return { times, hash, cuts, ragdolls };
 }
 
 export async function runBudget(rows = JSON.parse(readFileSync(ROWS_URL, "utf8")), over = {}) {
@@ -43,9 +46,9 @@ export async function runBudget(rows = JSON.parse(readFileSync(ROWS_URL, "utf8")
   for (const set of sets) for (const scenario of scenarios) for (const n of counts) {
     if (n > set.bodies.length) continue;
     const all = [], hashes = new Set();
-    let cuts = 0;
-    for (let r = 0; r < repeats; r++) { const c = await runCell(rows, set, scenario, n, over); all.push(...c.times); hashes.add(c.hash); cuts = c.cuts; }
-    cells.push({ set: set.id, scenario: scenario.id, n, cuts, repeats, deterministic: hashes.size === 1, ...summarize(all) });
+    let cuts = 0, ragdolls = n, hash = "";
+    for (let r = 0; r < repeats; r++) { const c = await runCell(rows, set, scenario, n, over); all.push(...c.times); hashes.add(c.hash); cuts = c.cuts; ragdolls = c.ragdolls; hash = c.hash; }
+    cells.push({ set: set.id, scenario: scenario.id, n, ragdolls, baked: n - ragdolls, cap_applied: !!over.apply_cap, hash, cuts, repeats, deterministic: hashes.size === 1, ...summarize(all) });
   }
   return { schema: "budget-results/1", budget_ms: rows.budget_ms, ticks: over.ticks ?? rows.ticks, node: process.version, cpus: (await import("node:os")).cpus().length, cells };
 }
@@ -53,9 +56,10 @@ export async function runBudget(rows = JSON.parse(readFileSync(ROWS_URL, "utf8")
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2), oi = args.indexOf("--out");
   const out = oi >= 0 ? args.splice(oi, 2)[1] : null;
+  const ci = args.indexOf("--cap"), apply_cap = ci >= 0 && !!args.splice(ci, 1); // --cap: apply max_simultaneous_ragdolls (bosses past it are baked, not simulated)
   const rows = args[0] ? JSON.parse(readFileSync(args[0], "utf8")) : undefined;
-  const res = await runBudget(rows);
+  const res = await runBudget(rows, { apply_cap });
   if (out) writeFileSync(out, JSON.stringify(res, null, 2) + "\n");
   console.log("BUDGET_JSON " + JSON.stringify(res));
-  for (const c of res.cells) console.log(`# ${c.set} ${c.scenario} n=${c.n}: avg ${c.avg_ms.toFixed(3)} p95 ${c.p95_ms.toFixed(3)} max ${c.max_ms.toFixed(3)} ms${c.deterministic ? "" : " NONDETERMINISTIC"}`);
+  for (const c of res.cells) console.log(`# ${c.set} ${c.scenario} n=${c.n} (ragdolls ${c.ragdolls}, baked ${c.baked}): avg ${c.avg_ms.toFixed(3)} p95 ${c.p95_ms.toFixed(3)} max ${c.max_ms.toFixed(3)} ms${c.deterministic ? "" : " NONDETERMINISTIC"}`);
 }

@@ -24,4 +24,5 @@ export async function createPhysics(opts = {}) {
 
 export { generateRow, loadTable, lintNoBlock, mulberry32 };
 export { createEvaluator, createFighterState, rollFinisher } from "./rules-eval.mjs";
+export { admit } from "./budget.mjs";
 export { validateRules, assertRules, loadRules, rulesHash } from "./rules.mjs";
