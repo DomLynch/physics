@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { loadChainBody } from "../src/index.mjs";
+import { loadChainBody, chainBodyNames } from "../src/index.mjs";
 
 const read = (f) => JSON.parse(readFileSync(new URL(`../data/bodies/${f}`, import.meta.url), "utf8"));
 
@@ -68,6 +68,36 @@ for (const name of Object.keys(FLOOR)) {
       if (a.id === b.parent || b.id === a.parent) continue;
       const [pa, qa] = axis(a), [pb, qb] = axis(b), gap = segDist(pa, qa, pb, qb) - a.radius_m - b.radius_m;
       assert.ok(gap > 0.002, `${name}: ${a.id} and ${b.id} overlap or touch: gap ${(gap * 100).toFixed(2)} cm`);
+    }
+  });
+}
+
+// ---- density: mass must follow the capsule volume (the radius retune made some parts 3500 kg/m3 and others 13 kg/m3) ----
+const volume = (r) => Math.PI * r.radius_m ** 2 * 2 * r.half_height_m + (4 / 3) * Math.PI * r.radius_m ** 3;
+// bodies allowed outside 100..3000 kg/m3, each with the reason; keep this list short
+const DENSITY_EXCEPTIONS = {
+  drone: "one hollow-shell capsule for a hovering machine: about 96 kg/m3 is the point of it (25 kg in a 0.26 m3 envelope)",
+};
+const DENSITY = { eel: 800, salamander: 300, wolf: 700, "rat-king": 600, crow: 500 }; // placeholders (kg/m3) written into each spec as density_kg_m3
+
+test("every part of every chain body has a density between 100 and 3000 kg/m3 (capsule volume from the built row), except the listed bodies", () => {
+  const names = chainBodyNames();
+  assert.ok(names.length >= 8, `expected all chain bodies on main, got ${names}`);
+  for (const name of names) {
+    if (DENSITY_EXCEPTIONS[name]) continue;
+    for (const r of loadChainBody(name).row.roles) {
+      const d = r.mass_kg / volume(r);
+      assert.ok(d >= 100 && d <= 3000, `${name}.${r.id}: ${d.toFixed(0)} kg/m3 (${r.mass_kg} kg in ${volume(r).toFixed(4)} m3)`);
+    }
+  }
+});
+
+for (const [name, density] of Object.entries(DENSITY)) {
+  test(`${name}: spec states density_kg_m3 ${density} and every part's mass is that density times its capsule volume (within 2%)`, () => {
+    assert.equal(read(`${name}.chain.json`).density_kg_m3, density);
+    for (const r of loadChainBody(name).row.roles) {
+      const want = density * volume(r);
+      assert.ok(Math.abs(r.mass_kg - want) <= 0.02 * want + 0.002, `${name}.${r.id}: mass ${r.mass_kg} kg, ${density} x volume = ${want.toFixed(3)} kg`);
     }
   });
 }
