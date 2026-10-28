@@ -42,3 +42,15 @@ Rows are named by BODY id: `mh-male-01` (Brannock), `mh-gen-v2-0036` (Ines), `mh
 Why glb-measure read 9 to 12 percent short: not accessor quantisation (it reads joint node transforms, never accessors). These GLBs are gltfpack output: POSITION is normalised int16 filling [-1, 1] and the dequantisation (scale about 0.83 to 0.87) is folded into the inverse bind matrices, so the mesh node carries no transform. The shortfall is the head-top heuristic (head joint + 1.9 x neck-to-head span; a Mixamo neck span is about 0.04 m) plus the toe joint sitting above the sole. The real height is the skinned mesh at the bind pose (meshopt decode, then joint world x inverse bind per vertex). The lookup heights (1.774, 1.749, 1.693 m) are this repo's `data/shape-maps/body-shapes.json`, `bodies["mh-male-01"]` etc., second field in mm (OpenTrident measure rows, `docs/SHAPE-MAPS.md`). ARMAGEDOM's `Web/src/data/hubNpcs.json` (PR 452) carries only the body ids, no heights. The lookup is the mesh height plus about 0.035 m on all three; the cause of that offset is not established.
 
 Mass stays an estimate (widths are proportions of the reference body): the generator gives 35 to 48 kg against the 65 kg lookup mass for mh-male-01 (46.5 kg). Mesh girths are the fix and are not in this PR.
+
+### Hub NPCs Marsh, Dr. Okafor, Reyes (ARMAGEDOM PR 468, `npc-marsh/okafor/reyes.glb`)
+
+Three more OpenTrident MakeHuman V2 bodies, each 106 skin joints (`mixamorig:Hips` first, `fk_cape_03` last, the same 106 as `mh-male-01`), one `Idle` clip, rig map `mixamo-106.json`. Rows named by body id: `mh-npc-marsh`, `mh-npc-okafor`, `mh-npc-reyes`. They had no row, no `data/shape-maps/body-shapes.json` entry and no other row with their skeleton's measures, so the rows were built exactly as above (`tools/glb-measure.mjs` unchanged, `height_m` replaced by the decoded mesh height, `height_source` recorded).
+
+| body | glb-measure height | real mesh height | row mass (kg) |
+|---|---|---|---|
+| mh-npc-marsh | 1.636 | 1.8137 | 60.00 |
+| mh-npc-okafor | 1.5871 | 1.6986 | 35.43 |
+| mh-npc-reyes | 1.5746 | 1.7631 | 40.93 |
+
+glb-measure read 7 to 11 percent short (same cause as above). There is no game lookup height for these ids, so the lookup comparison of the first three rows does not apply; the test checks the mesh height only. Masses are proportion estimates, as above.
