@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Document, NodeIO } from "@gltf-transform/core";
-import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { ALL_EXTENSIONS, KHRMeshQuantization } from "@gltf-transform/extensions";
 import { cutGlb, decompressGlb, weldReport, triangulateLoops, REGIONS, CAPS } from "../tools/cut-units.mjs";
 import { validate } from "../tools/cut-validate.mjs";
 
@@ -125,7 +125,12 @@ async function buildBody(variant = {}) {
   for (const n of NAMES) if (PARENT[n]) nodes[PARENT[n]].addChild(nodes[n]);
   const ibm = new Float32Array(NAMES.length * 16);
   NAMES.forEach((n, i) => ibm.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -W[n][0], -W[n][1], -W[n][2], 1], i * 16));
-  const mkSkin = () => { const s = doc.createSkin("skin").setInverseBindMatrices(doc.createAccessor().setType("MAT4").setArray(ibm).setBuffer(buffer)); for (const n of NAMES) s.addJoint(nodes[n]); return s; };
+  // variant.quantLash: the lashes are quantised on their own, like gltfpack does per mesh: raw = (world - T) / S, and their skin's inverse binds carry the
+  // dequantisation (jointWorld x IBM = [S, T] for every joint), so a reader must use this skin's matrix, not the first skin's
+  const QUANT = { S: 0.25, T: [0.1, 0.2, -0.1] };
+  const ibm2 = new Float32Array(NAMES.length * 16);
+  NAMES.forEach((n, i) => ibm2.set([QUANT.S, 0, 0, 0, 0, QUANT.S, 0, 0, 0, 0, QUANT.S, 0, QUANT.T[0] - W[n][0], QUANT.T[1] - W[n][1], QUANT.T[2] - W[n][2], 1], i * 16));
+  const mkSkin = (ib = ibm) => { const s = doc.createSkin("skin").setInverseBindMatrices(doc.createAccessor().setType("MAT4").setArray(ib).setBuffer(buffer)); for (const n of NAMES) s.addJoint(nodes[n]); return s; };
   const acc = (type, arr) => doc.createAccessor().setType(type).setArray(arr).setBuffer(buffer);
   const matBody = doc.createMaterial("body"), matHorn = doc.createMaterial("horn"), matLash = doc.createMaterial("lash");
   const prim = (parts, material) => {
@@ -153,12 +158,14 @@ async function buildBody(variant = {}) {
   const armParts = [box([0.435, 1.4, 0], [0.315, 0.05, 0.05], 12, wArm("Left")), box([-0.435, 1.4, 0], [0.315, 0.05, 0.05], 12, wArm("Right"))]; // arms across the shoulder planes
   const lashParts = [box([0, 1.62, 0.12], [0.03, 0.005, 0.005], 2, wHead)];
   const hairParts = variant.hair ? [hairCard(0, 0.12, 0.6, 1.9, -0.12, 14, wSpine)] : []; // an open card from above the neck plane down across the waist and hip planes
-  const skin = mkSkin(), skin2 = mkSkin();
+  const skin = mkSkin(), skin2 = variant.quantLash ? mkSkin(ibm2) : mkSkin();
+  const lashStored = variant.quantLash ? lashParts.map((m) => ({ ...m, pos: m.pos.map((p) => p.map((x, k) => (x - QUANT.T[k]) / QUANT.S)) })) : lashParts;
   const mesh = doc.createMesh("Body").addPrimitive(prim(bodyParts, matBody)).addPrimitive(prim(armParts, matHorn));
   if (hairParts.length) mesh.addPrimitive(prim(hairParts, doc.createMaterial("hair_cards")));
   scene.addChild(doc.createNode("Body").setMesh(mesh).setSkin(skin));
-  scene.addChild(doc.createNode("Lashes").setMesh(doc.createMesh("Lashes").addPrimitive(prim(lashParts, matLash))).setSkin(skin2));
-  const bytes = await new NodeIO().writeBinary(doc);
+  scene.addChild(doc.createNode("Lashes").setMesh(doc.createMesh("Lashes").addPrimitive(prim(lashStored, matLash))).setSkin(skin2));
+  if (variant.quantLash) doc.createExtension(KHRMeshQuantization).setRequired(true); // as in a gltfpack file: the tool only trusts per-skin matrices of a still-quantised source
+  const bytes = await new NodeIO().registerExtensions(ALL_EXTENSIONS).writeBinary(doc);
   const row = { id: "synthetic", joints: Object.fromEntries(Object.keys(rigMap.joints).map((r) => [r, [W[r][0], W[r][1] - FLOOR, W[r][2]]])) };
   return { bytes, row, source: { body: bodyParts, arm: armParts, lash: lashParts, hair: hairParts } };
 }
@@ -424,6 +431,25 @@ test("a body with no hair material declares no plane_exempt but the eyelashes", 
   const none = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", hairMaterials: [] });
   assert.equal(none.manifest.plane_exempt, undefined);
   assert.equal(none.manifest.stats.hair_triangles, 0);
+});
+
+// ---------------------------------------------------------------- one dequantisation matrix per skin (Arachne: five meshes, five skins, five scales)
+test("a mesh quantised on its own, with its own skin and dequantisation matrix, lands where it is drawn; the cut validates against the decompressed source", async () => {
+  const b = await buildBody({ quantLash: true });
+  const plain = Buffer.from(await decompressGlb(b.bytes));
+  const r = await cut(b);
+  const out = await readOut(r.glb);
+  // the eyelash box is centred (0, 1.62, 0.12) with half sizes (0.03, 0.005, 0.005): the stored vertices are 4x smaller and offset, the cut must undo that per skin
+  const lash = out.meshes.piece_head.prims.find((p) => p.material === "lash");
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < lash.positions.length; i++) { const k = i % 3; lo[k] = Math.min(lo[k], lash.positions[i]); hi[k] = Math.max(hi[k], lash.positions[i]); }
+  [-0.03, 1.615, 0.115].forEach((x, k) => assert.ok(Math.abs(lo[k] - x) < 1e-5, `lash min[${k}] ${lo[k]} vs ${x}`));
+  [0.03, 1.625, 0.125].forEach((x, k) => assert.ok(Math.abs(hi[k] - x) < 1e-5, `lash max[${k}] ${hi[k]} vs ${x}`));
+  // the decompressed source has the same metres, and all the validator's checks pass on it
+  const sp = (await readOut(plain)).meshes.Lashes.prims[0].positions;
+  assert.ok(Math.abs(sp[1] - 1.615) < 1e-5 || Math.abs(sp[1] - 1.625) < 1e-5, "decompressed lash y " + sp[1]);
+  const v = validate(Buffer.from(r.glb), r.manifest, { source: plain, planeOffset: r.manifest.plane_frame.bind_offset });
+  assert.deepEqual(v.checks.filter((c) => !c.ok).map((c) => c.name + ": " + c.details.slice(0, 3).join(" | ")), []);
 });
 
 // ---------------------------------------------------------------- cap winding
@@ -694,7 +720,9 @@ for (const name of ["minotaur-106", "psyche-106"]) {
     // Caps close every cut but one known case (docs/CUT-TOOL.md): a hairline slit in the Minotaur's source mesh at the neck (one open edge each side
     // after the gap is bridged). Hair (Psyche's cards) goes whole to the head, uncut, so it adds none.
     for (const [id, w] of Object.entries(s.watertight_by_region)) {
-      const limit = name.startsWith("minotaur") && (id === "head" || id === "upper_torso") ? 2 : 0;
+      // Psyche's eyelash mesh is its own skin with its own dequantisation matrix (0.135 against the body's 0.867); at its true size its card has 4 native open
+      // edges that lie on the crotch bisector plane (the validator: none introduced), where the first skin's matrix used to put it elsewhere
+      const limit = name.startsWith("minotaur") && (id === "head" || id === "upper_torso") ? 2 : name.startsWith("psyche") && id === "head" ? 4 : 0;
       assert.ok(w.open_edges_at_cuts <= limit, `${name} ${id}: ${w.open_edges_at_cuts} open edges at the cuts (limit ${limit}), first at ${JSON.stringify(w.at_cuts)}`);
     }
     if (name.startsWith("psyche")) { assert.deepEqual(r.manifest.plane_exempt, { piece_head: ["Ch22_hair"] }); assert.ok(s.hair_triangles > 10000); } else assert.equal(r.manifest.plane_exempt, undefined, "the Minotaur has no hair material");

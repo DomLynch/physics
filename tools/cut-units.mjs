@@ -314,36 +314,65 @@ async function gltfIO() {
 }
 const mul4 = (a, b) => { const o = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k]; return o; }; // column-major a x b
 
+// Vertex space -> world for one skin (Q = jointWorld x inverseBind, the same for every joint of the skin): the row-major 3x3 A, its inverse Ai, the
+// inverse of Q as a column-major matrix (Qinv, what the inverse binds absorb), and the position, normal (A^-T n) and tangent maps.
+function vertexFrame(Q) {
+  const A = [Q[0], Q[4], Q[8], Q[1], Q[5], Q[9], Q[2], Q[6], Q[10]];
+  const [a0, b0, c0, d0, e0, f0, g0, h0, i0] = A, det = a0 * (e0 * i0 - f0 * h0) - b0 * (d0 * i0 - f0 * g0) + c0 * (d0 * h0 - e0 * g0);
+  const Ai = [(e0 * i0 - f0 * h0) / det, (c0 * h0 - b0 * i0) / det, (b0 * f0 - c0 * e0) / det, (f0 * g0 - d0 * i0) / det, (a0 * i0 - c0 * g0) / det, (c0 * d0 - a0 * f0) / det, (d0 * h0 - e0 * g0) / det, (b0 * g0 - a0 * h0) / det, (a0 * e0 - b0 * d0) / det];
+  const t = [-(Ai[0] * Q[12] + Ai[1] * Q[13] + Ai[2] * Q[14]), -(Ai[3] * Q[12] + Ai[4] * Q[13] + Ai[5] * Q[14]), -(Ai[6] * Q[12] + Ai[7] * Q[13] + Ai[8] * Q[14])];
+  return {
+    Q, A, Ai,
+    Qinv: [Ai[0], Ai[3], Ai[6], 0, Ai[1], Ai[4], Ai[7], 0, Ai[2], Ai[5], Ai[8], 0, t[0], t[1], t[2], 1],
+    toWorld: (p) => [A[0] * p[0] + A[1] * p[1] + A[2] * p[2] + Q[12], A[3] * p[0] + A[4] * p[1] + A[5] * p[2] + Q[13], A[6] * p[0] + A[7] * p[1] + A[8] * p[2] + Q[14]],
+    normalToWorld: (n) => norm([Ai[0] * n[0] + Ai[3] * n[1] + Ai[6] * n[2], Ai[1] * n[0] + Ai[4] * n[1] + Ai[7] * n[2], Ai[2] * n[0] + Ai[5] * n[1] + Ai[8] * n[2]]),
+    tangentToWorld: (t3) => [A[0] * t3[0] + A[1] * t3[1] + A[2] * t3[2], A[3] * t3[0] + A[4] * t3[1] + A[5] * t3[2], A[6] * t3[0] + A[7] * t3[1] + A[8] * t3[2]],
+  };
+}
+const sameQ = (a, b) => a.every((x, k) => Math.abs(x - b[k]) <= 1e-4 * (1 + Math.abs(b[k])));
+const isQuantised = (doc) => doc.getRoot().listExtensionsUsed().some((e) => e.extensionName === "KHR_mesh_quantization" || e.extensionName === "EXT_meshopt_compression");
+
 // The source GLB with meshopt and quantisation undone: plain float32 vertex attributes, same vertex space, same nodes (for plain readers such as
 // tools/cut-validate.mjs: `--source-out` writes it).
 export async function decompressGlb(glbBytes) {
   const io = await gltfIO();
   const doc = await io.readBinary(glbBytes instanceof Uint8Array ? glbBytes : new Uint8Array(glbBytes));
-  // like the cut output: vertices in metres (vertex space -> world baked in, inverse binds absorb the inverse), so source and cut compare directly
-  const skin = doc.getRoot().listSkins()[0], ibm = skin && skin.getInverseBindMatrices();
+  // like the cut output: vertices in metres (vertex space -> world baked in, inverse binds absorb the inverse), so source and cut compare directly.
+  // One frame per skin (an exporter that quantised each mesh on its own gives each skin its own Q); a skin with the first skin's Q shares its frame.
+  const skins = doc.getRoot().listSkins(), skin = skins[0], ibm = skin && skin.getInverseBindMatrices();
   let Q = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   if (ibm) Q = mul4(skin.listJoints()[0].getWorldMatrix(), ibm.getElement(0, new Array(16)));
-  const A = [Q[0], Q[4], Q[8], Q[1], Q[5], Q[9], Q[2], Q[6], Q[10]];
-  const [a0, b0, c0, d0, e0, f0, g0, h0, i0] = A, det = a0 * (e0 * i0 - f0 * h0) - b0 * (d0 * i0 - f0 * g0) + c0 * (d0 * h0 - e0 * g0);
-  const Ai = [(e0 * i0 - f0 * h0) / det, (c0 * h0 - b0 * i0) / det, (b0 * f0 - c0 * e0) / det, (f0 * g0 - d0 * i0) / det, (a0 * i0 - c0 * g0) / det, (c0 * d0 - a0 * f0) / det, (d0 * h0 - e0 * g0) / det, (b0 * g0 - a0 * h0) / det, (a0 * e0 - b0 * d0) / det];
+  const F0 = vertexFrame(Q);
+  const quantised = isQuantised(doc); // a plain input keeps the first skin's frame and the first skin's binds only, as before
+  const frameOfSkin = new Map(skins.map((sk) => {
+    const sib = sk.getInverseBindMatrices();
+    if (sk === skin || !sib || !quantised) return [sk, F0];
+    const sj = sk.listJoints(), qAt = (i) => mul4(sj[i].getWorldMatrix(), sib.getElement(i, new Array(16)));
+    const Qs = qAt(0); // a few body joints must agree (end-site and socket joints of some exporters carry binds of their own)
+    const consistent = ["Head", "LeftToeBase", "RightHand"].every((nm) => { const at = sj.findIndex((j) => j.getName().replace("mixamorig:", "") === nm); return at < 0 || sameQ(qAt(at), Qs); });
+    return [sk, !consistent || sameQ(Qs, Q) ? F0 : vertexFrame(Qs)];
+  }));
+  const frameOfMesh = new Map();
+  for (const n of doc.getRoot().listNodes()) if (n.getMesh() && n.getSkin() && !frameOfMesh.has(n.getMesh())) frameOfMesh.set(n.getMesh(), frameOfSkin.get(n.getSkin()));
   for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) for (const sem of prim.listSemantics()) {
-    const a = prim.getAttribute(sem);
+    const a = prim.getAttribute(sem), { toWorld, normalToWorld } = frameOfMesh.get(mesh) || F0;
     if (/^JOINTS_/.test(sem)) continue;
     const n = a.getElementSize(), out = new Float32Array(a.getCount() * n), el = new Array(n).fill(0);
     for (let i = 0; i < a.getCount(); i++) {
       a.getElement(i, el);
-      if (sem === "POSITION") out.set([A[0] * el[0] + A[1] * el[1] + A[2] * el[2] + Q[12], A[3] * el[0] + A[4] * el[1] + A[5] * el[2] + Q[13], A[6] * el[0] + A[7] * el[1] + A[8] * el[2] + Q[14]], i * n);
-      else if (sem === "NORMAL") out.set(norm([Ai[0] * el[0] + Ai[3] * el[1] + Ai[6] * el[2], Ai[1] * el[0] + Ai[4] * el[1] + Ai[7] * el[2], Ai[2] * el[0] + Ai[5] * el[1] + Ai[8] * el[2]]), i * n);
+      if (sem === "POSITION") out.set(toWorld(el), i * n);
+      else if (sem === "NORMAL") out.set(normalToWorld(el), i * n);
       else out.set(el, i * n);
     }
     prim.setAttribute(sem, doc.createAccessor().setType(a.getType()).setArray(out).setBuffer(doc.getRoot().listBuffers()[0]));
   }
-  if (ibm) {
-    const t = [-(Ai[0] * Q[12] + Ai[1] * Q[13] + Ai[2] * Q[14]), -(Ai[3] * Q[12] + Ai[4] * Q[13] + Ai[5] * Q[14]), -(Ai[6] * Q[12] + Ai[7] * Q[13] + Ai[8] * Q[14])];
-    const Qinv = [Ai[0], Ai[3], Ai[6], 0, Ai[1], Ai[4], Ai[7], 0, Ai[2], Ai[5], Ai[8], 0, t[0], t[1], t[2], 1];
-    const arr = new Float32Array(ibm.getCount() * 16);
-    for (let i = 0; i < ibm.getCount(); i++) arr.set(mul4(ibm.getElement(i, new Array(16)), Qinv), i * 16);
-    ibm.setArray(arr);
+  for (const sk of skins) {
+    const sib = sk.getInverseBindMatrices();
+    if (!sib || (!quantised && sk !== skin)) continue;
+    const { Qinv } = frameOfSkin.get(sk);
+    const arr = new Float32Array(sib.getCount() * 16);
+    for (let i = 0; i < sib.getCount(); i++) arr.set(mul4(sib.getElement(i, new Array(16)), Qinv), i * 16);
+    sib.setArray(arr);
   }
   for (const ext of doc.getRoot().listExtensionsUsed()) if (ext.extensionName === "EXT_meshopt_compression" || ext.extensionName === "KHR_mesh_quantization") ext.dispose();
   return io.writeBinary(doc);
@@ -382,18 +411,34 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       for (let k = 0; k < 16; k++) if (Math.abs(o[k] - Q[k]) > 1e-4 * (1 + Math.abs(Q[k]))) throw new Error("joint world x inverse bind differs between joints: the skin is not at its bind pose");
     }
   }
-  const A = [Q[0], Q[4], Q[8], Q[1], Q[5], Q[9], Q[2], Q[6], Q[10]]; // row-major 3x3 of vertex -> world
-  const toWorld = (p) => [A[0] * p[0] + A[1] * p[1] + A[2] * p[2] + Q[12], A[3] * p[0] + A[4] * p[1] + A[5] * p[2] + Q[13], A[6] * p[0] + A[7] * p[1] + A[8] * p[2] + Q[14]];
   // The output is written in metres: vertices go to world and the inverse binds absorb Q^-1 (jointWorld x (IBM Q^-1) x (Q v) = jointWorld x IBM x v),
   // so the contract file is plain float32 in the units of the measure row, with no hidden dequantisation matrix.
-  const Ai = (() => {
-    const [a, b, c, d, e, f, g, h, i] = A, det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
-    return [(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det, (f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det, (d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det];
-  })();
-  const normalToWorld = (n) => norm([Ai[0] * n[0] + Ai[3] * n[1] + Ai[6] * n[2], Ai[1] * n[0] + Ai[4] * n[1] + Ai[7] * n[2], Ai[2] * n[0] + Ai[5] * n[1] + Ai[8] * n[2]]); // A^-T n
-  const tangentToWorld = (t) => [A[0] * t[0] + A[1] * t[1] + A[2] * t[2], A[3] * t[0] + A[4] * t[1] + A[5] * t[2], A[6] * t[0] + A[7] * t[1] + A[8] * t[2]];
-  const Qinv = (() => { const t = [-(Ai[0] * Q[12] + Ai[1] * Q[13] + Ai[2] * Q[14]), -(Ai[3] * Q[12] + Ai[4] * Q[13] + Ai[5] * Q[14]), -(Ai[6] * Q[12] + Ai[7] * Q[13] + Ai[8] * Q[14])]; return [Ai[0], Ai[3], Ai[6], 0, Ai[1], Ai[4], Ai[7], 0, Ai[2], Ai[5], Ai[8], 0, t[0], t[1], t[2], 1]; })();
+  const F0 = vertexFrame(Q);
+  const { A, Qinv } = F0;
   const normalToVertex = (n) => norm([A[0] * n[0] + A[3] * n[1] + A[6] * n[2], A[1] * n[0] + A[4] * n[1] + A[7] * n[2], A[2] * n[0] + A[5] * n[1] + A[8] * n[2]]); // A^T n
+  // Each skin has its own Q when the exporter quantised each mesh on its own (Arachne: body, eyes, lashes, face and hair are five skins with five scales).
+  // A skin whose Q equals the first skin's takes the first skin's frame object, so single-Q bodies keep their bytes.
+  // Only a still-quantised source has this: a plain file (`decompressGlb` output, or one written by an older tool, whose later skins keep their old binds
+  // beside vertices already in metres) keeps the first skin's frame for every mesh, as before. A later skin that is not at a consistent bind pose too.
+  const frameOfSkin = new Map([[skin0, F0]]);
+  const quantised = isQuantised(doc);
+  for (const node of skinNodes) {
+    const sk = node.getSkin();
+    if (frameOfSkin.has(sk)) continue;
+    const sib = sk.getInverseBindMatrices(), sjoints = sk.listJoints();
+    let F = F0;
+    if (quantised && sib) {
+      const sq = (role) => { const at = sjoints.indexOf(joints[roleJoint[role]]); return at < 0 ? null : mul4(sjoints[at].getWorldMatrix(), sib.getElement(at, new Array(16))); };
+      const Qs = sq("Hips");
+      let ok = !!Qs;
+      for (const role of ["Head", "LeftToeBase", "RightHand"]) {
+        const o = roleJoint[role] !== undefined && Qs ? sq(role) : null;
+        if (o && o.some((x, k) => Math.abs(x - Qs[k]) > 1e-4 * (1 + Math.abs(Qs[k])))) ok = false;
+      }
+      if (ok && Qs.some((x, k) => Math.abs(x - Q[k]) > 1e-4 * (1 + Math.abs(Q[k])))) F = vertexFrame(Qs);
+    }
+    frameOfSkin.set(sk, F);
+  }
   // the measure row is floor-lifted (tools/glb-measure.mjs): recover its offset from the 20 role joints
   const roles = Object.keys(rigMap.joints).filter((r) => row.joints[r]);
   const offs = roles.map((r) => sub(bindPos[roleJoint[r]], row.joints[r]));
@@ -430,7 +475,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   };
 
   // ---- source vertices and triangles (all skinned primitives of all skinned mesh nodes)
-  const V = { pos: [], raw: [], attr: {}, skin: [] }; // pos = world (metres, bind pose), raw = the vertex space the GLB stores
+  const V = { pos: [], raw: [], frame: [], attr: {}, skin: [] }; // pos = world (metres, bind pose), raw = the vertex space the GLB stores
   const srcPrims = [], tris = [];
   // The attribute set of the output is the union over all skinned primitives (a body whose face mesh has a second UV set and whose skin does not,
   // like the Centurion's, is not refused): a primitive without a TEXCOORD gets zeros, without a COLOR white, and a missing NORMAL / TANGENT is refused (see missingFill). Sorted, so equal sets give equal bytes.
@@ -463,10 +508,10 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       if (prim.getAttribute("JOINTS_1")) throw new Error("JOINTS_1 (more than four influences per vertex) is not supported");
       const pa = prim.getAttribute("POSITION"), ja = prim.getAttribute("JOINTS_0"), wa = prim.getAttribute("WEIGHTS_0");
       if (!ja || !wa) throw new Error("a primitive has no JOINTS_0 / WEIGHTS_0");
-      const base = V.pos.length, n = pa.getCount();
+      const base = V.pos.length, n = pa.getCount(), frame = frameOfSkin.get(skin);
       for (let i = 0; i < n; i++) {
         const rawp = pa.getElement(i, [0, 0, 0]);
-        V.raw.push(rawp); V.pos.push(toWorld(rawp));
+        V.raw.push(rawp); V.pos.push(frame.toWorld(rawp)); V.frame.push(frame);
         for (const s of semantics) { const at = prim.getAttribute(s); V.attr[s].push(at ? at.getElement(i, new Array(semSize[s]).fill(0)) : missingFill(s, semSize[s])); }
         const jj = ja.getElement(i, [0, 0, 0, 0]), ww = wa.getElement(i, [0, 0, 0, 0]);
         const sp = [];
@@ -559,6 +604,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const p = lerp3(V.pos[lo], V.pos[hi], t);
     V.pos.push(p);
     V.raw.push(lerp3(V.raw[lo], V.raw[hi], t));
+    V.frame.push(V.frame[lo]); // an edge lies inside one primitive, so both ends share a frame
     for (const s of semantics) {
       const A = V.attr[s][lo], B = V.attr[s][hi];
       let o = A.map((x, k) => x + (B[k] - x) * t);
@@ -1087,7 +1133,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
         jj.set(b.j, k * 4); ww.set(b.w, k * 4);
         for (const s of semantics) {
           let val = V.attr[s][v];
-          if (s === "NORMAL") val = normalToWorld(val); else if (s === "TANGENT") val = [...norm(tangentToWorld(val)), val[3]];
+          if (s === "NORMAL") val = V.frame[v].normalToWorld(val); else if (s === "TANGENT") val = [...norm(V.frame[v].tangentToWorld(val)), val[3]];
           att[s].set(val, k * val.length);
         }
       });

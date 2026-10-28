@@ -26,6 +26,9 @@ Hair, hair cards, eyelashes and brows (any material that belongs to the head) go
 ```
 `plane_exempt` relaxes the **planes** check for those materials only (they hang below the neck plane to the knees). Weights, bone side, watertightness, orientation and the cap checks still apply to them; Head-only binding is a valid bone side for the head. A body with no such material has no `plane_exempt` and behaves as before (the Minotaur).
 
+## One vertex-to-world matrix per skin
+A GLB from gltfpack bakes each mesh's position dequantisation into its skin's inverse binds (`jointWorld x inverseBind` = Q, the same for every joint of the skin). A body whose meshes were quantised one by one has one skin and one Q per mesh (Arachne: body, eyes, lashes, face, hair = five skins, five scales). The tool and `decompressGlb` therefore map every vertex with **its own skin's** Q, never the first skin's; a skin whose Q equals the first skin's shares its frame, so single-Q bodies keep their bytes. The output is unchanged in shape: metres, one skin, inverse binds `jointWorld^-1`.
+
 ## Caps
 - Each cut boundary has **two caps**, one on each side, built by triangulating the cut loop(s) (handle several loops, e.g. horns or hair strands crossing the plane; holes by ear clipping with hole bridging or a fan with a centre vertex), with normals facing out of the piece, UVs for a flesh material, and the same skin weights as the loop vertices (so the cap follows its piece).
 - Cap meshes: `cap_neck_head`, `cap_neck_torso`, `cap_shoulder_left_arm`, `cap_shoulder_left_torso`, `cap_shoulder_right_arm`, `cap_shoulder_right_torso`, `cap_hip_left_leg`, `cap_hip_left_root`, `cap_hip_right_leg`, `cap_hip_right_root`, `cap_waist_torso`, `cap_waist_root`. Material `cap_flesh` (and an optional `cap_inner` for bone or a darker core; a data row picks colours).
