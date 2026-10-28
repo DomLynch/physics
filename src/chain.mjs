@@ -177,7 +177,18 @@ const objectsOf = (entries, find) => Object.fromEntries(entries.map(([part, bone
 export const chainBoneObjects = (spec, find) => objectsOf(Object.entries(chainBoneMap(spec)), find);
 export const chainFollowObjects = (spec, find) => Object.fromEntries(Object.entries(chainFollowMap(spec)).map(([part, bs]) => [part, bs.map((b) => objectsOf([[part, b]], find)[part])]));
 
-export const chainBodyNames = () => Object.keys(BODIES);
+// Everything the game passes to createThreeRig for a chain body, in one call:
+//   const r = chainRigOptions(body, (n) => gltf.scene.getObjectByName(n));   // body = loadChainBody(name) (or a spec)
+//   const rig = createThreeRig(THREE, rd, r.bones, fighterGroup, r.options);
+// bones = driven parts only (virtual parts have none), options = { virtual, follow } (+ bind when `bind = { bindFind, bindRoot }` is given: the untouched model's finder and root).
+export function chainRigOptions(body, find, bind) {
+  const spec = body.spec || body;
+  const options = { virtual: chainVirtualParts(spec), follow: chainFollowObjects(spec, find) };
+  if (bind) options.bind = { bones: chainBoneObjects(spec, bind.bindFind), root: bind.bindRoot };
+  return { bones: chainBoneObjects(spec, find), options };
+}
+
+export const chainBodyNames =() => Object.keys(BODIES);
 
 // a named chain body -> { name, spec, bones, row, boneMap }. A new creature = two data files + one line in BODIES above.
 export function loadChainBody(name) {
