@@ -20,6 +20,8 @@ import { qrot } from "../src/math.mjs";
 
 const GR = JSON.parse(readFileSync(new URL("../data/ground-rows.json", import.meta.url), "utf8"));
 const ST = GR.settle;
+// KNOWN DEFECT (not a pass): ST.sink_epsilon_m (0.11) tolerates a toe capsule that sinks 0.072 m into the DEFAULT flat floor, 0.021 m on plane rows and
+// 0.105 m into the slope15 heightfield (margin 0.005 m). The clearance checks below prove "no tunnelling", not "no sink". Fix the toe sink, then tighten the row.
 const measure = (n) => JSON.parse(readFileSync(new URL(`../data/bodies/${n}.measure.json`, import.meta.url), "utf8"));
 const TICK = 1 / 60;
 const BODIES = {
@@ -241,6 +243,47 @@ test("hills with a flat pad (a game's seed-noise terrain): dog and vagrant settl
     assert.ok(lowest > -ST.sink_epsilon_m && lowest < ST.float_epsilon_m, `${bname} on the ${label}: clearance ${lowest} m`);
     p.destroy();
   }
+});
+
+// ------------------------------------------------------------------ tunnelling: sampled ground is a thin shell (reviewer defect 1)
+const CT = GR.continuous;
+for (const shape of ["heightfield", "mesh"]) {
+  test(`${shape}: small spheres dropped from max_drop_m and thrown down at test_speed end ON the ground, never through it`, async () => {
+    const p = await createPhysics({ seed: 1, ground: { groundHeight: SLOPE_FN(15), shape } });
+    for (const r of CT.test_sphere_radii_m) {
+      const x = 3 + r * 10, pr = p.createProp({ radius: r, mass: 1, position: [x, p.groundHeight(x, 0) + CT.max_drop_m + r, 0], id: "drop" });
+      const pf = p.createProp({ radius: r, mass: 1, position: [x + 5, p.groundHeight(x + 5, 0) + 1 + r, 2], velocity: [0, -CT.test_speed_m_s, 0], id: "throw" });
+      let low = Infinity;
+      for (let t = 0; t < 600; t++) {
+        p.step(TICK);
+        for (const b of [pr, pf]) { const q = b.readPose(), n = p.groundNormal(q[0], q[2]); low = Math.min(low, (q[1] - p.groundHeight(q[0], q[2])) * n[1] - r); }
+      }
+      log(shape, "sphere r", r, "lowest clearance over fall + throw", low.toFixed(4));
+      assert.ok(low > -ST.sink_epsilon_m, `${shape}: a ${r} m sphere went ${-low} m into the ground`);
+    }
+  });
+
+  test(`${shape}: a vagrant-106 and a dog killed from max_drop_m rest on the ground, within sink_epsilon_m`, async () => {
+    for (const [bname, body] of Object.entries(BODIES)) {
+      const p = await createPhysics({ seed: 1, ground: { groundHeight: SLOPE_FN(15), shape } }), row = body.make();
+      const rd = p.createRagdoll(row, { position: [0, p.groundMax(0, 0, body.radius) + CT.max_drop_m, 0], id: bname });
+      rd.kill();
+      assert.ok(settle(p, rd) < Infinity, `${bname} never settled`);
+      const c = clearance(p, rd.row, rd.readPose(), allIds(rd.row));
+      log(shape, bname, "killed from", CT.max_drop_m, "m: lowest clearance", c.toFixed(4));
+      assert.ok(c > -ST.sink_epsilon_m && c < ST.float_epsilon_m, `${bname} clearance ${c}`);
+      p.destroy();
+    }
+  });
+}
+
+test("above max_drop_m the world refuses loudly (ragdoll and prop) on a non-default ground; the default floor is not limited", async () => {
+  const p = await createPhysics({ seed: 1, ground: "slope15" });
+  assert.throws(() => p.createRagdoll(BODIES.dog.make(), { position: [0, CT.max_drop_m + 1, 0] }), /limit is/);
+  assert.throws(() => p.createProp({ radius: 0.1, mass: 1, position: [0, CT.max_drop_m + 1, 0] }), /limit is/);
+  p.createProp({ radius: 0.1, mass: 1, position: [0, CT.max_drop_m - 1, 0] });
+  const f = await createPhysics({ seed: 1 });
+  f.createProp({ radius: 0.1, mass: 1, position: [0, CT.max_drop_m + 20, 0] });
 });
 
 // ------------------------------------------------------------------ pool: park / acquire on a slope

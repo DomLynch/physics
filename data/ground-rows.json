@@ -7,6 +7,12 @@
     "slope30": { "angle_deg": 30, "downhill": [1, 0], "origin": [0, 0, 0], "half_extent_m": 50, "friction": 0.8, "source": "Strategy 2026-10-28 (V3 terrain): steep ridge; friction = world.json floor. tan(30) = 0.577 is under friction 0.8, so a resting rigid body holds (the angle that starts sliding is atan(0.8) = 38.7)" }
   },
   "plane": { "thickness_half_m": 0.5, "convex_radius_m": 0.05, "max_angle_deg": 60, "source": "world.json floor box: half-height 0.5, convex radius 0.05. max_angle_deg: own, a slope steeper than 60 is a wall, not ground" },
+  "continuous": {
+    "enabled": true,
+    "test_sphere_radii_m": [0.03, 0.13], "test_speed_m_s": 12,
+    "max_drop_m": 4,
+    "source": "own: sampled ground (heightfield, mesh) is a thin shell, so a small fast body can jump through it in one tick (reviewer: a 0.03 m sphere dropped from 1 m, a 0.13 m sphere at 12 m/s, ragdolls from 2 to 4 m went 0.15 to 0.5 m deep). With ground set, ragdoll parts and props are created with Jolt linear-cast (continuous) motion. max_drop_m: the highest spawn above groundMax that the tunnel test proves; createRagdoll and createProp throw above it. Box rows are solid and also get it, harmless."
+  },
   "roll": {
     "coefficient": 0.8, "contact_m": 0.05,
     "source": "own: a cut piece or prop on a non-default ground loses spin at coefficient x g / radius rad/s^2 while its lowest point is within contact_m of the surface. A severed head or limb is not a smooth cylinder, so it resists rolling about like a block resists sliding: coefficient = the floor friction 0.8 (world.json). Holds a piece still while sin(angle) < 0.8, i.e. under 53 degrees. Measured before this row: a dog head cut on slope15 rolled 43 m in 12 s and never stopped (VPS, 2026-10-28)"
@@ -26,7 +32,7 @@
     "baseline_drops_m": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
     "float_epsilon_m": 0.03,
     "sink_epsilon_m": 0.11,
-    "clearance_source": "float: Jolt's penetration slop 0.02 m plus 0.01 m for float32 poses and triangle interpolation. sink: measured, and NOT ground-specific: a killed vagrant-106's toe capsule sinks into the DEFAULT flat floor by up to 0.072 m over ten drop heights (baseline test), into a sampled heightfield/mesh by up to 0.105 m (slope15, drop 0.4; VPS 2026-10-28: limp ragdoll under its own weight, a thin toe capsule). 0.11 = the worst measured plus rounding. Real tunnelling through the ground is 0.3 m or more, which this still catches",
+    "clearance_source": "KNOWN DEFECT, not a pass: sink_epsilon_m 0.11 hides a real toe-capsule sink (0.072 m into the default flat floor, 0.021 m on plane rows, 0.105 m into the slope15 heightfield: margin to the 0.11 limit is only 0.005 m). Open, owner: physics. float: Jolt's penetration slop 0.02 m plus 0.01 m for float32 poses and triangle interpolation. sink: measured, and NOT ground-specific: a killed vagrant-106's toe capsule sinks into the DEFAULT flat floor by up to 0.072 m over ten drop heights (baseline test), into a sampled heightfield/mesh by up to 0.105 m (slope15, drop 0.4; VPS 2026-10-28: limp ragdoll under its own weight, a thin toe capsule). 0.11 = the worst measured plus rounding. Real tunnelling through the ground is 0.3 m or more, which this still catches",
     "hold_s": 5,
     "hold_max_move_m": 0.001,
     "hold_source": "own: once asleep a body must not move at all over 5 s (a sleeping body is not stepped); 1 mm is float32 noise",

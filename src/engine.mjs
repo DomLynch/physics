@@ -120,7 +120,15 @@ export async function createWorld(opts = {}) {
     Jolt.destroy(nw);
   };
 
+  // on a non-default ground a body may not start higher than continuous.max_drop_m above the surface (the height the tunnel test proves); fails loudly beyond it
+  const checkDrop = (pos, what) => {
+    if (!ground) return;
+    const drop = pos[1] - ground.height(pos[0], pos[2]), lim = ground.rows.continuous.max_drop_m;
+    if (drop > lim) throw new Error(`${what} starts ${drop.toFixed(2)} m above the ground; the limit is ${lim} m (data/ground-rows.json continuous.max_drop_m): spawn at groundMax + a smaller drop`);
+  };
+
   function makeRagdoll(row, ropts = {}) {
+    if (!ropts.parked) checkDrop(ropts.position || [0, 0, 0], "ragdoll");
     const D = buildDefinition(row, ropts.position || [0, 0, 0], W.hinge_flex_z), roles = row.roles;
     const parkedAtCreate = ropts.parked === true; // pooled ragdoll: bodies added asleep (no step cost), moved out of the way until rd.acquire()
     const n = D.def.length, body = W.body, groupId = nextGroup++;
@@ -133,6 +141,7 @@ export async function createWorld(opts = {}) {
       bcs.mMassPropertiesOverride.mMass = b.mass;
       bcs.mInertiaMultiplier = row.inertia_multiplier;
       bcs.mFriction = body.friction; bcs.mLinearDamping = body.linear_damping; bcs.mAngularDamping = body.angular_damping;
+      if (ground && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast; // sampled ground is a thin shell: sweep, do not jump
       bcs.mCollisionGroup.SetGroupFilter(gf); bcs.mCollisionGroup.SetGroupID(groupId); bcs.mCollisionGroup.SetSubGroupID(i);
       const bd = bi.CreateBody(bcs);
       bi.AddBody(bd.GetID(), parkedAtCreate ? Jolt.EActivation_DontActivate : Jolt.EActivation_Activate);
@@ -531,11 +540,13 @@ export async function createWorld(opts = {}) {
     createRagdoll(input, ropts) { return makeRagdoll(input, ropts); },
     // a loose rigid sphere (helmet, thrown part, loot): { radius, mass, position, velocity, spin, id }. Returns { id, readPose() (10 floats), destroy() }.
     createProp(p) {
+      checkDrop([p.position[0], p.position[1] - p.radius, p.position[2]], "prop");
       const shape = new Jolt.SphereShape(p.radius), pos = new Jolt.RVec3(...p.position), rot = new Jolt.Quat(0, 0, 0, 1);
       const bcs = new Jolt.BodyCreationSettings(shape, pos, rot, Jolt.EMotionType_Dynamic, 1);
       bcs.mOverrideMassProperties = Jolt.EOverrideMassProperties_CalculateInertia;
       bcs.mMassPropertiesOverride.mMass = p.mass;
       bcs.mFriction = W.body.friction; bcs.mRestitution = p.restitution ?? 0.2; bcs.mLinearDamping = W.body.linear_damping; bcs.mAngularDamping = W.body.angular_damping;
+      if (ground && ground.rows.continuous.enabled) bcs.mMotionQuality = Jolt.EMotionQuality_LinearCast;
       const body = bi.CreateBody(bcs);
       bi.AddBody(body.GetID(), Jolt.EActivation_Activate);
       Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot);
