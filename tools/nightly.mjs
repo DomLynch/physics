@@ -10,7 +10,7 @@ import * as P from "../src/index.mjs";
 import { runCell } from "./budget-seven.mjs";
 import { cellKey, medianCells, pooledCells, SCHEMA } from "./nightly-gate.mjs";
 
-const WARM_RUNS = 2; // unrecorded full runs of a cell before the recorded one, in the same process: a fresh node process times its first 200 frames on a cold JIT, which is not what budget-seven measures
+const WARM_RUNS = 5; // unrecorded full runs of a cell before the recorded one, in the same process: a fresh node process times its first 200 frames on a cold JIT, which is not what budget-seven measures
 const ROOT = new URL("../", import.meta.url);
 
 // the reason a cell cannot run here, or null
