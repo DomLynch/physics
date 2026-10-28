@@ -116,7 +116,7 @@ function main() {
   ];
   const RR = (b, id, sided, S) => b.R[sided ? id + S : id];
   const { names, follow } = followTable(glb);
-  const maps = {}, lookup = {}, report = [];
+  const maps = {}, lookup = {}, report = [], excluded = {};
   groups.forEach((grp, gi) => {
     const g = grp.fit;
     const ht = hTier(med(g.map((x) => x.H)));
@@ -143,14 +143,14 @@ function main() {
     }
     // per-body scalars: girth g is the median ratio of the body's radii to the shape's radii at its own height
     const errBefore = [], errAfter = [];
-    for (const b of [...g, ...grp.out]) {
+    for (const o of grp.out) excluded[o.id] = `scale outlier: height ${Math.round(o.H * 1000)} mm from a GLB node-scale error, not a body; no shape (re-measure the GLB and rerun)`;
+    for (const b of g) {
       const ratios = [];
       for (const [key, id, sided] of roleDefs) for (const S of sided ? ["Left", "Right"] : [""]) {
         const x = RR(b, id, sided, S); if (x.radius_m > 0) ratios.push(x.radius_m / (roles[key].r * b.H));
       }
       const girth = r4(med(ratios));
-      lookup[b.id] = [gi, Math.round(b.H * 1000), Math.round(girth * 100), Math.round(b.mass * 10)];
-      if (grp.out.includes(b)) continue;
+      lookup[b.id] = [gi, Math.round(b.H * 1000), Math.round(girth * 100), Math.round(b.mass * 10), Math.round(b.row.total_mass_before_clamp_kg * 10)];
       for (const [key, id, sided] of roleDefs) for (const S of sided ? ["Left", "Right"] : [""]) {
         const x = RR(b, id, sided, S); if (x.radius_m <= 0) continue;
         errBefore.push(Math.abs(roles[key].r * b.H - x.radius_m) / x.radius_m);
@@ -182,8 +182,14 @@ function main() {
   for (const n of shapeNames) { const s = fmt(maps[n]); writeFileSync(`${out}/${n}.map.json`, s); sizes[n] = Buffer.byteLength(s); }
   const idx = {
     schema: "body-shape-lookup/1", rig: "mixamo-106",
-    row: "body -> [shapeIndex, height_mm, girth_x100, mass_kg_x10]; shape = shapes[shapeIndex]; radius_m = map.r * height_m * girth; mass_kg = map.m * mass. Girth is the body's own radius scale against its shape (a heavy MakeHuman body in an average shape reads 1.3, say).",
-    shapes: shapeNames, bodies: lookup,
+    row: "body -> [shapeIndex, height_mm, girth_x100, mass_kg_x10, unclamped_mass_kg_x10]; shape = shapes[shapeIndex]; radius_m = map.r * height_m * girth; role mass_kg = map.m * mass. Girth is the body's own radius scale against its shape (a heavy MakeHuman body in an average shape reads 1.3, say). Use bodyShape(lookup, id) from src/shape-maps.mjs: it throws for an unknown or excluded id.",
+    rules: {
+      child_max_height_mm: Math.round(CHILD_H * 1000),
+      child: "Height under 1450 mm is the child shape, whatever the build: a small adult under 1.45 m (e.g. mon-0056, 1445 mm) becomes a child, and mon-0846 at 1462 mm is average-heavy. The height is the only input; there is no age field in the measure rows.",
+      mass: `mass_kg_x10 is the role table's mass clamped to 18..140 kg (the role table's bounds), so it reads exactly 140 for ${Object.values(lookup).filter((v) => v[3] === 1400).length} of ${Object.keys(lookup).length - 1} bodies (and 18 for ${Object.values(lookup).filter((v) => v[3] === 180).length}). The 5th value is the unclamped volume-based mass: use it to scale impulses. The clamp is deliberate for ragdoll joint stiffness, not a measurement.`,
+      excluded: "Scale outliers (height under 1.0 m or over 3.0 m) have no shape: bodyShape throws.",
+    },
+    shapes: shapeNames, excluded, bodies: lookup,
   };
   const lines = Object.entries(lookup).map(([k, v]) => "  " + JSON.stringify(k) + ":" + JSON.stringify(v));
   writeFileSync(`${out}/body-shapes.json`, JSON.stringify({ ...idx, bodies: undefined }).slice(0, -1) + ',"bodies":{\n' + lines.join(",\n") + "\n}}\n");
