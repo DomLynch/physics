@@ -66,10 +66,18 @@ export function createFighterState(rules, bodyMeasureRowOrPartIds = PART_IDS, op
   // opts.hp_scale multiplies every budget (map the part rows onto a game's own health pools); opts.budgets sets single parts absolutely ({ head: 60, torso: 400 })
   const scale = opts.hp_scale ?? 1;
   if (!(scale > 0)) fail("hp_scale must be a positive number");
-  const budget = (id) => { const o = opts.budgets && opts.budgets[id]; if (o !== undefined && !(o > 0)) fail(`budgets.${id} must be a positive number`); return o !== undefined ? o : budgetOf(id) * scale; };
+  // opts.limbLoss: a per-body row from loadLimbLoss(body) (null or absent: the global rows, byte-identical state). Its budgets are absolute and opts.budgets still wins.
+  const ll = opts.limbLoss || null;
+  const budgets = ll && ll.budgets ? { ...ll.budgets, ...opts.budgets } : opts.budgets;
+  const budget = (id) => { const o = budgets && budgets[id]; if (o !== undefined && !(o > 0)) fail(`budgets.${id} must be a positive number`); return o !== undefined ? o : budgetOf(id) * scale; };
   for (const id of PART_IDS) if (ids.includes(id)) parts[id] = { hp: budget(id), max: budget(id), gone: false };
   for (const id of ["head", "torso"]) if (!parts[id]) fail(`body has no ${id} part (needs at least head and torso)`);
+  const extra = {};
+  if (ll && ll.arm_gone_damage_mult !== undefined) extra.arm_gone_damage_mult = ll.arm_gone_damage_mult;
+  if (ll && ll.leg_state !== undefined) extra.leg_state = ll.leg_state;
+  if (ll && ll.piece_hostile !== undefined) extra.piece_hostile = JSON.parse(JSON.stringify(ll.piece_hostile));
   return {
+    ...extra,
     schema: "fighter-state/1",
     alive: true,
     sword_side: sword,
@@ -276,7 +284,8 @@ export function createEvaluator(rules = loadRules()) {
     if (canCut) {
       result.cut = { unit };
       ps.hp = 0; ps.gone = true; // zone_part and zone_cut_unit are paired per zone: the cut unit is the struck part
-      events.push({ type: "cut", unit, tipSpeed: tip, cutThreshold, boneGate });
+      const hostile = state.piece_hostile && state.piece_hostile[unit];
+      events.push({ type: "cut", unit, tipSpeed: tip, cutThreshold, boneGate, ...(hostile ? { piece_hostile: { ...hostile } } : {}) });
     }
     result.partHpAfter = state.parts[part].hp;
 
@@ -284,12 +293,13 @@ export function createEvaluator(rules = loadRules()) {
     const goneNow = !dead && state.parts[part].gone;
     if (goneNow || (canCut && dead)) {
       if (part === "arm_" + state.sword_side && !state.weapon_dropped) {
-        state.weapon_dropped = true; state.outgoing_damage_mult = armGone;
-        events.push({ type: "weapon_drop", arm: part, outgoing_damage_mult: armGone });
+        const mult = state.arm_gone_damage_mult ?? armGone; // the body's limb-loss row, else the global locational row
+        state.weapon_dropped = true; state.outgoing_damage_mult = mult;
+        events.push({ type: "weapon_drop", arm: part, outgoing_damage_mult: mult });
       } else if (part.startsWith("arm_") && part !== "arm_" + state.sword_side) events.push({ type: "off_arm_gone", arm: part });
       if (part.startsWith("leg_") && !state.limp) {
         state.limp = true;
-        events.push({ type: "leg_gone", leg: part, crawl_to_stand_s: crawl });
+        events.push({ type: "leg_gone", leg: part, crawl_to_stand_s: crawl, ...(state.leg_state ? { leg_state: state.leg_state } : {}) });
       }
     }
 

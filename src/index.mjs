@@ -25,5 +25,6 @@ export async function createPhysics(opts = {}) {
 export { generateRow, loadTable, lintNoBlock, mulberry32 };
 export { buildChainRow, validateChainSpec, loadChainBody, chainBoneMap, chainBoneObjects, chainFollowMap, chainFollowObjects, chainVirtualParts, chainRigOptions, chainBodyNames } from "./chain.mjs";
 export { createEvaluator, createFighterState, rollFinisher } from "./rules-eval.mjs";
+export { loadLimbLoss, validateLimbLoss } from "./limb-loss.mjs";
 export { admit } from "./budget.mjs";
 export { validateRules, assertRules, loadRules, rulesHash } from "./rules.mjs";
