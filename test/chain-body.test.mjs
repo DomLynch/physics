@@ -343,8 +343,12 @@ test("budget rows: rat_king_x7 and crow_x7 are chain sets of seven bodies, tail 
   }
 });
 
-// ---- the roach rig family: spider (27 bones) and giant centipede (75 bones, ONE rigid 'body' bone, no spine). Both are chain bodies; numbers are placeholders.
+// ---- the roach rig family: roach (ARMAGEDOM original-roach, 27 bones, the same rig as the spider), spider (27 bones) and giant centipede (75 bones, ONE rigid 'body' bone, no spine). All chain bodies; numbers are placeholders.
 const ROACH = {
+  roach: {
+    parts: 14, kg: [15, 80], legRoots: 6, virtual: [], driven: ["body", "thorax", "head", "abdomen"],
+    kill: { part: "body", impulse: [0, 0, 60] }, knock: { part: "thorax", impulse: [70, 50, 0] }, unit: "leg_front_R", carries: ["leg0R_up", "leg0R_low"], cutPart: "thorax",
+  },
   spider: {
     parts: 14, kg: [20, 120], legRoots: 6, virtual: [], driven: ["body", "thorax", "head", "abdomen"],
     kill: { part: "body", impulse: [0, 0, 80] }, knock: { part: "thorax", impulse: [90, 70, 0] }, unit: "leg_front_R", carries: ["leg0R_up", "leg0R_low"], cutPart: "thorax",
@@ -379,7 +383,7 @@ for (const name of Object.keys(ROACH)) {
     assert.equal(bones.schema, "chain-bones/1");
     assert.equal(bones.body, name);
     const real = Object.entries(bones.bones).filter(([, b]) => !b.synthetic), synth = Object.entries(bones.bones).filter(([, b]) => b.synthetic);
-    assert.equal(real.length, name === "spider" ? 27 : 75, "every skin joint of the GLB");
+    assert.equal(real.length, name === "centipede" ? 75 : 27, "every skin joint of the GLB");
     for (const [k, b] of synth) assert.ok(b.note && b.pos.length === 3, `synthetic ${k} says why`);
     for (const [k, b] of real) assert.ok(b.pos.length === 3 && b.pos.every(Number.isFinite) && (b.parent === null || bones.bones[b.parent]), k);
     assert.equal(bones.bones.root.parent, null);
@@ -554,13 +558,29 @@ test("centipede: the chain runs along the body's long axis, head in front, and e
   assert.equal(map.head, "head");
 });
 
-test("spider: six leg roots, each driven by its own part, front and rear legs have two segments, middle legs one", () => {
-  const spec = roachSpec("spider"), map = chainBoneMap(spec);
+for (const name of ["spider", "roach"]) test(`${name}: six leg roots, each driven by its own part, front and rear legs have two segments, middle legs one`, () => {
+  const spec = roachSpec(name), map = chainBoneMap(spec);
   for (const n of [0, 1, 2]) for (const s of ["L", "R"]) assert.ok(Object.values(map).includes(`leg_${n}${s}`));
   for (const s of ["L", "R"]) { assert.ok(Object.values(map).includes(`shin_0${s}`) && Object.values(map).includes(`shin_2${s}`)); assert.ok(!Object.values(map).includes(`shin_1${s}`)); }
   assert.equal(map.body, "body");
   assert.equal(spec.segments[0].id, "body");
   assert.deepEqual(chainVirtualParts(spec), []);
+});
+
+test("roach: the same 27-bone rig as the spider (bone for bone), the same part ids (so it shares the spider hit-reaction family), a lighter and flatter body, and the original-roach scale 3", () => {
+  const r = roachSpec("roach"), s = roachSpec("spider"), rb = roachBones("roach"), sb = roachBones("spider");
+  assert.equal(rb.body, "roach");
+  for (const [k, b] of Object.entries(sb.bones).filter(([, b]) => !b.synthetic)) {
+    assert.equal(rb.bones[k]?.parent, b.parent, `${k} parent`);
+    for (let i = 0; i < 3; i++) assert.ok(Math.abs(rb.bones[k].pos[i] - b.pos[i]) < 1e-9, `${k} pos`);
+  }
+  assert.deepEqual(r.segments.map((x) => x.id), s.segments.map((x) => x.id));
+  assert.deepEqual(r.segments.map((x) => x.parent), s.segments.map((x) => x.parent));
+  const kg = (x) => x.segments.reduce((a, g) => a + g.mass, 0);
+  assert.ok(kg(r) < kg(s), `roach ${kg(r)} kg is lighter than the spider ${kg(s)} kg`);
+  assert.ok(r.segments.find((x) => x.id === "body").radius < s.segments.find((x) => x.id === "body").radius, "flatter body");
+  assert.match(r.scale_source, /original-roach/);
+  assert.deepEqual(r.severable.map((x) => x.id), ["leg_front_L", "leg_front_R"]);
 });
 
 test("validateChainSpec on the new fields: drives/follow must be real bones, no bone twice, a synthetic anchor needs an explicit drives", () => {
