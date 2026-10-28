@@ -94,9 +94,11 @@ test("followers are refreshed in the same applyPose call: a follower's world rot
   for (let t = 0; t < 60; t++) p.step(1 / 60);
   rig.applyPose();
   const f = find(body.followMap.bank3L[0]), d = find(body.boneMap.bank3L);
-  const wf = f.getWorldQuaternion(new THREE.Quaternion()), wd = d.getWorldQuaternion(new THREE.Quaternion());
-  // both hang off the root here, so equal local rotation means equal world rotation: only true if matrixWorld was refreshed after the copy
-  assert.ok(qdiff(wf, wd) < 1e-9);
+  assert.ok(qdiff(f.quaternion, d.quaternion) < 1e-9);
+  // the follower hangs off the root: its stored world matrix must already equal root * local rotation (refreshed after the copy, no updateMatrixWorld by the caller)
+  const stored = new THREE.Quaternion().setFromRotationMatrix(f.matrixWorld);
+  const expect = f.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(f.quaternion);
+  assert.ok(qdiff(stored, expect) < 1e-9);
   p.destroy();
 });
 
