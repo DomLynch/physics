@@ -1,0 +1,11 @@
+{
+  "schema": "chain-bones/1",
+  "body": "drone",
+  "source": "NOT a GLB: the low-hover-drone has no skeleton and no model file (assetRef procedural.drone). Its body is the box BoxGeometry(0.56, 0.24, 0.38) in Armagedom Web/src/low-hover-drone.js (watcher appearance), centred on the model root, drawn at DRONE_VISUAL_SCALE 2. These two points are the ends of that box along its long axis (x), at the model-root height the game hovers at: hoverHeight 0.9 m (Web/src/data/creatures.json) / scale 2 = 0.45 model units. They are the two ends of the one capsule, not joints.",
+  "units": "model units (metres before the game's model scale 2)",
+  "bbox_model_units": { "x": 0.56, "y": 0.24, "z": 0.38, "source": "the body box only; the four rotor rings (about 0.9 model units across with the arms) and the sensor pod under the nose (down to y -0.21) are outside it" },
+  "bones": {
+    "drone_body": { "parent": null, "pos": [-0.28, 0.45, 0] },
+    "drone_end": { "parent": "drone_body", "pos": [0.28, 0.45, 0] }
+  }
+}
