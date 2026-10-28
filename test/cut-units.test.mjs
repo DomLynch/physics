@@ -16,15 +16,18 @@ const rigMap = JSON.parse(readFileSync(new URL("../data/rig-maps/mixamo-106.json
 const FLOOR = 0.05; // the toes sit 5 cm above y = 0 in the synthetic GLB, like the real bodies sit above their measure row's floor
 
 // ---------------------------------------------------------------- the synthetic body
-const W = { // world bind-pose joint positions
+const W0 = { // world bind-pose joint positions
   Hips: [0, 0.95, 0], Spine: [0, 1.05, 0], Spine1: [0, 1.17, 0], Spine2: [0, 1.3, 0], Neck: [0, 1.45, 0], Head: [0, 1.55, 0], HeadTop_End: [0, 1.75, 0],
   LeftShoulder: [0.05, 1.4, 0], LeftArm: [0.2, 1.4, 0], LeftForeArm: [0.45, 1.4, 0], LeftHand: [0.7, 1.4, 0],
   RightShoulder: [-0.05, 1.4, 0], RightArm: [-0.2, 1.4, 0], RightForeArm: [-0.45, 1.4, 0], RightHand: [-0.7, 1.4, 0],
   LeftUpLeg: [0.09, 0.9, 0], LeftLeg: [0.12, 0.47, 0], LeftFoot: [0.13, 0.14, 0], LeftToeBase: [0.15, FLOOR, 0.14],
   RightUpLeg: [-0.09, 0.9, 0], RightLeg: [-0.12, 0.47, 0], RightFoot: [-0.13, 0.14, 0], RightToeBase: [-0.15, FLOOR, 0.14],
 };
+// variant.parallel: both thighs hang straight down (the knees directly under the hips, a few millimetres of front-to-back tilt between them), so the two
+// hip-plane normals differ by under HIP_SPLIT_PARALLEL and hip_split is the midline plane
+const WPAR = { ...W0, LeftLeg: [0.09, 0.47, 0.02], LeftFoot: [0.09, 0.14, 0.02], LeftToeBase: [0.09, FLOOR, 0.16], RightLeg: [-0.09, 0.47, 0], RightFoot: [-0.09, 0.14, 0], RightToeBase: [-0.09, FLOOR, 0.14] };
 const PARENT = { Spine: "Hips", Spine1: "Spine", Spine2: "Spine1", Neck: "Spine2", Head: "Neck", HeadTop_End: "Head", LeftShoulder: "Spine2", LeftArm: "LeftShoulder", LeftForeArm: "LeftArm", LeftHand: "LeftForeArm", RightShoulder: "Spine2", RightArm: "RightShoulder", RightForeArm: "RightArm", RightHand: "RightForeArm", LeftUpLeg: "Hips", LeftLeg: "LeftUpLeg", LeftFoot: "LeftLeg", LeftToeBase: "LeftFoot", RightUpLeg: "Hips", RightLeg: "RightUpLeg", RightFoot: "RightLeg", RightToeBase: "RightFoot" };
-const NAMES = Object.keys(W);
+const NAMES = Object.keys(W0);
 const TOES = ["LeftToeBase", "RightToeBase"];
 
 const chain = (pts, v) => { // pts: ascending [coordinate, joint]; linear blend of the two neighbours
@@ -112,6 +115,7 @@ function hairCard(x0, x1, y0, y1, z, n, weights) {
 }
 
 async function buildBody(variant = {}) {
+  const W = variant.parallel ? WPAR : W0;
   const doc = new Document();
   const buffer = doc.createBuffer();
   const scene = doc.createScene("Scene");
@@ -169,6 +173,12 @@ async function buildBody(variant = {}) {
   // weighted to Hips and the upper legs, overlapping the body box and the leg boxes
   const wSkirt = (p) => [["Hips", 0.6], [p[0] >= 0 ? "LeftUpLeg" : "RightUpLeg", 0.4]];
   const skirtParts = variant.skirt ? [box([0, 1.0, 0], [variant.skirtHalf || 0.22, 0.2, 0.16], 6, wSkirt)] : [];
+  // variant.parallel: the legs never reach the midline (a 2.4 cm gap between the boxes), but the crotch lump and a belly apron hang across it below the hip
+  // planes, one continuous sheet of Hips-skinned mesh that the midline plane has to cut in two, with a wall to close each side
+  if (variant.parallel) {
+    bodyParts.push(box([0, 0.83, 0], [0.011, 0.1, 0.07], 8, wSkirt)); // y 0.73 to 0.93: across the hip planes and the midline (a loop that runs along the hip plane and the wall)
+    bodyParts.push(box([0, 0.78, 0.13], [0.011, 0.04, 0.02], 4, wSkirt)); // y 0.74 to 0.82: wholly below the hip planes (a loop on the midline alone)
+  }
   const skin = mkSkin(), skin2 = variant.quantLash ? mkSkin(ibm2) : mkSkin();
   const lashStored = variant.quantLash ? lashParts.map((m) => ({ ...m, pos: m.pos.map((p) => p.map((x, k) => (x - QUANT.T[k]) / QUANT.S)) })) : lashParts;
   const mesh = doc.createMesh("Body").addPrimitive(prim(bodyParts, matBody)).addPrimitive(prim(armParts, matHorn));
@@ -825,6 +835,70 @@ test("hip_split with apart thighs keeps the bisector of the two hip planes exact
   assert.ok(s.n[0] > 0.999);
 });
 const vlenOf = (v) => Math.hypot(...v);
+
+// ---------------------------------------------------------------- the midline wall cap (parallel thighs, mesh across the midline below the hip planes)
+// With parallel thighs the two hip planes through the two UpLeg joints cross each other along a line across the whole body and leave thin slabs of the far
+// flank to the wrong leg; and mesh that crosses the midline below the planes (Big Vegas' belly apron and crotch) is cut in two by hip_split with nothing to
+// close either side. The thighs get ONE hip plane (still two named planes and four hip caps), and each loop on the midline gets a wall cap of its own.
+test("parallel thighs: hip_left and hip_right are one plane, both hip points on it or below it (the leg bones stay on the leg side); apart thighs keep two planes", () => {
+  for (const [zl, zr] of [[0.0, 0.0], [0.0866, 0.1003], [0.1003, 0.0866], [0.02, 0.0]]) {
+    const fns = buildPlanes(hipJoints([0.188, 0.45, zl * 0.45], [-0.188, 0.45, zr * 0.45]));
+    const { hip_left: L, hip_right: R, hip_split: S } = fns;
+    assert.equal(S.midline, true);
+    assert.deepEqual(L.n, R.n);
+    assert.equal(L.c, R.c);
+    for (const p of [[0.188, 0.906, 0], [-0.188, 0.906, 0]]) assert.ok(L.d(p) >= -1e-12,"a hip point is on the plane or on the leg side: " + L.d(p));
+    assert.ok(L.d([0.188, 0.906, 0]) < 1e-3 && R.d([-0.188, 0.906, 0]) < 1e-3, "raised only as far as it must be");
+    assert.ok(Math.abs(L.n[1]) > 0.99, "along the thighs");
+  }
+  const apart = buildPlanes(hipJoints([0.45, 0.45, 0], [-0.45, 0.45, 0]));
+  assert.equal(apart.hip_split.midline, undefined);
+  assert.notDeepEqual(apart.hip_left.n, apart.hip_right.n);
+});
+
+test("parallel thighs: crotch lump and belly apron across the midline are closed by wall caps, and all eight checks pass", async () => {
+  const b = await buildBody({ parallel: true });
+  const r = await cut(b);
+  const v = validateAll(b, r);
+  assert.equal(v.ok, true, failedChecks(v).join("\n"));
+  assert.equal(r.manifest.stats.cap_fallback_loops, 0, "no loop fell back to an unrelated cap");
+  const out = await readOut(r.glb);
+  const off = r.manifest.plane_frame.bind_offset, S = r.manifest.internal_planes.hip_split;
+  const onMidline = (p, i) => Math.abs(S.normal[0] * (p[i * 3] - off[0] - S.point[0]) + S.normal[1] * (p[i * 3 + 1] - off[1] - S.point[1]) + S.normal[2] * (p[i * 3 + 2] - off[2] - S.point[2])) < 1e-4;
+  for (const [cap, side] of [["cap_hip_left_leg", -1], ["cap_hip_right_leg", 1]]) {
+    let wall = 0, hip = 0, facing = 0, lump = 0, apron = 0;
+    for (const p of out.meshes[cap].prims) for (let t = 0; t < p.indices.length; t += 3) {
+      const ix = [p.indices[t], p.indices[t + 1], p.indices[t + 2]];
+      if (ix.every((i) => onMidline(p.positions, i))) {
+        wall++;
+        facing += ix.reduce((s, i) => s + (p.nor[i][0] * side > 0.99 ? 1 : 0), 0) / 3; // the left leg's wall faces -x (the other leg), the right leg's +x
+        const z = ix.reduce((s, i) => s + p.positions[i * 3 + 2], 0) / 3;
+        if (z > 0.1) apron++; else if (z < 0.08) lump++;
+      } else hip++;
+    }
+    assert.ok(wall >= 8, cap + ": wall triangles " + wall);
+    assert.ok(hip >= 8, cap + ": hip triangles " + hip);
+    assert.ok(facing >= 0.9 * wall, cap + ": the wall faces the other leg: " + facing + " of " + wall);
+    assert.ok(lump > 0 && apron > 0, cap + ": the lump's wall (" + lump + ") and the apron's wall (" + apron + ") are both there");
+  }
+  for (const cap of ["cap_hip_left_root", "cap_hip_right_root"]) assert.ok(out.meshes[cap].prims.reduce((s, p) => s + p.indices.length, 0) >= 12, cap + " has triangles: the shared plane's root cap is split by the midline");
+  // the shared plane: both leg pieces and both root caps lie on it
+  const P = r.manifest.planes;
+  assert.deepEqual(P.hip_left.normal, P.hip_right.normal);
+});
+
+test("parallel thighs: each leg piece is closed with its caps, and the two legs' walls are mirror images across the midline", async () => {
+  const b = await buildBody({ parallel: true });
+  const r = await cut(b);
+  const out = await readOut(r.glb);
+  for (const [R, cap] of [["leg_left", "cap_hip_left_leg"], ["leg_right", "cap_hip_right_leg"]]) {
+    const reg = REGIONS.find((x) => x.id === R);
+    const parts = out.meshes[reg.mesh].prims.map((p) => ({ positions: p.positions, indices: p.indices })).concat(out.meshes[cap].prims.map((p) => ({ positions: p.positions, indices: p.indices })));
+    const rep = weldReport(parts, 1e-5);
+    assert.equal(rep.boundary_edges, 0, `${R}: ${rep.boundary_edges} open or flipped edges at ${JSON.stringify(rep.boundary_sample)}`);
+    assert.equal(rep.non_manifold_edges, 0, `${R}: over-used edges`);
+  }
+});
 
 // ---------------------------------------------------------------- rigid accessory layers (row-level override; the validator is not touched)
 const cutWithAcc = (b, rigidAccessoryMaterials) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", rigidAccessoryMaterials });

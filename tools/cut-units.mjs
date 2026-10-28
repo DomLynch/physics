@@ -166,9 +166,19 @@ export function buildPlanes(J, apex = null, planeRows = PLANE_ROWS, shoulderTilt
   // The bisector is then the midline plane: through the midpoint of the two hip points, normal = left to right between the UpLeg joints with the
   // part along the mean thigh direction dropped, d in metres (positive on the left leg's side, like the bisector).
   const t = norm(fns.hip_left.n.map((x, i) => x + fns.hip_right.n[i]));
+  // Two nearly parallel hip planes through the two UpLeg joints cross each other along a line across the whole body (Big Vegas: 7 mm apart at most,
+  // crossing 0.1 m behind the joints), and each leaves a thin slab of the far flank to the wrong leg. With parallel thighs the two hip planes are ONE
+  // plane: through the midpoint of the hip points, along the mean thigh. hip_left and hip_right stay two named planes (two root caps, two leg caps);
+  // the midline splits everything that lies on it between the two sides.
+  // (raised, if need be, until both hip points lie on or below it: the leg bones stay on the leg side of the plane, what the validator's bone_side check reads)
+  const lift = Math.max(0, -Math.min(dot(t, sub(fns.hip_left.point, bp)), dot(t, sub(fns.hip_right.point, bp))));
+  const hp = bp.map((x, i) => x - t[i] * lift);
+  fns.hip_left = makeFn("hip_left", hp, t, fns.hip_left.source + "; thighs parallel: one shared plane with hip_right (mean thigh direction, through the midpoint of the two hip points, raised until both hip points are on it or below)");
+  fns.hip_right = makeFn("hip_right", hp, t, fns.hip_right.source + "; thighs parallel: one shared plane with hip_left (mean thigh direction, through the midpoint of the two hip points, raised until both hip points are on it or below)");
   const lat0 = sub(J.LeftUpLeg, J.RightUpLeg), lat = norm(sub(lat0, t.map((x) => x * dot(lat0, t))));
-  fns.hip_split = makeFn("hip_split", bp, lat, "internal: midline plane (the thighs are parallel, so the bisector of the two hip planes is undefined), normal left to right between the UpLeg joints, separates the legs where both hip half-spaces overlap (no cap of its own)");
+  fns.hip_split = makeFn("hip_split", bp, lat, "internal: midline plane (the thighs are parallel, so the bisector of the two hip planes is undefined), normal left to right between the UpLeg joints, separates the legs where both hip half-spaces overlap (its wall caps are triangles of the two leg caps)");
   fns.hip_split.exact = true;
+  fns.hip_split.midline = true; // cutGlb: wall caps on this plane, and the shared hip plane's root cap is shared out left and right by it
   return fns;
 }
 
@@ -1022,7 +1032,9 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     // classify the boundary edges that lie on a cut plane; the others are native open edges of the source mesh (reported, not capped)
     const planeOf = new Map(); // directed welded edge -> plane id
     const planesOn = new Map(); // directed welded edge -> every cap plane of this region the edge lies on
-    const capPlane = (pl) => (pl === "hip_split" ? (R.id === "leg_left" ? "hip_left" : R.id === "leg_right" ? "hip_right" : pl) : pl);
+    const midline = !!fns.hip_split.midline; // parallel thighs: the midline is a wall plane of its own (below), not part of the hip cap's plane
+    const hipCapOf = (pl) => (pl === "hip_split" ? (R.id === "leg_left" ? "hip_left" : R.id === "leg_right" ? "hip_right" : pl) : pl);
+    const capPlane = (pl) => (midline ? pl : hipCapOf(pl));
     const out = new Map();
     const edgeList = [];
     for (const [u, v] of boundary) {
@@ -1104,19 +1116,30 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       rseq.forEach((p, k) => { if (!runs.length || runs[runs.length - 1].plane !== p) runs.push({ plane: p, from: k, to: k }); else runs[runs.length - 1].to = k; });
       if (opts.debug) (report.runs ||= []).push({ region: R.id, n, runs: runs.map((r) => `${r.plane}:${r.to - r.from + 1}`) });
       const runPlanes = [...new Set(runs.map((r) => r.plane))];
-      if (runs.length >= 2 && runs.length % 2 === 0 && runPlanes.length === 2 && runPlanes.every((p) => capOf.has(R.id + ":" + p))) {
+      if (runs.length >= 2 && runs.length % 2 === 0 && runPlanes.length >= 2 && runPlanes.every((p) => capOf.has(R.id + ":" + p) || (midline && p === "hip_split"))) {
         // Each run is an open polyline of one plane whose two ends lie on the meeting line of the two planes. Per plane the ends are sorted along that line
         // and paired two by two (even-odd, as for any section of a solid by a plane): each pair is closed by the chord along the line, and the polylines
         // chained through those chords are the cap polygons. Two runs (the root's hip Lambda) give one polygon per run; a loop that leaves and re-enters
         // the plane several times (a hollow tube cut by both the neck plane and the sagittal plane) gives the half rings and the separate wall strips.
-        const L = cross(fns[runPlanes[0]].n, fns[runPlanes[1]].n);
+        // With more than two planes (a collar island cut by the neck plane and both shoulder planes) an end of a run meets the run of ONE other plane, on
+        // the meeting line of that pair: the ends of a plane are grouped by the plane they meet, and each group is sorted and paired along its own line.
         const subs = runs.map((r) => { const sub = []; for (let k = r.from; k <= r.to + 1; k++) sub.push(rot[k % n]); return sub; });
         const partner = new Map(); // "run:start|end" -> "run:start|end"
         for (const pl of runPlanes) {
-          const ends = [];
-          runs.forEach((r, i) => { if (r.plane === pl) { ends.push({ key: i + ":start", t: dot(V.pos[rep.get(subs[i][0])], L) }, { key: i + ":end", t: dot(V.pos[rep.get(subs[i][subs[i].length - 1])], L) }); } });
-          ends.sort((a, b) => a.t - b.t || (a.key < b.key ? -1 : 1));
-          for (let k = 0; k + 1 < ends.length; k += 2) { partner.set(ends[k].key, ends[k + 1].key); partner.set(ends[k + 1].key, ends[k].key); }
+          const groups = new Map(); // the plane met -> its ends
+          runs.forEach((r, i) => {
+            if (r.plane !== pl) return;
+            for (const [which, nb] of [["start", runs[(i + runs.length - 1) % runs.length]], ["end", runs[(i + 1) % runs.length]]]) {
+              if (!groups.has(nb.plane)) groups.set(nb.plane, []);
+              groups.get(nb.plane).push({ key: i + ":" + which, v: V.pos[rep.get(which === "start" ? subs[i][0] : subs[i][subs[i].length - 1])] });
+            }
+          });
+          for (const [q, ends] of groups) {
+            const L = runPlanes.indexOf(pl) < runPlanes.indexOf(q) ? cross(fns[pl].n, fns[q].n) : cross(fns[q].n, fns[pl].n);
+            for (const e of ends) e.t = dot(e.v, L);
+            ends.sort((a, b) => a.t - b.t || (a.key < b.key ? -1 : 1));
+            for (let k = 0; k + 1 < ends.length; k += 2) { partner.set(ends[k].key, ends[k + 1].key); partner.set(ends[k + 1].key, ends[k].key); }
+          }
         }
         const used = new Set(), polys = [];
         let consistent = true;
@@ -1193,8 +1216,11 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       if (opts.debug && (stats.forced || stats.bridgeFallback)) (report.forced ||= []).push({ region: R.id, plane: dom, forced: stats.forced, rings: rings.map((r) => [r.pts.length, +r.area.toFixed(6)]), holes: holes.length, orphanHoles: orphanHoles.length });
       // the caps this group may feed: planes it lies on that this region has a cap for (a loop along two planes, the Lambda of the root's lower edge,
       // is triangulated once and shared out by the nearest plane)
-      const planesHere = [...new Set(infos.flatMap((i) => Object.keys(i.len)).map((p) => (p === "hip_split" ? dom : p)))].filter((p) => capOf.has(R.id + ":" + p)).sort((a, b) => planeOrder.indexOf(a) - planeOrder.indexOf(b));
+      const planesHere = [...new Set(infos.flatMap((i) => Object.keys(i.len)).map((p) => (p === "hip_split" ? (midline ? hipCapOf(p) : dom) : p)))].filter((p) => capOf.has(R.id + ":" + p)).sort((a, b) => planeOrder.indexOf(a) - planeOrder.indexOf(b));
       let targets = planesHere.map((p) => capOf.get(R.id + ":" + p));
+      // parallel thighs: the root's lower face is one plane, shared out between its two hip caps by the side of the midline
+      const sideCaps = midline && capOf.has(R.id + ":hip_left") && capOf.has(R.id + ":hip_right") && (dom === "hip_left" || dom === "hip_right") ? [capOf.get(R.id + ":hip_left"), capOf.get(R.id + ":hip_right")] : null;
+      if (sideCaps) targets = sideCaps;
       if (!targets.length) { targets = [capsAll.find((c) => c.region === R.id)]; capStats.fallback_loops++; }
       let umin = Infinity, umax = -Infinity, vmin = Infinity, vmax = -Infinity;
       for (const v of all) { umin = Math.min(umin, dot(V.pos[v], u)); umax = Math.max(umax, dot(V.pos[v], u)); vmin = Math.min(vmin, dot(V.pos[v], vv)); vmax = Math.max(vmax, dot(V.pos[v], vv)); }
@@ -1213,6 +1239,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
         if (targets.length > 1) {
           const cen3 = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
           let bd = Infinity;
+          if (sideCaps) { cap = sideCaps[fns.hip_split.d(cen3) >= 0 ? 0 : 1]; bd = -Infinity; }
           for (const tc of targets) { const d = Math.abs(fns[tc.plane].d(cen3)); if (d < bd - 1e-12) { bd = d; cap = tc; } }
         }
         const rec = capsOut[cap.id] || (capsOut[cap.id] = { cap, verts: [], uv: [], nrm: [], tris: [] });
@@ -1354,6 +1381,31 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   for (const C of capsAll) {
     const rec = capsOut[C.id];
     if (!rec) { capsMissing.push(C.id); continue; }
+    // A triangle's winding is judged above on float64 positions, but the file stores float32 and the validator reads the file. A triangle whose winding
+    // then disagrees with its stored normals is either a sliver whose sign flips under the rounding, or a folded triangle (of a loop that crosses itself)
+    // that the float64 test did not catch: this pass does not tell them apart and does not look at size. CUT-VALIDATE `caps` allows 1 percent of a cap's
+    // triangles to disagree. When a cap is over that, every disagreeing triangle gets vertices of its own carrying the normal of its winding, like a
+    // folded one (geometry unchanged, only the stored normals). A cap within the allowance is left exactly as built.
+    {
+      const bad = [];
+      let total = 0;
+      for (let t = 0; t + 2 < rec.tris.length; t += 3) {
+        const q = [0, 1, 2].map((k) => V.pos[rec.verts[rec.tris[t + k]]].map(Math.fround));
+        const g = cross(sub(q[1], q[0]), sub(q[2], q[0]));
+        if (!(vlen(g) > 1e-14)) continue; // the validator skips these
+        total++;
+        const avg = [0, 1, 2].map((k) => rec.nrm[rec.tris[t]][k] + rec.nrm[rec.tris[t + 1]][k] + rec.nrm[rec.tris[t + 2]][k]);
+        if (dot(g, avg.map(Math.fround)) <= 0) bad.push(t);
+      }
+      if (total && (total - bad.length) / total < 0.99) {
+        for (const t of bad) for (let k = 0; k < 3; k++) {
+          const i = rec.tris[t + k];
+          rec.tris[t + k] = rec.verts.length;
+          rec.verts.push(rec.verts[i]); rec.uv.push(rec.uv[i]); rec.nrm.push(rec.nrm[i].map((x) => -x));
+        }
+        capStats.rewound_triangles = (capStats.rewound_triangles || 0) + bad.length;
+      }
+    }
     const n = rec.verts.length;
     const posW = new Float64Array(n * 3), pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), jj = new Uint16Array(n * 4), ww = new Float32Array(n * 4);
     rec.verts.forEach((v, k) => {

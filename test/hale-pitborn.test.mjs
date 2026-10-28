@@ -63,7 +63,7 @@ test("hale-pitborn fall trace: dies, falls, freezes; hips low, speed bounded, no
 test("cut-bodies.json: vagrant-106 (mixamo-19) and hale-pitborn (v1-65) have rows whose maps and measure rows exist, blocked with the checks the batch expects", async () => {
   const { loadRows } = await import("../tools/cut-batch.mjs");
   const rows = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname).bodies;
-  const want = { "vagrant-106": ["data/rig-maps/mixamo-19.json", ["watertight", "caps"]], "hale-pitborn": ["data/rig-maps/v1-65.json", ["watertight", "orientation"]] };
+  const want = { "vagrant-106": ["data/rig-maps/mixamo-19.json", ["watertight"]], "hale-pitborn": ["data/rig-maps/v1-65.json", ["watertight", "orientation"]] };
   for (const [name, [map, checks]] of Object.entries(want)) {
     const r = rows.find((x) => x.name === name);
     assert.ok(r, name + " row");
