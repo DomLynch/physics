@@ -20,8 +20,8 @@ import { qrot } from "../src/math.mjs";
 
 const GR = JSON.parse(readFileSync(new URL("../data/ground-rows.json", import.meta.url), "utf8"));
 const ST = GR.settle;
-// KNOWN DEFECT (not a pass): ST.sink_epsilon_m (0.11) tolerates a toe capsule that sinks 0.072 m into the DEFAULT flat floor, 0.021 m on plane rows and
-// 0.105 m into the slope15 heightfield (margin 0.005 m). The clearance checks below prove "no tunnelling", not "no sink". Fix the toe sink, then tighten the row.
+// KNOWN DEFECT (not a pass): ST.sink_epsilon_m (0.12) tolerates a toe capsule that sinks 0.072 m into the DEFAULT flat floor, 0.021 m on plane rows,
+// 0.105 m into the slope15 heightfield and 0.114 m after a 4 m fall onto it (margin 0.006 m). The clearance checks below prove "no tunnelling", not "no sink". Fix the toe sink, then tighten the row.
 const measure = (n) => JSON.parse(readFileSync(new URL(`../data/bodies/${n}.measure.json`, import.meta.url), "utf8"));
 const TICK = 1 / 60;
 const BODIES = {
