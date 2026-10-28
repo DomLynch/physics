@@ -14,9 +14,9 @@
   "hinge_flex_z_source": "own, from the bone positions: the creature faces +z. Hind: hip z -0.23, shin (knee) z -0.12, paw z -0.248, so the knee points forward and the lower leg folds backward (-z). Front: hip z 0.11, shin z 0.09, paw z 0.16, so the elbow points backward and the lower leg folds forward (+z). Same convention as the wolf.",
   "segments": [
     { "id": "hips", "role": "spine", "bone": "pelvis", "tip": "chest", "parent": null, "radius": 0.055, "mass": 28, "joint": null, "source": "placeholder: root, pelvis to chest (spine rides on it)" },
-    { "id": "chest", "role": "spine", "bone": "chest", "tip": "neck", "parent": "hips", "radius": 0.058, "mass": 24, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 20 }, "source": "placeholder: chest to neck" },
+    { "id": "chest", "role": "spine", "bone": "chest", "tip": "neck", "parent": "hips", "radius": 0.058, "mass": 16, "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 20 }, "source": "placeholder: chest to neck" },
     { "id": "head", "role": "head", "bone": "neck", "tip": "bite_tip", "parent": "chest", "radius": 0.034, "mass": 8, "joint": { "type": "ball", "swing_deg": 55, "twist_deg": 45 }, "source": "placeholder: neck to bite_tip (neck, head, jaw, bite_tip, ears as one capsule)" },
-    { "id": "tail_a", "role": "tail", "bone": "tail_1", "tip": "tail_2", "parent": "hips", "radius": 0.016, "mass": 1.2, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 25 }, "source": "placeholder: tail_1 to tail_2" },
+    { "id": "tail_a", "role": "tail", "bone": "tail_1", "tip": "tail_2", "parent": "hips", "radius": 0.016, "mass": 0.9, "joint": { "type": "ball", "swing_deg": 45, "twist_deg": 25 }, "source": "placeholder: tail_1 to tail_2" },
     { "id": "tail_b", "role": "tail", "bone": "tail_2", "tip": "tail_3", "extend": 0.04, "parent": "tail_a", "radius": 0.01, "mass": 0.5, "joint": { "type": "ball", "swing_deg": 50, "twist_deg": 25 }, "source": "placeholder: tail_2 to tail_3 plus 0.04 model units past the last bone" },
 
     { "id": "leg_BL_up", "role": "leg_upper", "bone": "leg_BL", "tip": "shin_BL", "parent": "hips", "radius": 0.026, "mass": 5, "joint": { "type": "ball", "swing_deg": 65, "twist_deg": 30 }, "source": "placeholder" },

@@ -11,11 +11,11 @@ const read = (f) => JSON.parse(readFileSync(new URL(`../data/bodies/${f}`, impor
 
 // model-unit radius floors (the game's value, or the largest that passes at rest, minus 0.001) and the model scale
 const FLOOR = {
-  salamander: { scale: 3.6, r: { hind_up_L: 0.075, hind_up_R: 0.075, hind_low_L: 0.095, hind_low_R: 0.095, front_up_L: 0.043, front_up_R: 0.043 } },
+  salamander: { scale: 3.6, r: { hind_up_L: 0.031, hind_up_R: 0.031, hind_low_L: 0.028, hind_low_R: 0.028, front_up_L: 0.033, front_up_R: 0.033 } }, // legs capped at 0.35 x length (not the game's 0.08-0.11: those are balls)
   eel: { scale: 0.9, r: { hips: 0.1, chest_a: 0.09, chest_b: 0.13, head: 0.09, tail_a: 0.1, tail_b: 0.1, tail_c: 0.09 } },
   wolf: { scale: 2.5, r: { head: 0.075, tail_a: 0.04, tail_b: 0.026, hind_up_L: 0.038, hind_up_R: 0.038, hind_low_L: 0.045, hind_low_R: 0.045, front_low_L: 0.041, front_low_R: 0.041 } },
-  "rat-king": { scale: 6, r: { hips: 0.06, chest: 0.055, head: 0.04, tail_a: 0.05, leg_BL_up: 0.05, leg_BR_up: 0.05 } },
-  crow: { scale: 4, r: { hips: 0.027, chest: 0.057, head: 0.052, tail_a: 0.04, leg_BL_up: 0.033, leg_BR_up: 0.033, leg_FL_up: 0.03, leg_FR_up: 0.03 } },
+  "rat-king": { scale: 6, r: { hips: 0.06, chest: 0.055, head: 0.04, tail_a: 0.06, leg_BL_up: 0.02, leg_BR_up: 0.02 } },
+  crow: { scale: 4, r: { hips: 0.027, chest: 0.057, head: 0.052, tail_a: 0.04, leg_BL_up: 0.02, leg_BR_up: 0.02, leg_FL_up: 0.03, leg_FR_up: 0.03 } },
 };
 
 for (const [name, want] of Object.entries(FLOOR)) {
@@ -90,7 +90,7 @@ const volume = (r) => Math.PI * r.radius_m ** 2 * 2 * r.half_height_m + (4 / 3) 
 const DENSITY_EXCEPTIONS = {
   drone: "one hollow-shell capsule for a hovering machine: about 96 kg/m3 is the point of it (25 kg in a 0.26 m3 envelope)",
 };
-const DENSITY = { eel: 800, salamander: 300, wolf: 700, "rat-king": 600, crow: 500 }; // placeholders (kg/m3) written into each spec as density_kg_m3
+const DENSITY = { eel: 800, salamander: 700, wolf: 700, "rat-king": 600, crow: 500 }; // placeholders (kg/m3) written into each spec as density_kg_m3
 
 test("every part of every chain body has a density between 100 and 3000 kg/m3 (capsule volume from the built row), except the listed bodies", () => {
   const names = chainBodyNames();

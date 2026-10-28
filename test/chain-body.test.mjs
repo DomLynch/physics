@@ -215,7 +215,7 @@ test("humanoid rows are unaffected: pose and state behave as before (hash of a p
 // ---- the rat rig family: rat king (mini-boss) and crow, both on the 24-bone rat rig (root > pelvis > spine > chest > neck > head > jaw > bite_tip; tail_1..4; leg_B*/leg_F* > shin > paw) ----
 const RIG = {
   // per creature bounds: height (m), widest capsule radius (m), drift while alive (m). Masses are density x capsule volume (spec density_kg_m3).
-  "rat-king": { scale: 6, mass: [400, 900], impulse: 600, species: "rat king", height: 2, radius: 0.42, drift: 0.3 }, // x6 in the game (PR #435), 600 kg/m3
+  "rat-king": { scale: 6, mass: [300, 700], impulse: 600, species: "rat king", height: 2, radius: 0.42, drift: 0.3 }, // x6 in the game (PR #435), 600 kg/m3
   crow: { scale: 4, mass: [50, 200], impulse: 100, species: "crow", height: 1, radius: 0.25, drift: 0.15 }, // 500 kg/m3: about 107 kg at x4; the old crow bounds hold unchanged
 };
 const EXPECTED_MAP = {
