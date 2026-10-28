@@ -2,7 +2,11 @@
 // Spine1 is the bind-pose pass-through node Mixamo keeps between Spine and Spine2, and the toes are synthesised from the Foot bone.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createPhysics, generateRow, loadTable } from "../src/index.mjs";
 
 const rd_ = (f) => JSON.parse(readFileSync(new URL(`../data/${f}`, import.meta.url), "utf8"));
@@ -69,4 +73,38 @@ test("vagrant-106 fall trace: dies, falls, freezes; hips low, speed bounded, not
   assert.ok(lowest > -0.05, "a part went through the floor: " + lowest);
   assert.equal(rd.state, "frozen");
   p.destroy();
+});
+
+// glb-measure input validation: bad {node, along_local_y_m} specs fail with a message naming the role (run the tool on a tiny synthetic GLB)
+function runMeasure(joints) {
+  const dir = mkdtempSync(join(tmpdir(), "glbm-"));
+  const json = Buffer.from(JSON.stringify({ asset: { version: "2.0" }, nodes: [{ name: "A", children: [1] }, { name: "B", translation: [0, 1, 0] }] }));
+  const pad = Buffer.alloc((4 - (json.length % 4)) % 4, 0x20), body = Buffer.concat([json, pad]);
+  const head = Buffer.alloc(20);
+  head.writeUInt32LE(0x46546c67, 0); head.writeUInt32LE(2, 4); head.writeUInt32LE(20 + body.length, 8); head.writeUInt32LE(body.length, 12); head.writeUInt32LE(0x4e4f534a, 16);
+  writeFileSync(join(dir, "t.glb"), Buffer.concat([head, body]));
+  writeFileSync(join(dir, "map.json"), JSON.stringify({ joints }));
+  return spawnSync(process.execPath, [fileURLToPath(new URL("../tools/glb-measure.mjs", import.meta.url)), join(dir, "t.glb"), join(dir, "map.json")], { encoding: "utf8" });
+}
+
+for (const [label, spec, msg] of [
+  ["missing along_local_y_m", { node: "B" }, /LeftToeBase.*along_local_y_m/],
+  ["non-finite along_local_y_m", { node: "B", along_local_y_m: "x" }, /LeftToeBase.*along_local_y_m/],
+  ["missing node", { along_local_y_m: 0.2 }, /LeftToeBase.*node/],
+  ["empty node", { node: "", along_local_y_m: 0.2 }, /LeftToeBase.*node/],
+  ["null entry", null, /LeftToeBase/],
+  ["array entry", ["B"], /LeftToeBase/],
+  ["unknown node", { node: "Nope", along_local_y_m: 0.2 }, /LeftToeBase.*Nope/],
+]) {
+  test(`glb-measure rejects a map entry with ${label}`, () => {
+    const r = runMeasure({ LeftToeBase: spec });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, msg);
+    assert.doesNotMatch(r.stderr, /TypeError|undefined/);
+  });
+}
+
+test("glb-measure still accepts a plain string entry (old path)", () => {
+  const r = runMeasure({ LeftToeBase: "B" });
+  assert.doesNotMatch(r.stderr, /rig has no node|along_local_y_m/);
 });
