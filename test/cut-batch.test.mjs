@@ -318,6 +318,12 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, sourse: "x" }] })), /unknown key sourse/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { hair: [] } }] })), /unknown override hair/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { neck: 1 } } }] })), /unknown plane row neck/);
+  // shoulder_mode: a named mode, "joint" (today) or "tilt"; tilt keeps the plane at the arm joint
+  for (const m of ["joint", "tilt"]) assert.equal(loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: m } } }] })).bodies.length, 1);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: "slant" } } }] })), /shoulder_mode must be one of joint, tilt/);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: 0.3 } } }] })), /shoulder_mode must be one of/);
+  assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, overrides: { planes: { shoulder_mode: "tilt", shoulder_frac: 0.3 } } }] })), /shoulder_frac must be absent or 0/);
+  assert.deepEqual(cutOpts({ name: "a", rig_map: "data/rig-maps/v1-65.json", overrides: { planes: { shoulder_mode: "tilt" } } }).planes, { shoulder_mode: "tilt" });
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [ok, ok] })), /duplicate/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, expect_sha256: "abc" }] })), /expect_sha256/);
   assert.throws(() => loadRows(write({ schema: "cut-bodies/1", bodies: [{ ...ok, name: "../x" }] })), /plain file stem/);
@@ -404,15 +410,25 @@ test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records th
   assert.match(b.note, /repair/i);
 });
 
-test("anime-girl-blonde-106 (V3 body): a blocked row that names exactly the checks it still fails and why (narrow shoulders over a wide waist; not a validator bypass)", () => {
+test("shoulder_mode tilt reaches the plane: the shipped anime-girl row's override turns the shoulder plane away from today's vertical one (fails on a tool without the mode)", async () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const o = cutOpts(bodies.find((x) => x.name === "anime-girl-blonde-106"));
+  assert.equal(o.planes.shoulder_mode, "tilt");
+  const { buildPlanes } = await import("../tools/cut-units.mjs");
+  const J = { Hips: [0, 0.87, 0], Spine: [0, 0.92, 0], Neck: [0, 1.27, 0], Head: [0, 1.35, 0], LeftArm: [0.108, 1.23, 0], LeftForeArm: [0.33, 1.22, 0], RightArm: [-0.108, 1.23, 0], RightForeArm: [-0.33, 1.22, 0], LeftUpLeg: [0.077, 0.83, 0], LeftLeg: [0.057, 0.48, 0], RightUpLeg: [-0.077, 0.83, 0], RightLeg: [-0.057, 0.48, 0] };
+  const skirt = [0.2, 0.7, 0];
+  assert.ok(buildPlanes(J).shoulder_left.d(skirt) > 0, "today's plane puts a 0.2 m wide skirt vertex on the arm side");
+  assert.ok(buildPlanes(J, null, o.planes, { left: 0.65, right: 0.65 }).shoulder_left.d(skirt) < 0, "the turned plane puts it on the body side");
+});
+
+test("anime-girl-blonde-106 (V3 body): a pinned, unblocked row whose only override is the general narrow-shoulder mode (planes.shoulder_mode tilt)", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
   const b = bodies.find((x) => x.name === "anime-girl-blonde-106");
   assert.equal(b.source, "anime-girl-blonde-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
-  assert.deepEqual(b.blocked_checks, ["watertight", "orientation"]);
-  assert.match(b.blocked, /shoulder/);
-  assert.match(b.blocked, /bone_side/);
-  assert.match(b.blocked, /0\.3/);
-  assert.deepEqual(b.overrides ?? {}, {}, "the blocked row is the default planes: no per-body hack");
-  assert.equal(b.expect_sha256, undefined);
+  assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
+  assert.equal(b.blocked_checks, undefined);
+  assert.deepEqual(b.overrides, { planes: { shoulder_mode: "tilt" } }, "no per-body plane numbers, no weights, no accessory sets");
+  assert.match(b.expect_sha256, /^[0-9a-f]{64}$/);
+  assert.match(b.note, /narrow/i);
 });

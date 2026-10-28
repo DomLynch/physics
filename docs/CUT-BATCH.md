@@ -26,7 +26,7 @@ node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--ou
 | `plain` | true when the source is already plain (no decompress step; the manifest `source` string is the file's own name) |
 | `rig_map` | `data/rig-maps/mixamo-106.json` or `data/rig-maps/v1-65.json` (any rig-map/1 file) |
 | `measure` | where the committed measure row lives (compared, written with `--update-measure`) |
-| `overrides.planes` | `neck_frac` (0.5, Neck to Head), `waist_frac` (1, Hips to Spine), `shoulder_frac` (0, Arm to ForeArm), `hip_frac` (0, UpLeg to Leg): fraction of the way along the joint pair; the defaults are the contract's start values |
+| `overrides.planes` | `neck_frac` (0.5, Neck to Head), `waist_frac` (1, Hips to Spine), `shoulder_frac` (0, Arm to ForeArm), `hip_frac` (0, UpLeg to Leg): fraction of the way along the joint pair; the defaults are the contract's start values; `shoulder_mode` (`"joint"` default, or `"tilt"`, see Narrow shoulders below) |
 | `overrides.hair_materials` | exact material names that go whole to the head (default: names matching `/hair\|lash\|brow/i`; `[]` turns it off) |
 | `overrides.rigid_accessory_materials` | layered or wide garments kept whole (below): a list of material or mesh names, each a string or `{ name, piece?, shells_inside? }` |
 | `overrides.plane_snap_m` | metres (0 to 0.0001, the validator's plane tolerance): how close to a plane a vertex counts as on it. Default `5e-5 x body height`, which on a body over 2.0 m is above the validator's 1e-4 plane tolerance |
@@ -107,6 +107,19 @@ Results (VPS, 2026-10-28, tool = this change, sources = V3 PRs at the heads in t
 | the-boss-106 (V3 #242 head 43916a8, rebuilt with a closed body shell) | not run | jacket (`Clothes_MAT`, upper_torso) and trousers (`Clothes_MAT.001`, root, hat excluded by `shells_inside`) | **PASS** (8 of 8) | 367554e5baddc5e921e9ba007ced91b7b9def499818d29a4cfb0d85d6ef2404a |
 
 Kachujin needs both parts: the accessories alone leave the planes violation, `plane_snap_m` alone leaves the 8 over-used and 21 flipped edges. The PR #232 Boss had no layer over a body shell: its torso was the jacket and its legs the trousers, so keeping either whole removed the waist section or the legs. PR #242 adds a closed body shell under both, and the same tool then passes (three runs, identical bytes); the pass is sensitive to the shell shape near the crotch (3 of 12 shell variants passed).
+
+### Narrow shoulders (row override `planes.shoulder_mode`)
+
+**Why bone_side failed when the plane moved.** The shoulder plane is a vertical plane through the LeftArm joint (x = +-0.108 m on anime-girl-blonde-106). A body whose waist, hips or skirt is wider than that has vertices beyond the plane at y 0.89 to 0.95; those land on the arm side, become arm-piece triangles, and the section loops stop nesting (over-used and flipped edges). Moving the plane outward along the arm (`shoulder_frac` 0.3) clears them, but `bone_side` takes its sides from the skeleton: a joint is on the arm side when it sits on or past the plane and its parent is behind it. With the plane past the LeftArm joint, LeftArm is behind it, so the arm piece (anchored on LeftArm, with the upper arm's own weights) now uses a bone "across the cut": 221 piece and 66 cap vertices, weights up to 0.303. The plane may move along the skeleton only between the parent joint and the arm joint; the plane's position along the arm is not free.
+
+**The rule (`"shoulder_mode": "tilt"`).** Keep the plane at the arm joint (so the skeleton's sides, and bone_side, are exactly today's) and change only its direction: turn it about the joint, in the plane of the horizontal shoulder normal and the vertical, by the smallest tilt `t` that puts every vertex owned by another region on the body side of it. The owner of a vertex is the region with most of its skin weight; the head (cut by the neck plane) and the other arm are left out, and so are vertices less than a quarter of the upper arm's length below the joint (deltoid, trapezius: the weights decide those). For a vertex `p`, `t >= (n.(p - A) + 0.5 mm) / (A.y - p.y)`; the plane is `n' = unit(n + t up)` through `A`. Everything comes from the body's own joints and weights; no number is in the row. `"joint"` (the default, and any row without the key) is the unchanged plane, byte for byte. `shoulder_frac` must stay 0 with `tilt`; a turn past 45 degrees (tan 1) is refused with the vertex named, because that body needs another rule or a fixed source. The manifest's plane `source` text and the cut report (`shoulder_tilt`) record the turn.
+
+| body | default planes | `shoulder_mode tilt` | turn |
+|---|---|---|---|
+| anime-girl-blonde-106 (V3 #236, 4afdaf9) | 6 of 8 (watertight, orientation) | **8 of 8**, no other override, sha256 5b8cb96e61b7242c6312a370678c81dce43cbff7863e718cad46a2b852999fde | 33.0 / 33.0 degrees |
+| the-boss-106 (V3 #232, 9d5a66b, the same GLB the row was blocked on) | 5 of 8 (watertight, orientation, caps) | 5 of 8: the same three still fail (bone_side and planes pass, so the mode is consistent on this body too); the row's cause, the jacket hem over the trouser waistband, is a source layering problem the shoulder plane does not fix; the row stays blocked | 39.3 / 36.9 degrees |
+
+Byte-identical proof (VPS, origin/main 3625aa0 code against this change, same row file and sources): the ten shipped rows whose sources are on the box (minotaur, psyche, gargantua, arachne, brute, hunter-pitborn, pumpkinhulk, anime-boy-black, kachujin, castle-guard) give 20 files, GLB and manifest, with equal sha256 before and after.
 
 ## Tests
 
