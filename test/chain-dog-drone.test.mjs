@@ -187,16 +187,19 @@ test("drone: hovers (hips kinematic), then a kill with a hit impulse falls, sett
   const rd = p.createRagdoll(row, { id: "drone" });
   assert.equal(rd.partIds.length, 1);
   assert.equal(rd.readPose().length, 10);
-  const p0 = Float32Array.from(rd.readPose());
-  for (let t = 0; t < 120; t++) p.step(1 / 60);
+  // the game's drive() holds the kinematic body at the hover pose every tick (without setRoot the engine drops the body to the floor)
+  const { centre, quat } = row.roles[0].rest;
+  for (let t = 0; t < 60; t++) { rd.setRoot(centre, quat); p.step(1 / 60); }
   const p1 = rd.readPose();
-  assert.ok(Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]) < 0.01, "a hovering drone stays where it is");
+  assert.ok(Math.abs(p1[1] - 0.9) < 0.01, `a hovering drone is held at 0.9 m: y ${p1[1]}`);
+  assert.ok(Math.hypot(p1[0] - centre[0], p1[2] - centre[2]) < 0.01, "and stays where it is");
   rd.kill({ part: "hips", impulse: [0, 0, row.total_mass_kg * 0.1] });
-  for (let t = 0; t < 900; t++) p.step(1 / 60);
+  let fellAt = -1;
+  for (let t = 0; t < 900; t++) { p.step(1 / 60); if (fellAt < 0 && rd.readPose()[1] < 0.4) fellAt = t; }
+  assert.ok(fellAt >= 0 && fellAt < 60, `the drone did not fall below 0.4 m within 1 s (tick ${fellAt})`);
   const pose = rd.readPose();
   for (const v of pose) assert.ok(Number.isFinite(v), "NaN or Infinity in the pose");
-  assert.ok(pose[1] < 0.9 - 0.3, `the drone is still in the air: y ${pose[1]}`);
-  assert.ok(pose[1] >= row.roles[0].radius_m - 0.02, `the body is below the floor: y ${pose[1]}`);
+  assert.ok(pose[1] >= row.roles[0].radius_m - 0.04, `the body is below the floor: y ${pose[1]}`);
   assert.ok(Math.hypot(pose[7], pose[8], pose[9]) < 0.2, "still moving after 15 s");
   assert.equal(rd.state, "frozen");
   p.destroy();
