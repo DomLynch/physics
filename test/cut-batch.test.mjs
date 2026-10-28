@@ -328,12 +328,12 @@ test("rows are checked: unknown keys, unknown overrides, duplicate names and bad
 
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["arachne-106", "big-vegas-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "arachne-106", "big-vegas-106", "brute-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
   }
-  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
+  for (const n of ["minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "brute-106", "hunter-pitborn-106", "pumpkinhulk-106", "parasite-106", "anime-boy-black-106"]) assert.match(bodies.find((b) => b.name === n).expect_sha256, /^[0-9a-f]{64}$/);
 });
 
 test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {
@@ -354,4 +354,14 @@ test("big-vegas-106 (V3 boss The King): a blocked row that names exactly the che
   assert.deepEqual(b.blocked_checks, ["watertight", "orientation", "caps"]);
   assert.match(b.blocked, /midline/);
   assert.equal(b.expect_sha256, undefined);
+});
+
+test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records the 3 position-only source repairs and the native open edges", () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "anime-boy-black-106");
+  assert.equal(b.source, "anime-boy-black-106.glb");
+  assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
+  assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
+  for (const n of ["94", "70", "12", "602"]) assert.match(b.note, new RegExp(n), `the note records ${n}`);
+  assert.match(b.note, /repair/i);
 });
