@@ -3,8 +3,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createPhysics, buildChainRow, loadChainBody, chainBoneMap, validateChainSpec } from "../src/index.mjs";
+import * as pkg from "../src/index.mjs";
+import { createPhysics, buildChainRow, loadChainBody, chainBoneMap, chainBoneObjects, chainBodyNames, validateChainSpec } from "../src/index.mjs";
+const { chainFollowMap, chainVirtualParts, chainFollowObjects } = pkg; // the roach rig's driven-or-virtual parts and follower bones (looked up by name so a missing export fails one test, not the file)
 import { buildDefinition } from "../src/engine.mjs";
+import { segSegDist } from "../src/generate.mjs";
+import { qmul, qconj } from "../src/math.mjs";
 
 const read = (f) => JSON.parse(readFileSync(new URL(`../data/bodies/${f}`, import.meta.url), "utf8"));
 const spec = read("salamander.chain.json"), bones = read("salamander.bones.json");
@@ -331,4 +335,237 @@ test("budget rows: rat_king_x7 and crow_x7 are chain sets of seven bodies, tail 
     assert.equal(set.part_map.spine2, "chest");
     assert.ok(!set.scenarios.includes("dying_multi_cut"));
   }
+});
+
+// ---- the roach rig family: spider (27 bones) and giant centipede (75 bones, ONE rigid 'body' bone, no spine). Both are chain bodies; numbers are placeholders.
+const ROACH = {
+  spider: {
+    parts: 14, kg: [20, 120], legRoots: 6, virtual: [], driven: ["body", "thorax", "head", "abdomen"],
+    kill: { part: "body", impulse: [0, 0, 80] }, knock: { part: "thorax", impulse: [90, 70, 0] }, unit: "leg_front_R", carries: ["leg0R_up", "leg0R_low"], cutPart: "thorax",
+  },
+  centipede: {
+    parts: 19, kg: [8, 80], legRoots: 22, virtual: ["seg1", "seg4", "seg6"], driven: ["body", "thorax", "head", "abdomen"],
+    kill: { part: "seg3", impulse: [0, 0, 50] }, knock: { part: "seg2", impulse: [50, 40, 0] }, unit: "tail", carries: ["seg5", "seg6", "bank5L", "bank5R", "bank6L", "bank6R"], cutPart: "seg3",
+  },
+};
+const roachSpec = (n) => read(`${n}.chain.json`), roachBones = (n) => read(`${n}.bones.json`);
+
+for (const name of Object.keys(ROACH)) {
+  const X = ROACH[name];
+
+  test(`${name}: spec validates, parent-first, ${X.parts} parts, placeholder numbers marked, plausible total mass, scale 3 (Armagedom model scale)`, () => {
+    const spec = roachSpec(name), bones = roachBones(name);
+    assert.equal(spec.schema, "chain-body/1");
+    assert.equal(spec.name, name);
+    assert.equal(spec.segments.length, X.parts);
+    assert.equal(spec.placeholder, true);
+    assert.ok(spec.placeholder_note && spec.mass_assumption && spec.scale_source && spec.about);
+    assert.equal(spec.scale, 3);
+    assert.deepEqual(validateChainSpec(spec, bones), []);
+    const total = spec.segments.reduce((a, s) => a + s.mass, 0);
+    assert.ok(total > X.kg[0] && total < X.kg[1], `${total} kg`);
+    for (const s of spec.segments) assert.ok(s.source, `${s.id}: every number names where it came from`);
+    assert.equal(spec.segments[0].parent, null);
+  });
+
+  test(`${name}: bones file = the GLB node positions (real bones) plus flagged synthetic anchors only`, () => {
+    const bones = roachBones(name);
+    assert.equal(bones.schema, "chain-bones/1");
+    assert.equal(bones.body, name);
+    const real = Object.entries(bones.bones).filter(([, b]) => !b.synthetic), synth = Object.entries(bones.bones).filter(([, b]) => b.synthetic);
+    assert.equal(real.length, name === "spider" ? 27 : 75, "every skin joint of the GLB");
+    for (const [k, b] of synth) assert.ok(b.note && b.pos.length === 3, `synthetic ${k} says why`);
+    for (const [k, b] of real) assert.ok(b.pos.length === 3 && b.pos.every(Number.isFinite) && (b.parent === null || bones.bones[b.parent]), k);
+    assert.equal(bones.bones.root.parent, null);
+    assert.equal(bones.bones.body.parent, "root");
+  });
+
+  test(`${name}: boneMap, followers and virtual parts: no bone is driven or followed twice, every leg root is covered once`, () => {
+    const spec = roachSpec(name), bones = roachBones(name);
+    const map = chainBoneMap(spec), follow = chainFollowMap(spec), virt = chainVirtualParts(spec);
+    assert.deepEqual(virt, X.virtual);
+    assert.equal(Object.keys(map).length + virt.length, X.parts);
+    for (const v of virt) assert.ok(!(v in map), `${v} is virtual: no bone`);
+    for (const [part, bone] of Object.entries(map)) assert.ok(bones.bones[bone] && !bones.bones[bone].synthetic, `${part} -> ${bone} is a real bone`);
+    const all = [...Object.values(map), ...Object.values(follow).flat()];
+    assert.equal(new Set(all).size, all.length, "a bone is driven or followed by one part only");
+    for (const b of X.driven) assert.ok(Object.values(map).includes(b) || all.includes(b), `${b} moves with the ragdoll`);
+    const legRoots = Object.keys(bones.bones).filter((b) => /^leg_/.test(b));
+    assert.equal(legRoots.length, X.legRoots);
+    for (const b of legRoots) assert.equal(all.filter((x) => x === b).length, 1, `leg bone ${b} is driven or followed exactly once`);
+    const body = loadChainBody(name);
+    assert.deepEqual(body.boneMap, map);
+    assert.deepEqual(body.followMap, follow);
+    assert.deepEqual(body.virtualParts, virt);
+    assert.ok(chainBodyNames().includes(name));
+  });
+
+  test(`${name}: chainBoneObjects hands the game an Object3D for each driven part and refuses a model missing one`, () => {
+    const spec = roachSpec(name), map = chainBoneMap(spec);
+    const objs = chainBoneObjects(spec, (n) => ({ name: n }));
+    assert.deepEqual(Object.keys(objs), Object.keys(map));
+    for (const [part, o] of Object.entries(objs)) assert.equal(o.name, map[part]);
+    assert.throws(() => chainBoneObjects(spec, (n) => (n === "head" ? null : { name: n })), /head/);
+    const f = chainFollowObjects(spec, (n) => ({ name: n }));
+    assert.deepEqual(Object.keys(f), Object.keys(chainFollowMap(spec)));
+  });
+
+  test(`${name}: row builds, rest pose has no overlapping capsules except parent and child (else the spawn explodes)`, () => {
+    const spec = roachSpec(name), row = buildChainRow(spec, roachBones(name));
+    assert.equal(row.roles.length, X.parts);
+    assert.equal(row.kind, "chain");
+    const ends = row.roles.map((r) => ({ a: r.rest.pivot, b: [0, 1, 2].map((k) => r.rest.pivot[k] + r.rest.dir[k] * r.length_m), r: r.radius_m }));
+    const idx = Object.fromEntries(row.roles.map((r, i) => [r.id, i]));
+    let worst = Infinity, who = "";
+    for (let i = 0; i < ends.length; i++) for (let j = i + 1; j < ends.length; j++) {
+      if (row.roles[i].parent === row.roles[j].id || row.roles[j].parent === row.roles[i].id) continue;
+      const gap = segSegDist(ends[i].a, ends[i].b, ends[j].a, ends[j].b) - ends[i].r - ends[j].r;
+      if (gap < worst) { worst = gap; who = `${row.roles[i].id}/${row.roles[j].id}`; }
+    }
+    assert.ok(worst > -0.002, `${who} overlap by ${-worst} m at rest`);
+    for (const r of row.roles) assert.ok(r.half_height_m >= 0.01 && r.radius_m > 0 && r.mass_kg > 0 && Number.isFinite(r.reach_m), r.id);
+    assert.ok(idx[X.unit] === undefined, "a severable unit id is not a part id");
+    assert.ok(row.height_m > 0.1 && row.height_m < 2, `height ${row.height_m} m`);
+  });
+
+  test(`${name}: createRagdoll makes ${X.parts} bodies and holds its rest pose with the root kinematic`, async () => {
+    const p = await createPhysics({ seed: 1 });
+    const rd = p.createRagdoll(loadChainBody(name).row, { id: name });
+    assert.equal(rd.partIds.length, X.parts);
+    assert.equal(rd.readPose().length, X.parts * 10);
+    const p0 = Float32Array.from(rd.readPose());
+    for (let t = 0; t < 120; t++) p.step(1 / 60);
+    const p1 = rd.readPose();
+    let worst = 0;
+    for (let i = 0; i < X.parts; i++) worst = Math.max(worst, Math.hypot(p1[i * 10] - p0[i * 10], p1[i * 10 + 1] - p0[i * 10 + 1], p1[i * 10 + 2] - p0[i * 10 + 2]));
+    for (const v of p1) assert.ok(Number.isFinite(v));
+    assert.ok(worst < 0.25, `a part drifted ${worst} m`);
+    p.destroy();
+  });
+
+  for (const [hit, how] of [["pushed", X.kill], ["knocked", X.knock]]) test(`${name}: killed ${hit}: it flops (distances between parts change), settles, freezes on the floor, no NaN`, async () => {
+    const p = await createPhysics({ seed: 1 });
+    const rd = p.createRagdoll(loadChainBody(name).row, { id: name });
+    for (let t = 0; t < 30; t++) p.step(1 / 60);
+    const p0 = Float32Array.from(rd.readPose());
+    rd.kill(how);
+    for (let t = 0; t < 1500; t++) p.step(1 / 60);
+    const pose = rd.readPose();
+    for (const v of pose) assert.ok(Number.isFinite(v), "NaN or Infinity in the pose");
+    let maxSpeed = 0, minY = Infinity, shape = 0, bend = 0;
+    const dist = (q, i) => Math.hypot(q[i * 10] - q[0], q[i * 10 + 1] - q[1], q[i * 10 + 2] - q[2]);
+    for (let i = 0; i < X.parts; i++) {
+      maxSpeed = Math.max(maxSpeed, Math.hypot(pose[i * 10 + 7], pose[i * 10 + 8], pose[i * 10 + 9]));
+      minY = Math.min(minY, pose[i * 10 + 1]);
+      shape = Math.max(shape, Math.abs(dist(pose, i) - dist(p0, i))); // rotating or sliding the whole creature does not count, only a part moving relative to the root part
+      // how far each part turned relative to the root part (a leg folding or a segment bending), in degrees
+      const rel = (q) => qmul(qconj([q[3], q[4], q[5], q[6]]), [q[i * 10 + 3], q[i * 10 + 4], q[i * 10 + 5], q[i * 10 + 6]]), a = rel(p0), b = rel(pose);
+      bend = Math.max(bend, 2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180 / Math.PI);
+    }
+    const m = JSON.stringify({ bendDeg: +bend.toFixed(1), shape: +shape.toFixed(3), rootDy: +(pose[1] - p0[1]).toFixed(3), maxSpeed: +maxSpeed.toFixed(3), minY: +minY.toFixed(3), state: rd.state });
+    // measured on the first run: 12 to 25 degrees. These creatures rest almost on the floor (the spider's body bottom is 4 cm up, its feet 3 cm), so a limp ragdoll
+    // sags about 5 cm and its legs fold 12 to 25 degrees; a deeper curl has to come from the death clip used as the motor target during the ramp, not from gravity.
+    assert.ok(bend > 10, `no part turned relative to the root: the body kept its rest shape ${m}`);
+    assert.ok(pose[1] < p0[1] - 0.02, `the root part did not sink ${m}`);
+    assert.ok(maxSpeed < 0.2, `still moving after 25 s ${m}`);
+    assert.ok(minY > -0.02, `a part is below the floor ${m}`);
+    assert.equal(rd.state, "frozen", m);
+    p.destroy();
+  });
+
+  test(`${name}: cutting ${X.unit} frees its parts only`, async () => {
+    const p = await createPhysics({ seed: 1 });
+    const rd = p.createRagdoll(loadChainBody(name).row, { id: name });
+    const r = rd.cut(X.unit);
+    assert.equal(r.unit, X.unit);
+    assert.deepEqual(r.carries_roles, X.carries);
+    assert.ok(r.mass_kg > 0);
+    assert.equal(rd.cut(X.unit), null);
+    for (let t = 0; t < 60; t++) p.step(1 / 60);
+    for (const v of rd.readPose()) assert.ok(Number.isFinite(v));
+    assert.throws(() => rd.cut("head_split"), /unknown severable unit/);
+    p.destroy();
+  });
+
+  test(`${name}: deterministic, same inputs give the same per-tick hash`, async () => {
+    const run = async () => {
+      const p = await createPhysics({ seed: 3 });
+      const rd = p.createRagdoll(loadChainBody(name).row, { id: name });
+      const hashes = [];
+      for (let t = 0; t < 300; t++) {
+        if (t === 40) rd.cut(X.unit);
+        if (t === 60) rd.kill({ part: X.kill.part, impulse: [X.kill.impulse[2] / 10, 2, X.kill.impulse[2]] });
+        p.step(1 / 60);
+        hashes.push(p.hash());
+      }
+      p.destroy();
+      return hashes;
+    };
+    const a = await run(), b = await run();
+    assert.deepEqual(a, b);
+    assert.notEqual(a[0], a[299]);
+  });
+
+  test(`${name}: budget set ${name}_x7 is a chain set of 7 bodies with a cut mapping`, () => {
+    const rows = JSON.parse(readFileSync(new URL("../data/budget-rows.json", import.meta.url), "utf8"));
+    const set = rows.sets.find((s) => s.id === `${name}_x7`);
+    assert.ok(set, "set row");
+    assert.equal(set.kind, "chain");
+    assert.deepEqual(set.bodies, Array(7).fill(name));
+    assert.equal(set.unit_map.arm_right, X.unit);
+    assert.equal(set.part_map.spine2, X.cutPart);
+    assert.ok(set.note);
+  });
+}
+
+test("centipede: the chain runs along the body's long axis, head in front, and each leg pair rides the segment it is under", () => {
+  const spec = roachSpec("centipede"), bones = roachBones("centipede"), S = spec.scale, row = buildChainRow(spec, bones);
+  const seg = row.roles.filter((r) => /^seg\d$/.test(r.id));
+  assert.ok(seg.length >= 6 && seg.length <= 8, `${seg.length} body segments`);
+  const span = (r) => { const z0 = r.rest.pivot[2], z1 = z0 + r.rest.dir[2] * r.length_m; return [Math.min(z0, z1), Math.max(z0, z1)]; };
+  for (const r of seg) assert.ok(Math.abs(r.rest.dir[2]) > 0.99, `${r.id} lies along z`);
+  const spans = seg.map(span).sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < spans.length; i++) assert.ok(spans[i][0] <= spans[i - 1][1] + 1e-3, "segments touch end to end, no gap");
+  const legZ = Object.entries(bones.bones).filter(([k]) => /^leg_/.test(k)).map(([, b]) => b.pos[2] * S);
+  assert.ok(spans[0][0] <= Math.min(...legZ) + 1e-3 && spans[spans.length - 1][1] >= Math.max(...legZ) - 1e-3, "the chain covers every leg attachment");
+  const head = row.roles.find((r) => r.id === "head");
+  assert.ok(head.rest.pivot[2] > Math.max(...legZ), "the head is in front of the first leg pair");
+  const byId = Object.fromEntries(row.roles.map((r) => [r.id, r]));
+  const spans2 = Object.fromEntries(seg.map((r) => [r.id, span(r)]));
+  const map = chainBoneMap(spec), follow = chainFollowMap(spec);
+  let banks = 0;
+  for (const r of row.roles.filter((x) => /^bank/.test(x.id))) {
+    banks++;
+    const [lo, hi] = spans2[r.parent];
+    for (const b of [map[r.id], ...(follow[r.id] || [])]) { const z = bones.bones[b].pos[2] * S; assert.ok(z >= lo - 1e-3 && z <= hi + 1e-3, `${b} (z ${z}) is outside ${r.parent} [${lo}, ${hi}]`); }
+    assert.equal(byId[r.id].joint.type, "ball");
+  }
+  assert.equal(banks, 12, "six leg banks per side count");
+  assert.equal(row.roles[0].id, "seg3");
+  assert.equal(map.seg3, "body", "the root segment drives the single rigid body bone: every other bone hangs off it");
+  assert.equal(map.seg2, "thorax");
+  assert.equal(map.seg5, "abdomen");
+  assert.equal(map.head, "head");
+});
+
+test("spider: six leg roots, each driven by its own part, front and rear legs have two segments, middle legs one", () => {
+  const spec = roachSpec("spider"), map = chainBoneMap(spec);
+  for (const n of [0, 1, 2]) for (const s of ["L", "R"]) assert.ok(Object.values(map).includes(`leg_${n}${s}`));
+  for (const s of ["L", "R"]) { assert.ok(Object.values(map).includes(`shin_0${s}`) && Object.values(map).includes(`shin_2${s}`)); assert.ok(!Object.values(map).includes(`shin_1${s}`)); }
+  assert.equal(map.body, "body");
+  assert.equal(spec.segments[0].id, "body");
+  assert.deepEqual(chainVirtualParts(spec), []);
+});
+
+test("validateChainSpec on the new fields: drives/follow must be real bones, no bone twice, a synthetic anchor needs an explicit drives", () => {
+  const spec = roachSpec("centipede"), bones = roachBones("centipede");
+  const errs = (mutate) => { const s = JSON.parse(JSON.stringify(spec)), b = JSON.parse(JSON.stringify(bones)); mutate(s, b); return validateChainSpec(s, b); };
+  assert.ok(errs((s) => { s.segments[1].drives = "no_such_bone"; }).length > 0, "unknown drives");
+  assert.ok(errs((s) => { s.segments[1].drives = "axis_f2"; }).length > 0, "drives a synthetic anchor");
+  assert.ok(errs((s) => { delete s.segments[1].drives; }).length > 0, "synthetic bone without drives");
+  assert.ok(errs((s) => { s.segments.find((x) => x.id === "bank1L").follow = ["leg_c0L"]; }).length > 0, "a bone followed by a part and driven by another");
+  assert.ok(errs((s) => { s.segments.find((x) => x.id === "bank1L").follow = "leg_c0R"; }).length > 0, "follow must be an array");
+  assert.ok(errs((s) => { s.segments.find((x) => x.id === "bank1L").follow = ["no_such_bone"]; }).length > 0, "unknown follow bone");
+  assert.ok(errs((s) => { s.segments.find((x) => x.id === "seg1").drives = "body"; }).length > 0, "two parts drive body");
+  assert.deepEqual(errs(() => {}), []);
 });

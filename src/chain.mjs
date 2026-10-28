@@ -17,6 +17,10 @@ import DRONE_SPEC from "../data/bodies/drone.chain.json" with { type: "json" };
 import DRONE_BONES from "../data/bodies/drone.bones.json" with { type: "json" };
 import { frameQuat, severableRow } from "./generate.mjs";
 
+import SPIDER_SPEC from "../data/bodies/spider.chain.json" with { type: "json" };
+import SPIDER_BONES from "../data/bodies/spider.bones.json" with { type: "json" };
+import CENTIPEDE_SPEC from "../data/bodies/centipede.chain.json" with { type: "json" };
+import CENTIPEDE_BONES from "../data/bodies/centipede.bones.json" with { type: "json" };
 import RAT_KING_SPEC from "../data/bodies/rat-king.chain.json" with { type: "json" };
 import RAT_KING_BONES from "../data/bodies/rat-king.bones.json" with { type: "json" };
 import CROW_SPEC from "../data/bodies/crow.chain.json" with { type: "json" };
@@ -31,6 +35,8 @@ const BODIES = {
   wolf: { spec: WOLF_SPEC, bones: WOLF_BONES },
   dog: { spec: DOG_SPEC, bones: DOG_BONES },
   drone: { spec: DRONE_SPEC, bones: DRONE_BONES },
+  spider: { spec: SPIDER_SPEC, bones: SPIDER_BONES },
+  centipede: { spec: CENTIPEDE_SPEC, bones: CENTIPEDE_BONES },
 };
 const round = (x, n = 5) => Math.round(x * 10 ** n) / 10 ** n;
 const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -67,6 +73,22 @@ export function validateChainSpec(spec, bones) {
     else errs.push(`${at}: joint type must be ball or hinge`);
   });
   for (const [role, v] of Object.entries(spec.hinge_flex_z || {})) if (v !== 1 && v !== -1) errs.push(`hinge_flex_z.${role} must be 1 or -1`);
+  // which model bone each part moves: drives (default: bone; null = a virtual part with no bone) and follow (extra bones that copy the part's rotation).
+  // A synthetic anchor (a measurement point that is not a model bone) is geometry only, so it can never be driven or followed; no bone moves for two parts.
+  const real = (b) => bones.bones[b] && !bones.bones[b].synthetic, moved = new Map();
+  spec.segments.forEach((s, i) => {
+    const at = `segment ${i} (${s.id})`, d = s.drives === undefined ? s.bone : s.drives;
+    if (d !== null) {
+      if (typeof d !== "string" || !bones.bones[d]) errs.push(`${at}: drives ${JSON.stringify(d)} is not a bone in the measurement`);
+      else if (!real(d)) errs.push(`${at}: drives ${d}, a synthetic anchor, not a model bone (set drives to a real bone, or null for a virtual part)`);
+    }
+    if (s.follow !== undefined && !Array.isArray(s.follow)) { errs.push(`${at}: follow must be an array of bones`); return; }
+    for (const b of [d, ...(s.follow || [])]) {
+      if (b === null || !real(b)) { if (b !== null && b !== d) errs.push(`${at}: follow ${JSON.stringify(b)} is not a real bone in the measurement`); continue; }
+      if (moved.has(b)) errs.push(`${at}: bone ${b} is already moved by ${moved.get(b)}`);
+      else moved.set(b, s.id);
+    }
+  });
   const ids = new Set(spec.segments.map((s) => s.id)), units = new Set();
   for (const u of spec.severable || []) {
     if (units.has(u.id)) errs.push(`severable ${u.id}: duplicate`);
@@ -132,18 +154,28 @@ export function buildChainRow(spec, bones, table = ROLE_TABLE) {
 }
 
 // part id -> bone name, for every body of the spec: { hips: "spine0", ... }. The game maps each name to its Object3D and passes that to createThreeRig.
+// A part's `drives` is the model bone it moves (default: its own `bone`); `drives: null` is a VIRTUAL part (physics only, no bone: a centipede segment that has no
+// bone of its own), left out of this map. Parts with a `follow` list also carry extra bones that must copy the part's rotation (see chainFollowMap).
 export function chainBoneMap(spec) {
-  return Object.fromEntries(spec.segments.map((s) => [s.id, s.bone]));
+  return Object.fromEntries(spec.segments.filter((s) => s.drives !== null).map((s) => [s.id, s.drives === undefined ? s.bone : s.drives]));
 }
 
-// the same map as Object3Ds: find(boneName) -> Object3D (e.g. (n) => gltf.scene.getObjectByName(n)). Throws on a bone the model does not have.
-export function chainBoneObjects(spec, find) {
-  return Object.fromEntries(Object.entries(chainBoneMap(spec)).map(([part, bone]) => {
-    const o = find(bone);
-    if (!o) throw new Error(`model has no bone ${bone} (part ${part})`);
-    return [part, o];
-  }));
+// part id -> extra bones that ride the part: { bank3L: ["leg_c4L"] }. Same rotation as the part's own bone, applied by the game (three-rig drives one bone per part).
+export function chainFollowMap(spec) {
+  return Object.fromEntries(spec.segments.filter((s) => s.follow && s.follow.length).map((s) => [s.id, [...s.follow]]));
 }
+
+// parts with no bone (drives: null): the ragdoll simulates them, nothing in the model moves for them
+export const chainVirtualParts = (spec) => spec.segments.filter((s) => s.drives === null).map((s) => s.id);
+
+// the same maps as Object3Ds: find(boneName) -> Object3D (e.g. (n) => gltf.scene.getObjectByName(n)). Throw on a bone the model does not have.
+const objectsOf = (entries, find) => Object.fromEntries(entries.map(([part, bone]) => {
+  const o = find(bone);
+  if (!o) throw new Error(`model has no bone ${bone} (part ${part})`);
+  return [part, o];
+}));
+export const chainBoneObjects = (spec, find) => objectsOf(Object.entries(chainBoneMap(spec)), find);
+export const chainFollowObjects = (spec, find) => Object.fromEntries(Object.entries(chainFollowMap(spec)).map(([part, bs]) => [part, bs.map((b) => objectsOf([[part, b]], find)[part])]));
 
 export const chainBodyNames = () => Object.keys(BODIES);
 
@@ -151,5 +183,5 @@ export const chainBodyNames = () => Object.keys(BODIES);
 export function loadChainBody(name) {
   const b = BODIES[name];
   if (!b) throw new Error(`unknown chain body ${name} (have: ${Object.keys(BODIES).join(", ")})`);
-  return { name, spec: b.spec, bones: b.bones, row: buildChainRow(b.spec, b.bones), boneMap: chainBoneMap(b.spec) };
+  return { name, spec: b.spec, bones: b.bones, row: buildChainRow(b.spec, b.bones), boneMap: chainBoneMap(b.spec), followMap: chainFollowMap(b.spec), virtualParts: chainVirtualParts(b.spec) };
 }
