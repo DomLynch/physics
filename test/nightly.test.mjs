@@ -164,6 +164,17 @@ test("data/nightly-rows.json: schema, cells well formed, sets and scenarios exis
   for (const k of ["boss106_warrok_x7/dying_all_cut/n7/cap", "boss106_mix/dying_all_cut/n3/cap"]) assert.ok(keys.has(k), k);
 });
 
+test("runNightly isolated (one node process per timed run): same shape as the in-process run", async () => {
+  const small = { ...nr, runs: 2, cells: [
+    { set: "boss106_mix", scenario: "dying_all_cut", n: 3, cap: true },
+  ] };
+  const res = await runNightly(small, br, { isolate: true, ticks: 60, warm_ticks: 10, target: "test", sha: "b".repeat(40), date: "2026-10-28" });
+  assert.deepEqual(validateResults(res), []);
+  assert.equal(res.cells["boss106_mix/dying_all_cut/n3/cap"].runs, 2);
+  assert.ok(res.cells["boss106_mix/dying_all_cut/n3/cap"].p95_ms > 0);
+  assert.deepEqual(res.skipped, []);
+});
+
 test("runNightly (reduced): valid nightly/1 file, medians of the runs, a cell whose tool is absent is skipped, not failed", async () => {
   const small = { ...nr, runs: 3, cells: [
     { set: "boss106_mix", scenario: "dying_all_cut", n: 3, cap: true },

@@ -18,7 +18,6 @@
     { "set": "elephant_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
     { "set": "wolf_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
     { "set": "dog_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
-    { "set": "drone_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
     { "set": "spider_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
     { "set": "centipede_x7", "scenario": "dying_all_cut", "n": 3, "cap": true },
     { "kind": "parked", "set": "parked", "scenario": "pool", "n": 30, "cap": false, "needs": "tools/parked-cost.mjs", "note": "30 pooled, never-killed humanoid ragdolls (parked:true), p95 ms per world.step; present once tools/parked-cost.mjs (PR #75) is on main" }
