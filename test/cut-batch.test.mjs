@@ -352,7 +352,7 @@ test("rows: overrides.rigid_accessory_materials is a list of names or {name, pie
 
 test("the shipped rows file is valid and lists every V3 body", () => {
   const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
-  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "arachne-106", "big-vegas-106", "brute-106", "castle-guard-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "kachujin-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "sporty-granny-106", "the-boss-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
+  assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "anime-girl-blonde-106", "arachne-106", "big-vegas-106", "brute-106", "castle-guard-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "kachujin-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "sporty-granny-106", "the-boss-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
     assert.ok(existsSync(new URL("../" + b.measure, import.meta.url)), b.measure);
@@ -388,4 +388,17 @@ test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records th
   assert.equal(b.blocked, undefined, "no validator bypass: the row passes all 8 checks");
   for (const n of ["94", "70", "12", "602"]) assert.match(b.note, new RegExp(n), `the note records ${n}`);
   assert.match(b.note, /repair/i);
+});
+
+test("anime-girl-blonde-106 (V3 body): a blocked row that names exactly the checks it still fails and why (narrow shoulders over a wide waist; not a validator bypass)", () => {
+  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const b = bodies.find((x) => x.name === "anime-girl-blonde-106");
+  assert.equal(b.source, "anime-girl-blonde-106.glb");
+  assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
+  assert.deepEqual(b.blocked_checks, ["watertight", "orientation"]);
+  assert.match(b.blocked, /shoulder/);
+  assert.match(b.blocked, /bone_side/);
+  assert.match(b.blocked, /0\.3/);
+  assert.deepEqual(b.overrides ?? {}, {}, "the blocked row is the default planes: no per-body hack");
+  assert.equal(b.expect_sha256, undefined);
 });
