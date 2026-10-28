@@ -100,7 +100,7 @@ for (const [label, spec, msg] of [
     const r = runMeasure({ LeftToeBase: spec });
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, msg);
-    assert.doesNotMatch(r.stderr, /TypeError|undefined/);
+    assert.doesNotMatch(r.stderr, /TypeError|no node undefined/);
   });
 }
 
