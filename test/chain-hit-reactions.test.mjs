@@ -142,17 +142,18 @@ test("motor strength returns to base: a staggered body settles to where an untou
   for (const base of [1, 0.8]) {
     const p = await createPhysics({ seed: 7 });
     const { row } = loadChainBody("wolf");
-    const hit = p.createRagdoll(row, { id: "hit", position: [0, 0, 0] }), calm = p.createRagdoll(row, { id: "calm", position: [30, 0, 0] });
-    hit.setMotorStrength({ all: base }); calm.setMotorStrength({ all: base });
+    const at = (id, x, strength) => { const r = p.createRagdoll(row, { id, position: [x, 0, 0] }); r.setMotorStrength({ all: strength }); return r; };
+    const hit = at("hit", 0, base), twin = at("twin", 30, base), twin2 = at("twin2", 60, base), held = at("held", 90, base * 0.4);
     for (let t = 0; t < 30; t++) p.step(TICK);
     hit.stagger(); // no impulse: only the motor dip
     assert.equal(hit.state, "stagger");
     for (let t = 0; t < 240; t++) p.step(TICK);
     assert.equal(hit.state, "alive");
-    const a = hit.readPose(), b = calm.readPose();
-    let worst = 0;
-    for (let i = 0; i < row.roles.length; i++) for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs((a[i * 10 + k] - a[k]) - (b[i * 10 + k] - b[k])));
-    assert.ok(worst < 2e-3, `base ${base}: parts differ from the untouched body by ${worst} m`);
+    const gap = (x, y) => { const a = x.readPose(), b = y.readPose(); let w = 0; for (let i = 0; i < row.roles.length; i++) for (let k = 0; k < 3; k++) w = Math.max(w, Math.abs((a[i * 10 + k] - a[k]) - (b[i * 10 + k] - b[k]))); return w; };
+    const toTwin = gap(hit, twin), floor = gap(twin, twin2), toHeld = gap(hit, held);
+    console.log(`base ${base}: hit-twin ${toTwin.toFixed(5)} twin-twin2 ${floor.toFixed(5)} hit-held ${toHeld.toFixed(5)}`);
+    assert.ok(toTwin <= floor + 2e-3, `base ${base}: hit vs untouched twin ${toTwin} m (twin vs twin ${floor} m)`);
+    assert.ok(toHeld > toTwin, `base ${base}: closer to a body held at the dip strength (${toHeld} m) than to its twin (${toTwin} m)`);
     p.destroy();
   }
 });
