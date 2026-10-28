@@ -24,7 +24,7 @@ const W = { // world bind-pose joint positions
 };
 const PARENT = { Spine: "Hips", Spine1: "Spine", Spine2: "Spine1", Neck: "Spine2", Head: "Neck", HeadTop_End: "Head", LeftShoulder: "Spine2", LeftArm: "LeftShoulder", LeftForeArm: "LeftArm", LeftHand: "LeftForeArm", RightShoulder: "Spine2", RightArm: "RightShoulder", RightForeArm: "RightArm", RightHand: "RightForeArm", LeftUpLeg: "Hips", LeftLeg: "LeftUpLeg", LeftFoot: "LeftLeg", LeftToeBase: "LeftFoot", RightUpLeg: "Hips", RightLeg: "RightUpLeg", RightFoot: "RightLeg", RightToeBase: "RightFoot" };
 const NAMES = Object.keys(W);
-const IDX = Object.fromEntries(NAMES.map((n, i) => [n, i]));
+const TOES = ["LeftToeBase", "RightToeBase"];
 
 const chain = (pts, v) => { // pts: ascending [coordinate, joint]; linear blend of the two neighbours
   if (v <= pts[0][0]) return [[pts[0][1], 1]];
@@ -117,20 +117,26 @@ async function buildBody(variant = {}) {
   const armature = doc.createNode("Armature");
   scene.addChild(armature);
   const nodes = {};
-  for (const n of NAMES) {
+  // variant.nineteen: the 19-joint Mixamo layout (Armagedom vagrant-106): Spine1 is a node of the tree but not a skin joint (its weight goes to Spine),
+  // and there are no toe nodes at all (their weight goes to the Foot)
+  const NODE_NAMES = variant.nineteen ? NAMES.filter((n) => !TOES.includes(n)) : NAMES;
+  const SK = variant.nineteen ? NODE_NAMES.filter((n) => n !== "Spine1") : NAMES;
+  const SKIDX = Object.fromEntries(SK.map((n, i) => [n, i]));
+  const ALIAS = variant.nineteen ? { Spine1: "Spine", LeftToeBase: "LeftFoot", RightToeBase: "RightFoot" } : {};
+  for (const n of NODE_NAMES) {
     const par = PARENT[n], pw = par ? W[par] : [0, 0, 0];
     nodes[n] = doc.createNode("mixamorig:" + n).setTranslation([W[n][0] - pw[0], W[n][1] - pw[1], W[n][2] - pw[2]]);
   }
   armature.addChild(nodes.Hips);
-  for (const n of NAMES) if (PARENT[n]) nodes[PARENT[n]].addChild(nodes[n]);
-  const ibm = new Float32Array(NAMES.length * 16);
-  NAMES.forEach((n, i) => ibm.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -W[n][0], -W[n][1], -W[n][2], 1], i * 16));
+  for (const n of NODE_NAMES) if (PARENT[n]) nodes[PARENT[n]].addChild(nodes[n]);
+  const ibm = new Float32Array(SK.length * 16);
+  SK.forEach((n, i) => ibm.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -W[n][0], -W[n][1], -W[n][2], 1], i * 16));
   // variant.quantLash: the lashes are quantised on their own, like gltfpack does per mesh: raw = (world - T) / S, and their skin's inverse binds carry the
   // dequantisation (jointWorld x IBM = [S, T] for every joint), so a reader must use this skin's matrix, not the first skin's
   const QUANT = { S: 0.25, T: [0.1, 0.2, -0.1] };
   const ibm2 = new Float32Array(NAMES.length * 16);
   NAMES.forEach((n, i) => ibm2.set([QUANT.S, 0, 0, 0, 0, QUANT.S, 0, 0, 0, 0, QUANT.S, 0, QUANT.T[0] - W[n][0], QUANT.T[1] - W[n][1], QUANT.T[2] - W[n][2], 1], i * 16));
-  const mkSkin = (ib = ibm) => { const s = doc.createSkin("skin").setInverseBindMatrices(doc.createAccessor().setType("MAT4").setArray(ib).setBuffer(buffer)); for (const n of NAMES) s.addJoint(nodes[n]); return s; };
+  const mkSkin = (ib = ibm) => { const s = doc.createSkin("skin").setInverseBindMatrices(doc.createAccessor().setType("MAT4").setArray(ib).setBuffer(buffer)); for (const n of SK) s.addJoint(nodes[n]); return s; };
   const acc = (type, arr) => doc.createAccessor().setType(type).setArray(arr).setBuffer(buffer);
   const matBody = doc.createMaterial("body"), matHorn = doc.createMaterial("horn"), matLash = doc.createMaterial("lash");
   const prim = (parts, material) => {
@@ -140,7 +146,7 @@ async function buildBody(variant = {}) {
       m.pos.forEach((p, i) => {
         pos.push(...p); nor.push(...m.nor[i]); uv.push(...m.uv[i]);
         const w = m.wts[i].slice(0, 4); while (w.length < 4) w.push(["Hips", 0]);
-        jj.push(...w.map((e) => IDX[e[0]])); ww.push(...w.map((e) => e[1]));
+        jj.push(...w.map((e) => SKIDX[ALIAS[e[0]] || e[0]])); ww.push(...w.map((e) => e[1]));
       });
       for (const i of m.idx) idx.push(base + i);
     }
@@ -734,3 +740,43 @@ for (const name of ["minotaur-106", "psyche-106"]) {
     assert.ok(Buffer.compare(Buffer.from(r.glb), Buffer.from(again.glb)) === 0, "not deterministic");
   });
 }
+
+// ---------------------------------------------------------------- 19-joint rigs (Armagedom vagrant-106, mixamo-19): Spine1 is a node outside the skin, the toes are synthesised
+// The toe entries are { node, along_local_y_m }: the synthetic bones have no rotation, so local +Y is world up and the toe sits 0.09 m below the Foot node (on the floor).
+const rigMap19 = {
+  schema: "rig-map/1",
+  joints: { ...rigMap.joints, LeftToeBase: { node: "mixamorig:LeftFoot", along_local_y_m: -0.09 }, RightToeBase: { node: "mixamorig:RightFoot", along_local_y_m: -0.09 } },
+};
+const row19 = (b) => ({ ...b.row, joints: { ...b.row.joints, LeftToeBase: [0.13, 0, 0], RightToeBase: [-0.13, 0, 0] } });
+
+test("19-joint rig: a node outside the skin (Spine1) and synthesised toes are accepted; the cut validates and keeps the 17-joint skeleton", async () => {
+  const b = await buildBody({ nineteen: true });
+  const r = await cutGlb(b.bytes, row19(b), rigMap19, { body: "synthetic19", rig: "mixamo-19", source: "synthetic19.glb" });
+  const out = await readOut(r.glb);
+  assert.equal(out.joints.length, NAMES.length - 3);
+  for (const n of ["Spine1", "LeftToeBase", "RightToeBase"]) assert.ok(!out.joints.includes(n), n + " is not a skin joint");
+  assert.equal(r.manifest.rig, "mixamo-19");
+  assert.equal(r.manifest.stats.watertight, true);
+  assert.equal(r.manifest.stats.orphan_weights, 0);
+  const v = validate(Buffer.from(r.glb), r.manifest, { source: Buffer.from(b.bytes), planeOffset: r.manifest.plane_frame.bind_offset });
+  assert.deepEqual(v.checks.filter((c) => !c.ok).map((c) => c.name + ": " + c.details.slice(0, 3).join(" | ")), []);
+  const again = await cutGlb(b.bytes, row19(b), rigMap19, { body: "synthetic19", rig: "mixamo-19", source: "synthetic19.glb" });
+  assert.ok(Buffer.compare(Buffer.from(r.glb), Buffer.from(again.glb)) === 0, "not deterministic");
+});
+
+test("19-joint rig: the measure row still has to belong to the skeleton (a wrong synthesised toe is refused)", async () => {
+  const b = await buildBody({ nineteen: true });
+  const bad = row19(b);
+  bad.joints.LeftToeBase = [0.13, 0.3, 0];
+  await assert.rejects(() => cutGlb(b.bytes, bad, rigMap19, {}), /does not match/);
+});
+
+test("rig map entries: a node that does not exist, a malformed object and a non-skin anchor role are refused with the role named", async () => {
+  const b = await buildBody({ nineteen: true });
+  const J = (o) => ({ schema: "rig-map/1", joints: { ...rigMap19.joints, ...o } });
+  await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ Spine1: "mixamorig:Nope" }), {}), /mixamorig:Nope for Spine1/);
+  await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ LeftToeBase: { node: "mixamorig:LeftFoot" } }), {}), /LeftToeBase.*along_local_y_m/);
+  await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ LeftToeBase: null }), {}), /LeftToeBase/);
+  await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ Hips: { node: "mixamorig:Hips", along_local_y_m: 0 } }), {}), /Hips.*skin joint/);
+  await assert.rejects(() => cutGlb(b.bytes, row19(b), J({ Spine: "mixamorig:Spine1" }), {}), /Spine.*skin joint/);
+});
