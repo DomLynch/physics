@@ -95,6 +95,7 @@ export const PLANE_ROWS = {
   shoulder_frac: 0, // Arm -> ForeArm: at the Arm joint
   hip_frac: 0, // UpLeg -> Leg: at the UpLeg joint
 };
+export const HIP_SPLIT_PARALLEL = 0.1; // |left hip normal - right hip normal| under this: thighs parallel, hip_split is the midline plane (shipped bodies: 0.20 and up)
 const alongPair = (a, b, f) => (f === 0 ? a : f === 1 ? b : lerp3(a, b, f));
 export function buildPlanes(J, apex = null, planeRows = PLANE_ROWS) {
   const PR = { ...PLANE_ROWS, ...planeRows };
@@ -121,8 +122,19 @@ export function buildPlanes(J, apex = null, planeRows = PLANE_ROWS) {
   // internal, not a cut: where the two hip half-spaces overlap below the crotch, the side with the larger distance wins (a wall only if mesh sits there)
   const bn = sub(fns.hip_left.n, fns.hip_right.n);
   const bp = lerp3(fns.hip_left.point, fns.hip_right.point, 0.5);
-  fns.hip_split = makeFn("hip_split", bp, vlen(bn) > 1e-9 ? bn : sub(J.LeftUpLeg, J.RightUpLeg), "internal: bisector of the two hip planes, separates the legs where both hip half-spaces overlap (no cap of its own)");
-  fns.hip_split.d = (p) => fns.hip_left.d(p) - fns.hip_right.d(p), fns.hip_split.exact = true;
+  if (vlen(bn) >= HIP_SPLIT_PARALLEL) {
+    fns.hip_split = makeFn("hip_split", bp, bn, "internal: bisector of the two hip planes, separates the legs where both hip half-spaces overlap (no cap of its own)");
+    fns.hip_split.d = (p) => fns.hip_left.d(p) - fns.hip_right.d(p), fns.hip_split.exact = true;
+    return fns;
+  }
+  // Parallel thighs (the two unit normals differ by under HIP_SPLIT_PARALLEL, about 5.7 degrees): the difference of the normals is a few thousandths
+  // and points wherever the thighs' tiny tilt asymmetry says (front to back on Big Vegas), and its scaled distance widens the snap band by 1/|bn|.
+  // The bisector is then the midline plane: through the midpoint of the two hip points, normal = left to right between the UpLeg joints with the
+  // part along the mean thigh direction dropped, d in metres (positive on the left leg's side, like the bisector).
+  const t = norm(fns.hip_left.n.map((x, i) => x + fns.hip_right.n[i]));
+  const lat0 = sub(J.LeftUpLeg, J.RightUpLeg), lat = norm(sub(lat0, t.map((x) => x * dot(lat0, t))));
+  fns.hip_split = makeFn("hip_split", bp, lat, "internal: midline plane (the thighs are parallel, so the bisector of the two hip planes is undefined), normal left to right between the UpLeg joints, separates the legs where both hip half-spaces overlap (no cap of its own)");
+  fns.hip_split.exact = true;
   return fns;
 }
 
