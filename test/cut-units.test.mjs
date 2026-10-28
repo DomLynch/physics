@@ -168,7 +168,7 @@ async function buildBody(variant = {}) {
   // variant.skirt: a wide closed garment layer (a flared box, material skirt_mat, mesh Skirt_Geo) around the hips: across the waist plane and both hip planes,
   // weighted to Hips and the upper legs, overlapping the body box and the leg boxes
   const wSkirt = (p) => [["Hips", 0.6], [p[0] >= 0 ? "LeftUpLeg" : "RightUpLeg", 0.4]];
-  const skirtParts = variant.skirt ? [box([0, 1.0, 0], [0.22, 0.2, 0.16], 6, wSkirt)] : [];
+  const skirtParts = variant.skirt ? [box([0, 1.0, 0], [variant.skirtHalf || 0.22, 0.2, 0.16], 6, wSkirt)] : [];
   const skin = mkSkin(), skin2 = variant.quantLash ? mkSkin(ibm2) : mkSkin();
   const lashStored = variant.quantLash ? lashParts.map((m) => ({ ...m, pos: m.pos.map((p) => p.map((x, k) => (x - QUANT.T[k]) / QUANT.S)) })) : lashParts;
   const mesh = doc.createMesh("Body").addPrimitive(prim(bodyParts, matBody)).addPrimitive(prim(armParts, matHorn));
@@ -995,6 +995,18 @@ test("shoulder_mode tilt: the plane keeps its joint and horizontal normal at til
 test("shoulder_mode: an unknown mode and tilt with a moved shoulder_frac are refused", () => {
   assert.throws(() => buildPlanes(narrowJoints(), null, { shoulder_mode: "slant" }), /shoulder_mode must be one of joint, tilt/);
   assert.throws(() => buildPlanes(narrowJoints(), null, { shoulder_mode: "tilt", shoulder_frac: 0.3 }), /shoulder_frac must stay 0/);
+});
+test("shoulder_mode tilt: the same skirt body FAILS validation with default planes (joint mode) and passes with tilt", async () => {
+  const b = await buildBody({ skirt: true });
+  const joint = await cut(b);
+  assert.notDeepEqual(failedChecks(validateAll(b, joint)), [], "default planes fail at least one check on a skirt wider than the shoulder joints");
+  const tilt = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planes: { shoulder_mode: "tilt" } });
+  assert.deepEqual(failedChecks(validateAll(b, tilt)), []);
+});
+test("shoulder_mode tilt: a plane that would have to turn past 45 degrees is refused, naming the vertex", async () => {
+  const b = await buildBody({ skirt: true, skirtHalf: 0.5 }); // skirt out to x 0.5 only 0.2 m below the joint line: tilt 1.5
+  await assert.rejects(() => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planes: { shoulder_mode: "tilt" } }), /shoulder_mode tilt: the left shoulder plane would have to turn .* degrees .* at \S+,\S+,\S+; more than the 1 allowed/);
+  await assert.doesNotReject(() => cut(b), "joint mode still cuts it");
 });
 test("shoulder_mode tilt: a wide skirt over the joint-width arms cuts and validates with the mode, the arm bones keep the arm side, and joint mode is the unchanged cut", async () => {
   const b = await buildBody({ skirt: true }); // skirt half width 0.22 against the arm joints at x = 0.2: narrower shoulders than hips
