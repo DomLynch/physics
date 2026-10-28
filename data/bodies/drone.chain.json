@@ -1,0 +1,19 @@
+{
+  "schema": "chain-body/1",
+  "name": "drone",
+  "about": "Chain ragdoll body for the low hover drone: ONE rigid capsule, no joints, nothing to cut. The drone is procedural (no GLB, no skeleton), so there are no bones to follow; the capsule approximates its body box (0.56 x 0.24 x 0.38 model units) and the model moves as one piece with it. Every number is here; src/chain.mjs holds none.",
+  "placeholder": true,
+  "placeholder_note": "radius and mass are PLACEHOLDERS to tune on Dom's phone and the clips; the length and hover height come from the model source and the game data.",
+  "measure": "drone.bones.json",
+  "scale": 2,
+  "scale_source": "Armagedom Web/src/data/creatureDefinitions.json low-hover-drone scale.model 2 (= DRONE_VISUAL_SCALE in low-hover-drone.js); health 20, stats radius 1.1 is the movement radius, not a body size. Hover height 0.9 m is creatures.json drone.hoverHeight (the model root sits there, plus a 0.025 m bob).",
+  "mass_assumption": "placeholder: no mass in the game data. A hand-sized quad frame with a battery is a few kg; this one is 1.12 m wide at x2, so 25 kg total, and it should drop like a hard piece of machinery, not float down. Tune against how heavy the crash should feel.",
+  "no_skeleton_note": "The drone has no bones, so the 'bone' names in drone.bones.json are two marker points, and the boneMap is {hips: 'drone_body'}. The game creates one empty Object3D named drone_body in the fighter group at the LEFT end of the body box (model x -0.28, so x -0.56 m from the drone's root, at hover height) and puts the drone's model root under it at local offset (+0.56, 0, 0) m (model scale 2 already on the root). The ragdoll rig then drives that one empty exactly like a hips bone: alive, drive() sends its pose to the kinematic body; dying, applyPose() sets its position and orientation from the capsule, and the whole model (frame, rotors, sensor, warning ring) rides on it. The model is rigid: nothing deforms. The rotors stop (the game already stops them when dead) and the existing scripted death pose (tilt, drop to 0.36 m) is replaced by the physics fall.",
+  "inertia_multiplier": 8,
+  "inertia_source": "data/ragdoll-role-table.json motor.inertia_multiplier (M1 finding), same value as the humanoid rows",
+  "hinge_flex_z": {},
+  "segments": [
+    { "id": "hips", "role": "spine", "bone": "drone_body", "tip": "drone_end", "parent": null, "radius": 0.15, "mass": 25, "joint": null, "source": "placeholder: the whole body as one capsule along x, 1.12 m long and 0.6 m across at x2, between the box's half height (0.24 m) and half depth (0.38 m)" }
+  ],
+  "severable": []
+}

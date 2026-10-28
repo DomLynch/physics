@@ -61,6 +61,20 @@
       "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" }, "impulse_scale": 1,
       "note": "chain-kind wolf (data/bodies/wolf.chain.json, 13 capsules, about 2.4 m long, 139.5 kg placeholder mass); arm cut becomes a tail cut, the spine2 hit lands on the chest; the scenario impulse is used unscaled (a boss is about 140 kg too); the multi-cut scenario is left out"
     },
+    {
+      "id": "dog_x7", "kind": "chain",
+      "bodies": ["dog", "dog", "dog", "dog", "dog", "dog", "dog"],
+      "scenarios": ["alive_idle", "alive_one_cut", "alive_all_cut", "dying_all_cut"],
+      "unit_map": { "arm_right": "tail" }, "part_map": { "spine2": "chest" }, "impulse_scale": 0.6,
+      "note": "chain-kind dog (data/bodies/dog.chain.json, 13 capsules, about 1.7 m long, 87 kg placeholder mass); arm cut becomes a tail cut, the spine2 hit lands on the chest; the 60 N*s scenario impulse is scaled x0.6 (about the mass ratio to a 140 kg boss); the multi-cut scenario is left out"
+    },
+    {
+      "id": "drone_x7", "kind": "chain",
+      "bodies": ["drone", "drone", "drone", "drone", "drone", "drone", "drone"],
+      "scenarios": ["alive_idle", "dying_uncut"],
+      "unit_map": {}, "part_map": { "spine2": "hips" }, "impulse_scale": 0.2,
+      "note": "chain-kind drone (data/bodies/drone.chain.json, ONE capsule, 1.12 m long, 25 kg placeholder mass, no joints, nothing to cut); the hit lands on the single body; the 60 N*s scenario impulse is scaled x0.2 (about the mass ratio to a 140 kg boss); only the idle and the uncut death scenarios apply"
+    },
     { "id": "rig65_mix", "bodies": ["minotaur", "psyche", "warrior", "veteran", "minotaur", "psyche", "warrior"], "note": "the four 65-joint V3 bodies, repeated to seven" }
   ],
   "scenarios": [
@@ -71,6 +85,12 @@
       "id": "dying_all_cut",
       "about": "every ragdoll is cut (arm) at tick 60, killed at tick 70 with a hit impulse and falls free (released hips, limp motors, self-collision)",
       "cut_who": "all", "cuts": [{ "tick": 60, "unit": "arm_right" }],
+      "kill": { "tick": 70, "part": "spine2", "impulse": [0, 0, 60], "source": "test/bodies.test.mjs: the kill impulse the body tests use" }
+    },
+    {
+      "id": "dying_uncut",
+      "about": "every ragdoll is killed at tick 70 with a hit impulse and falls free (released hips, limp motors, self-collision); no cut, for bodies with nothing to sever (the drone)",
+      "cut_who": "all", "cuts": [],
       "kill": { "tick": 70, "part": "spine2", "impulse": [0, 0, 60], "source": "test/bodies.test.mjs: the kill impulse the body tests use" }
     },
     {
