@@ -71,6 +71,19 @@ for (const name of Object.keys(FLOOR)) {
   });
 }
 
+// A leg capsule fatter than ~0.4 x its length is a ball (cylinder half-height 0.01 m): a dead body then balances on two stacked balls instead of lying down.
+// Exempt: the crow's wing carriers (leg_FL_up / leg_FR_up carry the wing skin, not a leg; the crow is 0.39 m tall at the hips and still lies down).
+const WING_CARRIERS = new Set(["leg_FL_up", "leg_FR_up"]);
+for (const name of Object.keys(FLOOR)) {
+  test(`${name}: no leg capsule is fatter than 0.42 x its length (legs must not be balls), except the crow's wing carriers`, () => {
+    for (const r of loadChainBody(name).row.roles) {
+      if (!/^leg_/.test(r.role)) continue;
+      if (name === "crow" && WING_CARRIERS.has(r.id)) continue;
+      assert.ok(r.radius_m <= 0.42 * r.length_m, `${name}.${r.id}: radius ${r.radius_m} m on a ${r.length_m} m segment (${(r.radius_m / r.length_m).toFixed(2)})`);
+    }
+  });
+}
+
 // ---- density: mass must follow the capsule volume (the radius retune made some parts 3500 kg/m3 and others 13 kg/m3) ----
 const volume = (r) => Math.PI * r.radius_m ** 2 * 2 * r.half_height_m + (4 / 3) * Math.PI * r.radius_m ** 3;
 // bodies allowed outside 100..3000 kg/m3, each with the reason; keep this list short
