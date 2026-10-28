@@ -7,7 +7,7 @@ import { createPhysics } from "../src/index.mjs";
 import { generateRow, loadTable } from "../src/index.mjs";
 
 // the ragdoll's capsule lengths must match the lengths measured from the GLB joints (the row is what the game's body really is)
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020"]) {
   test(`${name}: ragdoll part lengths match the measured bone lengths`, () => {
     const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
     const row = generateRow(name, m, loadTable());
@@ -17,7 +17,7 @@ for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", 
   });
 }
 
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106", "arachne-106", "demon-106", "warrok-106", "brute-106", "maw-106", "hunter-pitborn-106", "vagrant-106", "pumpkinhulk-106", "parasite-106", "big-vegas-106", "anime-boy-black-106", "mh-male-01", "mh-gen-v2-0036", "mh-gen-v2-0020"]) {
   const body = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
   test(`${name}: holds its rest pose (hips kinematic), then dies and freezes on the floor`, async () => {
     const p = await createPhysics({ seed: 1 });
@@ -65,3 +65,22 @@ test("anime-boy-black-106: the measure row is a plausible humanoid boss and its 
   const row = generateRow("anime-boy-black-106", m, loadTable());
   assert.ok(row.total_mass_kg > 30 && row.total_mass_kg < 250, `total mass ${row.total_mass_kg} kg`);
 });
+
+// ARMAGEDOM hub NPCs (Art PR 452, GLBs npc-*.glb on the 106 rig). Rows are named by BODY id. height_m is the real skinned-mesh height (bind pose, meshopt
+// decoded, joint matrices applied: the dequantisation lives in the inverse bind matrices, scale about 0.83 to 0.87), not the joint-tree guess, which read
+// 9 to 12 percent short on these short-necked Mixamo rigs. The lookup height is this repo's data/shape-maps/body-shapes.json (height in mm, second field; the
+// body ids come from ARMAGEDOM Web/src/data/hubNpcs.json, which holds ids only, no heights); it is the mesh height plus about 0.035 m.
+const SHAPES = JSON.parse(readFileSync(new URL("../data/shape-maps/body-shapes.json", import.meta.url), "utf8"));
+const HUB_NPCS = { "mh-male-01": { mesh_h: 1.7387 }, "mh-gen-v2-0036": { mesh_h: 1.7137 }, "mh-gen-v2-0020": { mesh_h: 1.6582 } };
+for (const [name, { mesh_h }] of Object.entries(HUB_NPCS)) {
+  const lookup_h = (SHAPES.bodies || SHAPES)[name][1] / 1000;
+  test(`${name}: hub NPC row is named by its body id, its height is the real mesh height (within 1.5 percent) and within 3 percent of the game lookup`, () => {
+    const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
+    assert.equal(m.id, name);
+    assert.ok(Math.abs(m.height_m - mesh_h) / mesh_h < 0.015, `${name}: row height ${m.height_m} m vs mesh ${mesh_h} m`);
+    assert.ok(Math.abs(m.height_m - lookup_h) / lookup_h < 0.03, `${name}: row height ${m.height_m} m vs game lookup ${lookup_h} m`);
+    const row = generateRow(name, m, loadTable());
+    assert.ok(row.total_mass_kg > 30 && row.total_mass_kg < 100, `total mass ${row.total_mass_kg} kg`);
+    assert.equal(row.roles.length, 20);
+  });
+}
