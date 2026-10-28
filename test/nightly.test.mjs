@@ -161,7 +161,7 @@ test("renderReport: flag line first, header facts, table, skipped note, baseline
   assert.equal(lines[0], "<!-- nightly-physics-benchmark -->");
   assert.equal(lines[1], "**FLAG: 1 cell: a/b/n3/cap (OVER BUDGET)**");
   assert.match(withBase, /armagedom at `cccccccccccc`/);
-  assert.match(withBase, /median p95 of 5 runs/);
+  assert.match(withBase, /p95 of the frames of 5 runs pooled/);
   assert.match(withBase, /compared with `dddddddddddd`/);
   assert.match(withBase, /\| a\/b\/n3\/cap \| 3\.500 \| 3\.400 \| \+2\.9% \| OVER BUDGET \|/);
   assert.match(withBase, /Skipped \(tooling absent at this sha\): e\/f\/n3\/cap/);

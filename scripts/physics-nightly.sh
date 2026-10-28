@@ -3,6 +3,7 @@
 # Targets: physics-main (origin/main of DomLynch/physics), frankendom-v3 (the physics sha pinned in DomLynch/Frankendom-v3 package.json), armagedom (the sha pinned in DomLynch/ARMAGEDOM Web/package.json). Default: all three.
 # Per target: clone the sha under /srv/dev-jobs/physics-nightly-<target>, run `hfjob -- <overlay + node tools/nightly.mjs>` there, wait, read NIGHTLY_JSON from `hfjob logs`, write
 # /srv/dev-jobs/physics-nightly-results/<date>-<target>.json. The pin's src/ and data/bodies run with the CURRENT tools/ and data/{budget,nightly}-rows.json (fetched inside the job from NIGHTLY_TOOLS_REF, default main), so an old pin without admit()/loadChainBody()/tools/ still gives a result (those cells are skipped).
+# The clone under /srv/dev-jobs/physics-nightly-<target> is removed after each target (results stay in physics-nightly-results).
 # No secret is read or printed here: hfjob reads the HF token inside itself. Public GitHub only (pins are read from raw.githubusercontent.com).
 # Env: NIGHTLY_TOOLS_REF (branch or sha the tools come from, default main), NIGHTLY_ROOT (default /srv/dev-jobs), NIGHTLY_TIMEOUT (job, default 40m), NIGHTLY_WAIT (seconds to wait for a job, default 2400).
 set -euo pipefail
@@ -66,5 +67,9 @@ one() {
 
 targets=("$@"); [ ${#targets[@]} -gt 0 ] || targets=(physics-main frankendom-v3 armagedom)
 rc=0
-for t in "${targets[@]}"; do one "$t" || rc=1; done   # one failing target does not stop the others
+for t in "${targets[@]}"; do
+  case "$t" in physics-main|frankendom-v3|armagedom) ;; *) echo "physics-nightly: unknown target '$t' (physics-main, frankendom-v3, armagedom)" >&2; rc=1; continue ;; esac
+  one "$t" || rc=1   # one failing target does not stop the others
+  rm -rf "$ROOT/physics-nightly-$t"   # the clone is only needed to hand the job its sha; the results file stays
+done
 exit $rc

@@ -1,6 +1,7 @@
 // nightly-post.mjs : turn the latest nightly results (written on the VPS by scripts/physics-nightly.sh) into ONE issue per game repo, titled "Nightly physics benchmark", edited in place.
-// Run it from a gh-authenticated host (the Mac); the VPS gh is not logged in. It posts nothing without a go: --dry-run prints the report and what it would do and touches nothing.
-// Usage: node scripts/nightly-post.mjs [--dry-run] [--target physics-main,frankendom-v3,armagedom] [--update-baseline]
+// Run it from a gh-authenticated host (the Mac); the VPS gh is not logged in. DRY RUN IS THE DEFAULT: without --post it prints the report and what it would do, and writes nothing (its only gh call is the read of the baseline file; none with --baseline-dir).
+// --post is the one flag that creates or edits an issue (and, with --update-baseline, writes the baseline branch).
+// Usage: node scripts/nightly-post.mjs [--post] [--dry-run] [--help] [--target physics-main,frankendom-v3,armagedom] [--update-baseline]
 //          [--host root@49.12.7.18] [--key ~/.ssh/binance_futures_tool] [--results-dir /srv/dev-jobs/physics-nightly-results]
 //          [--from-dir DIR] [--baseline-dir DIR] [--baseline-branch bench-results]
 //   --from-dir / --baseline-dir read local files instead of ssh / the bench-results branch (tests, offline).
@@ -23,7 +24,13 @@ const PHYSICS = "DomLynch/physics";
 const args = process.argv.slice(2);
 const flag = (k) => args.includes("--" + k);
 const opt = (k, d) => { const i = args.indexOf("--" + k); return i < 0 ? d : args[i + 1]; };
-const dry = flag("dry-run");
+if (flag("help") || flag("h")) {
+  console.log("nightly-post.mjs [--post] [--dry-run] [--target t1,t2] [--update-baseline] [--host H] [--key K] [--results-dir D] [--from-dir D] [--baseline-dir D] [--baseline-branch B]\n" +
+    "Dry run is the default: without --post nothing is created or edited on GitHub (--dry-run is accepted and means the same). --post is required to write to any issue; --update-baseline needs --post.");
+  process.exit(0);
+}
+const dry = !flag("post");
+if (flag("update-baseline") && dry) console.error("--update-baseline ignored: it needs --post");
 const host = opt("host", "root@49.12.7.18"), key = opt("key", `${homedir()}/.ssh/binance_futures_tool`), rdir = opt("results-dir", "/srv/dev-jobs/physics-nightly-results");
 const fromDir = opt("from-dir"), baseDir = opt("baseline-dir"), branch = opt("baseline-branch", "bench-results");
 const ssh = (cmd) => execFileSync("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-i", key, host, cmd], { encoding: "utf8", maxBuffer: 1 << 26 });
@@ -76,7 +83,7 @@ for (const target of targets) {
   console.log(`=== ${target} -> ${repo} issue "${TITLE}" : ${line}`);
   if (dry) {
     console.log(body + "\n");
-    console.log(`(dry run: would edit (or create if absent) the issue in ${repo}${flag("update-baseline") ? `, then write data/nightly-baseline/${target}.json to ${branch}` : ""}; nothing posted)\n`);
+    console.log(`(dry run, the default: with --post this would edit (or create if absent) the issue in ${repo}${flag("update-baseline") ? `, then write data/nightly-baseline/${target}.json to ${branch}` : ""}; nothing posted)\n`);
     continue;
   }
   let n = findIssue(repo);

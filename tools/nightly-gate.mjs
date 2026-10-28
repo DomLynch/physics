@@ -19,6 +19,16 @@ export function medianCells(runs) {
   return Object.fromEntries(Object.entries(by).map(([k, v]) => [k, { p95_ms: median(v), runs: v.length }]));
 }
 
+// runs: [{ key: [frame ms...] }]. One p95 per key over the frames of all runs pooled, with budget-seven's percentile (sorted[floor(len * 0.95)]), so the nightly and `budget-seven --cap` mean the same thing.
+export function pooledCells(runs) {
+  const by = {};
+  for (const r of runs) for (const [k, v] of Object.entries(r)) if (v.length) (by[k] ??= []).push(v.filter(Number.isFinite));
+  return Object.fromEntries(Object.entries(by).map(([k, parts]) => {
+    const s = parts.flat().sort((a, b) => a - b);
+    return [k, { p95_ms: s[Math.min(s.length - 1, Math.floor(s.length * 0.95))], runs: parts.length, frames: s.length }];
+  }));
+}
+
 // cells, baseline: { key: { p95_ms } } (baseline may be null/undefined: no regression is ever flagged without a stored value). skipped keys never fail.
 export function gate(cells, baseline, { limit_ms = LIMIT_MS, regress_pct = REGRESS_PCT, skipped = [] } = {}) {
   const rows = [];
@@ -58,7 +68,7 @@ export function renderReport(results, baseline) {
     "<!-- nightly-physics-benchmark -->",
     `**${flagLine(rows)}**`,
     "",
-    `${results.target ?? "target"} at ${short(results.sha)} | ${results.date ?? "no date"} | node ${results.node} | ${results.cpus} cpus | median p95 of ${results.runs} runs` +
+    `${results.target ?? "target"} at ${short(results.sha)} | ${results.date ?? "no date"} | node ${results.node} | ${results.cpus} cpus | p95 of the frames of ${results.runs} runs pooled` +
       (baseline ? ` | compared with ${short(baseline.sha)}${baseline.date ? " of " + baseline.date : ""}` : " | no stored baseline yet, so the regression gate is off (the budget still applies)"),
     "",
     renderTable(rows),
