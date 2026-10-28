@@ -392,13 +392,25 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const joints = skin0.listJoints();
   const jIndex = new Map(joints.map((n, i) => [n, i]));
   const jointByName = new Map(joints.map((n, i) => [n.getName(), i]));
-  const roleJoint = {};
-  for (const [role, name] of Object.entries(rigMap.joints)) {
-    if (!jointByName.has(name)) throw new Error(`rig map names ${name} for ${role}, but the skin has no such joint`);
-    roleJoint[role] = jointByName.get(name);
-  }
   // bind pose of every joint in world space (metres) = node world translation, the way tools/glb-measure.mjs reads it
   const bindPos = joints.map((n) => n.getWorldTranslation());
+  // A rig-map entry is a node name, or { node, along_local_y_m } (a joint the rig lacks: toes on the 19-joint Mixamo rig, put that far from the node along
+  // its own +Y axis; tools/glb-measure.mjs reads it the same way). Only a skin joint named by a plain string gets a roleJoint (it can own vertices and
+  // anchor a region); a node outside the skin (Mixamo's Spine1) or a synthesised point has only a bind position, rolePos, which is all the measure-row
+  // comparison needs. Plain-string maps whose nodes are all skin joints behave exactly as before.
+  const roleJoint = {}, rolePos = {};
+  const nodeByName = new Map(root.listNodes().map((n) => [n.getName(), n]));
+  for (const [role, spec] of Object.entries(rigMap.joints)) {
+    const name = typeof spec === "string" ? spec : spec && spec.node;
+    if (typeof spec !== "string" && !(spec && typeof spec === "object" && typeof name === "string" && Number.isFinite(spec.along_local_y_m))) throw new Error(`rig map entry for ${role} must be a node name or { node, along_local_y_m }`);
+    if (typeof spec === "string" && jointByName.has(name)) { roleJoint[role] = jointByName.get(name); rolePos[role] = bindPos[roleJoint[role]]; continue; }
+    const node = nodeByName.get(name);
+    if (!node) throw new Error(`rig map names ${name} for ${role}, but the skin has no such joint`);
+    if (typeof spec === "string") { rolePos[role] = node.getWorldTranslation(); continue; }
+    const m = node.getWorldMatrix(), t = node.getWorldTranslation(), yl = Math.hypot(m[4], m[5], m[6]) || 1;
+    rolePos[role] = [t[0] + (m[4] / yl) * spec.along_local_y_m, t[1] + (m[5] / yl) * spec.along_local_y_m, t[2] + (m[6] / yl) * spec.along_local_y_m];
+  }
+  for (const role of Object.keys(ANCHOR_ROLES)) if (roleJoint[role] === undefined) throw new Error(`rig map role ${role} must be a skin joint: it anchors a region`);
   // vertex space -> world: jointWorld x inverseBind is the same matrix Q for every joint (gltfpack bakes its position dequantisation into the
   // inverse binds, so the vertices of the quantised bodies are not in metres). Everything geometric below runs in world space.
   const ibm = skin0.getInverseBindMatrices();
@@ -441,7 +453,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   }
   // the measure row is floor-lifted (tools/glb-measure.mjs): recover its offset from the 20 role joints
   const roles = Object.keys(rigMap.joints).filter((r) => row.joints[r]);
-  const offs = roles.map((r) => sub(bindPos[roleJoint[r]], row.joints[r]));
+  const offs = roles.map((r) => sub(rolePos[r], row.joints[r]));
   const med = (k) => offs.map((o) => o[k]).sort((a, b) => a - b)[Math.floor(offs.length / 2)];
   const offset = [med(0), med(1), med(2)];
   let resid = 0;

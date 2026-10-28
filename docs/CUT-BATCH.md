@@ -74,6 +74,17 @@ Both Minotaur-106 and Psyche-106 regenerate byte-identical (sha256 below; `cmp` 
 
 Demon, Warrok and Maw are one skinned mesh, one material, no hair material: the open shell at the cut planes is in the source, and no plane fraction (81 combinations each), `home_min_weight` or `crotch_planes` row fixed it (causes in the `blocked` text of each row). Only Brute carries `expect_sha256` (the blocked rows have none, like warrior-65 and veteran-65).
 
+### Armagedom player bodies: vagrant-106 and hale-pitborn (VPS, 2026-10-28)
+
+| body | rig | result | sha256 of the cut GLB |
+|---|---|---|---|
+| vagrant-106 | mixamo-19 | **BLOCKED** (watertight, caps) | 8a4d48818705a6d923f17da676d604ae88d96650bb2b6e280e00f566987f294f |
+| hale-pitborn | v1-65 | **BLOCKED** (watertight, orientation) | 9f27733d64c08f852f501b46cca0c24028529ef80d2265e2287c58988914232b |
+
+- **Rig-map entries.** `tools/cut-units.mjs` now reads the same entries as `tools/glb-measure.mjs`: a node name, or `{ node, along_local_y_m }`. A name that is a skin joint behaves as before. A name that is a node outside the skin (Mixamo's `Spine1` on the 19-joint rig) or a synthesised point (the toes, 0.20 m from the Foot along its +Y) has only a bind position, which is all the measure-row check needs; the seven region anchors (Hips, Spine, Head, both Arms, both UpLegs) must be skin joints. The toes then own no vertices: the foot takes their weight, so the leg pieces need no toe bone. All six committed `expect_sha256` rows regenerate byte-identical.
+- **Vagrant's materials all contain "browser"** (`Torso jacket browser`, ...), so the default hair pattern `hair|lash|brow` sent every triangle to `piece_head` ("region root received no triangles"). The row sets `overrides.hair_materials: []`; the Vagrant has no hair mesh.
+- **Both bodies are blocked on the source, not on the tool**: layered garment and armour meshes that are not closed shells (Vagrant 1,639 open source edges, Hale 2,769), so the planes pass through unclosed layers. Vagrant fails watertight and caps (2 + 3 triangles with winding against their normals), Hale fails watertight and orientation; weights, bone_side, conservation and planes pass on both. Vagrant: 81 plane combinations, no PASS; Hale: 18 plane combinations plus `home_min_weight` 0.5, no PASS. Causes in the `blocked` text of each row; `test/hale-pitborn.test.mjs` pins the rows.
+
 ## Tests
 
 `test/cut-batch.test.mjs` (synthetic bodies only, no real body in the repo): two bodies through measure, cut, validate and the receipt (8 PASS each, props and a one-sided `TEXCOORD_1` in the source), the per-body plane row, explicit default rows giving the same bytes as no rows, two runs giving the same bytes, a failing hash and a missing source failing the run, a blocked row reported only when exactly its `blocked_checks` fail (an error or a different failing set is FAIL) and an unblocked one flagged, a missing COLOR_0 filled with white and a missing NORMAL or TANGENT refused, and the row checks.

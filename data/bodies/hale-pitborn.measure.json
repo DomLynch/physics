@@ -1,0 +1,120 @@
+{
+ "id": "hale-pitborn",
+ "source": "hale-pitborn.glb bind pose via v1-65.json",
+ "height_m": 1.6834,
+ "neck_len": 0.0804,
+ "torso_len": 0.4363,
+ "shoulder_w": 0.3816,
+ "upper_arm_len": 0.226,
+ "forearm_len": 0.2192,
+ "thigh_len": 0.4159,
+ "shin_len": 0.445,
+ "foot_len": 0.1544,
+ "chest_w": 0.3889,
+ "waist_w": 0.3587,
+ "hip_w": 0.3532,
+ "chest_d": 0.3033,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.9059,
+   -0.0417
+  ],
+  "Spine": [
+   0,
+   1.0251,
+   -0.0067
+  ],
+  "Spine1": [
+   0,
+   1.1277,
+   0.0038
+  ],
+  "Spine2": [
+   0,
+   1.2568,
+   0.0067
+  ],
+  "Neck": [
+   0,
+   1.4601,
+   -0.0402
+  ],
+  "Head": [
+   0,
+   1.5371,
+   -0.0169
+  ],
+  "LeftArm": [
+   0.1908,
+   1.3971,
+   -0.0634
+  ],
+  "LeftForeArm": [
+   0.4167,
+   1.3971,
+   -0.0708
+  ],
+  "LeftHand": [
+   0.6358,
+   1.3971,
+   -0.0634
+  ],
+  "RightArm": [
+   -0.1908,
+   1.3971,
+   -0.0634
+  ],
+  "RightForeArm": [
+   -0.4167,
+   1.3971,
+   -0.0708
+  ],
+  "RightHand": [
+   -0.6358,
+   1.3971,
+   -0.0634
+  ],
+  "LeftUpLeg": [
+   0.1029,
+   0.9273,
+   -0.0349
+  ],
+  "LeftLeg": [
+   0.1029,
+   0.5114,
+   -0.035
+  ],
+  "LeftFoot": [
+   0.1029,
+   0.0692,
+   -0.0849
+  ],
+  "LeftToeBase": [
+   0.1029,
+   0,
+   0.0531
+  ],
+  "RightUpLeg": [
+   -0.1029,
+   0.9273,
+   -0.0349
+  ],
+  "RightLeg": [
+   -0.1029,
+   0.5114,
+   -0.035
+  ],
+  "RightFoot": [
+   -0.1029,
+   0.0692,
+   -0.0849
+  ],
+  "RightToeBase": [
+   -0.1029,
+   0,
+   0.0531
+  ]
+ }
+}
