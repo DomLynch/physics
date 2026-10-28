@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
 import { generateRow, loadTable } from "../src/generate.mjs";
 import { loadMaps, mapJoints } from "../tools/shape-maps-validate.mjs";
+import { bodyShape } from "../src/shape-maps.mjs";
 
 const DIR = new URL("../data/shape-maps", import.meta.url).pathname;
 const { maps, lookup, follow } = loadMaps(DIR);
@@ -55,9 +56,12 @@ test("limits are the role table's (degrees), no armour or block fields leak in",
 test("lookup: every body names a real shape with sane height, girth and mass; every shape is used; the V3 106 bosses are in", () => {
   const used = new Set();
   for (const [id, [s, hmm, g100, kg10]] of Object.entries(lookup.bodies)) {
+    assert.ok(!(id in lookup.excluded), `${id} is both in the lookup and excluded`);
     assert.ok(Number.isInteger(s) && s >= 0 && s < lookup.shapes.length, id);
     used.add(s);
-    assert.ok(hmm >= 400 && hmm <= 4000, `${id} height ${hmm}`);
+    assert.ok(hmm >= 1000 && hmm <= 3000, `${id} height ${hmm} mm is a scale error, not a body`);
+    assert.equal(lookup.bodies[id].length, 5, `${id}: [shape, height, girth, mass, unclamped mass]`);
+    assert.ok(lookup.bodies[id][4] >= kg10, `${id}: unclamped mass below the stored mass`);
     assert.ok(g100 >= 30 && g100 <= 400, `${id} girth ${g100}`);
     assert.ok(kg10 >= 180 && kg10 <= 1400, `${id} mass ${kg10}`);
   }
@@ -87,6 +91,45 @@ test("a shape map plus the body's scalars reproduces the generated ragdoll row (
     assert.ok(Math.abs(mass - row.total_mass_kg) / row.total_mass_kg < 0.01 + 0.02, `${id}: mass ${mass} vs ${row.total_mass_kg}`);
     assert.ok(Math.abs(H - row.height_m) < 0.001);
   }
+});
+
+test("scale outliers are excluded with a reason, not given a wrong shape", () => {
+  for (const id of ["remy", "the-boss", "pirate-by-p-konstantinov"]) {
+    assert.equal(lookup.bodies[id], undefined, id);
+    assert.match(lookup.excluded[id], /scale/i, id);
+  }
+});
+
+test("bodyShape throws a clear error for an unknown or an excluded body, and returns scalars for a known one", () => {
+  assert.throws(() => bodyShape(lookup, "no-such-body"), /unknown body "no-such-body"/);
+  assert.throws(() => bodyShape(lookup, "remy"), /excluded body "remy".*scale/i);
+  const b = bodyShape(lookup, "mon-0056");
+  assert.equal(b.shape, "child");
+  assert.equal(b.height_m, 1.445);
+  assert.ok(b.unclamped_mass_kg >= b.mass_kg);
+});
+
+test("one named body per shape gets that shape", () => {
+  const expect = { "eve-by-j-gonzales": "child", "ch11-nonpbr": "average-medium", "mon-0830": "average-heavy", "mon-0178": "tall-medium", "mon-0611": "giant-slim", "mon-0630": "giant-heavy", "mon-0297": "giant-massive", "mh-male-01": "average-medium", "psyche-106": "average-medium", "brute-106": "tall-medium", "gargantua-106": "average-heavy" };
+  for (const [id, shape] of Object.entries(expect)) assert.equal(bodyShape(lookup, id).shape, shape, id);
+  assert.deepEqual(new Set(Object.values(expect)), new Set(lookup.shapes));
+});
+
+test("child rule: under 1450 mm is child, so a small adult becomes a child (1445 mm child, 1462 mm average-heavy)", () => {
+  assert.equal(lookup.rules.child_max_height_mm, 1450);
+  assert.match(lookup.rules.child, /small adult/i);
+  assert.equal(bodyShape(lookup, "mon-0056").shape, "child");
+  assert.equal(bodyShape(lookup, "mon-0846").shape, "average-heavy");
+  assert.equal(bodyShape(lookup, "mon-0846").height_m, 1.462);
+  for (const [id, row] of Object.entries(lookup.bodies)) assert.equal(lookup.shapes[row[0]] === "child", row[1] < 1450, `${id} ${row[1]} mm`);
+});
+
+test("the 140 kg clamp is stored: unclamped mass sits beside the clamped one, and the data says so", () => {
+  assert.match(lookup.rules.mass, /clamp/i);
+  const clamped = Object.entries(lookup.bodies).filter(([, r]) => r[3] === 1400);
+  assert.ok(clamped.length > 150);
+  assert.ok(clamped.some(([, r]) => r[4] > 1400), "some clamped body has a higher true mass");
+  assert.ok(bodyShape(lookup, "mon-0297").unclamped_mass_kg > 140);
 });
 
 test("data stays tiny: all maps + lookup + follow table under 40 KB", () => {
