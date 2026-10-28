@@ -22,6 +22,7 @@ export function mulberry32(seed) {
   };
 }
 
+const PARK_DROP_M = 500; // a parked ragdoll waits this far under the floor (asleep), so it neither costs a step nor blocks the spawn point
 const FLOATS = 10; // per part in readPose: px py pz qx qy qz qw vx vy vz
 
 // A role-table ragdoll row -> the body definition the engine builds: capsules at their rest pose, lifted to stand on the floor at `position`.
@@ -97,6 +98,7 @@ export async function createWorld(opts = {}) {
 
   function makeRagdoll(row, ropts = {}) {
     const D = buildDefinition(row, ropts.position || [0, 0, 0], W.hinge_flex_z), roles = row.roles;
+    const parkedAtCreate = ropts.parked === true; // pooled ragdoll: bodies added asleep (no step cost), moved out of the way until rd.acquire()
     const n = D.def.length, body = W.body, groupId = nextGroup++;
     const gf = new Jolt.GroupFilterTable(n);
     D.def.forEach((b, i) => { if (b.parent >= 0) gf.DisableCollision(i, b.parent); });
@@ -109,7 +111,7 @@ export async function createWorld(opts = {}) {
       bcs.mFriction = body.friction; bcs.mLinearDamping = body.linear_damping; bcs.mAngularDamping = body.angular_damping;
       bcs.mCollisionGroup.SetGroupFilter(gf); bcs.mCollisionGroup.SetGroupID(groupId); bcs.mCollisionGroup.SetSubGroupID(i);
       const bd = bi.CreateBody(bcs);
-      bi.AddBody(bd.GetID(), Jolt.EActivation_Activate);
+      bi.AddBody(bd.GetID(), parkedAtCreate ? Jolt.EActivation_DontActivate : Jolt.EActivation_Activate);
       Jolt.destroy(bcs); Jolt.destroy(pos); Jolt.destroy(rot);
       return bd;
     });
@@ -201,7 +203,18 @@ export async function createWorld(opts = {}) {
     };
 
     const kinematic = ropts.rootKinematic !== false;
-    if (kinematic) bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Kinematic, Jolt.EActivation_Activate);
+    if (kinematic) bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Kinematic, parkedAtCreate ? Jolt.EActivation_DontActivate : Jolt.EActivation_Activate);
+    let parked = parkedAtCreate;
+    // parked bodies are asleep, but a live ragdoll would still bump into them if they sat at the spawn point (the pool is usually at the origin):
+    // they wait PARK_DROP_M under the floor instead. acquire() brings them back.
+    const parkTo = (dx, dy, dz, activation) => {
+      for (let i = 0; i < n; i++) {
+        const c = D.spawn[i].c, pp = new Jolt.RVec3(c[0] + dx, c[1] + dy, c[2] + dz), qq = new Jolt.Quat(...D.spawn[i].q);
+        bi.SetPositionAndRotation(bodies[i].GetID(), pp, qq, activation);
+        Jolt.destroy(pp); Jolt.destroy(qq);
+      }
+    };
+    if (parked) parkTo(0, -PARK_DROP_M, 0, Jolt.EActivation_DontActivate);
     let rootMove = null;
     const cut = new Set();
     const buf = new Float32Array(n * FLOATS);
@@ -218,6 +231,20 @@ export async function createWorld(opts = {}) {
         return Array.isArray(part) ? Math.max(...part.map(speed)) : speed(part);
       },
       // true while any of this ragdoll's bodies is awake (a frozen corpse is asleep; a cut piece wakes on its own): step the world only while this is true
+      get parked() { return parked; },
+      // take a parked ragdoll out of the pool: bodies to the spawn pose (at `position`, default the one given at create), velocities zero, awake, alive, full strength.
+      // Returns false (does nothing) if it is not parked. After this it behaves like a ragdoll created with the same options.
+      acquire(position) {
+        if (!parked) return false;
+        const p0 = ropts.position || [0, 0, 0], p = position || p0;
+        parkTo(p[0] - p0[0], p[1] - p0[1], p[2] - p0[2], Jolt.EActivation_Activate);
+        const zero = new Jolt.Vec3(0, 0, 0);
+        for (let i = 0; i < n; i++) { bi.SetLinearVelocity(bodies[i].GetID(), zero); bi.SetAngularVelocity(bodies[i].GetID(), zero); }
+        Jolt.destroy(zero);
+        bi.SetMotionType(bodies[0].GetID(), kinematic ? Jolt.EMotionType_Kinematic : Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate);
+        parked = false;
+        return true;
+      },
       get awake() { return bodies.some((b) => bi.IsActive(b.GetID())); },
       // rows: a number (all joints) or { all, <role>: s, <partId>: s }; later keys win (all < role < partId). 1 = full, 0.01 = limp.
       setMotorStrength(rows) {
@@ -247,7 +274,7 @@ export async function createWorld(opts = {}) {
       },
       // put every capsule on the last setTargetPose / setRoot pose now (no motor lag, velocities zeroed): hides the lag at the moment of death
       snapToTarget() {
-        if (!targetQ || !lastRoot) return false;
+        if (parked || !targetQ || !lastRoot) return false;
         const at = (i) => [targetQ[i * 4], targetQ[i * 4 + 1], targetQ[i * 4 + 2], targetQ[i * 4 + 3]];
         const delta = D.def.map((_, i) => qmul(at(i), qconj(roles[i].rest.quat)));
         const pivot = new Array(n), centre = new Array(n);
@@ -270,6 +297,7 @@ export async function createWorld(opts = {}) {
       },
       // back to the spawn pose, alive, full strength. Only before any cut (a cut removes joints): returns false then, destroy and recreate instead.
       reset() {
+        if (parked) return false; // a parked ragdoll is already at rest; acquire() brings it out
         if (api.cuts.some((c) => !row.severable.find((s) => s.id === c).visual_only)) return false;
         cut.clear(); // visual-only cuts (head_split, belly_open) removed nothing: the caps hide again with the empty set
         const zero = new Jolt.Vec3(0, 0, 0);
@@ -320,6 +348,7 @@ export async function createWorld(opts = {}) {
       // M3 death: motor strength ramps to 0.01 over 1 s with the limp damper, limits and self-collision stay on, the hit impulse lands this same tick,
       // the ragdoll freezes (sleeps) once every body is under the freeze speed. hit = { part, impulse: [x,y,z] } (optional). Hips are released.
       kill(hit) {
+        if (parked) return false;
         if (state === "dying" || state === "frozen") return;
         state = "dying"; st = { t: 0, from: Float64Array.from(want) };
         calm = 0;
@@ -328,6 +357,7 @@ export async function createWorld(opts = {}) {
       },
       // M3 stagger: brief motor dip on the living body (arm 0.9 / torso 0.6 / hand 0.12, hold 0.5 s, back over 0.35 s). Ignored while dying or knocked down.
       stagger(hit) {
+        if (parked) return false;
         if (state !== "alive" && state !== "stagger") return;
         state = "stagger"; st = { t: 0 };
         if (hit) api.applyImpulse(hit.part, hit.impulse);
@@ -335,6 +365,7 @@ export async function createWorld(opts = {}) {
       // M3 knockdown (TABG start values): kind "damage" or "push" picks the fall time; hips are released, strength falls to fall_strength, stays down, then recovers
       // at recover_per_s. The game re-pins the root (setRoot) when state returns to "alive".
       knockdown(kind = "damage", hit) {
+        if (parked) return false;
         if (state !== "alive" && state !== "stagger") return;
         const g = S.knockdown;
         state = "knockdown"; st = { t: 0, fall_s: (kind === "push" ? g.push_over : g.damage_over).fall_s };
@@ -342,9 +373,10 @@ export async function createWorld(opts = {}) {
         if (hit) api.applyImpulse(hit.part, hit.impulse);
       },
       // the hips follow the game's pose while kinematic; applied at the next step
-      setRoot(position, quaternion) { rootMove = [position, quaternion]; lastRoot = [position, quaternion]; },
-      release() { bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate); },
+      setRoot(position, quaternion) { if (parked) return false; rootMove = [position, quaternion]; lastRoot = [position, quaternion]; },
+      release() { if (parked) return false; bi.SetMotionType(bodies[0].GetID(), Jolt.EMotionType_Dynamic, Jolt.EActivation_Activate); },
       applyImpulse(part, v) {
+        if (parked) return false;
         const i = D.idx[part];
         if (i === undefined) throw new Error("unknown part " + part);
         if (frozen) { for (const b of bodies) bi.ActivateBody(b.GetID()); frozen = false; if (state === "frozen") { state = "dying"; st = { t: S.death.ramp.seconds, from: Float64Array.from(want) }; calm = 0; } }
@@ -356,6 +388,7 @@ export async function createWorld(opts = {}) {
       // copts: { helmet: true | { radius_m, mass_kg } } spawns the head gear as a rigid prop (a head cut only), { impulse: [x,y,z] } pushes the severed piece.
       // Works on a frozen corpse too: the severed piece wakes, the rest stays asleep. Returns { unit, mass_kg, carries_roles, gear_slots, cap, props } or null.
       cut(unit, copts = {}) {
+        if (parked) return false;
         const u = row.severable.find((s) => s.id === unit);
         if (!u) throw new Error("unknown severable unit " + unit);
         if (u.visual_only) {
@@ -416,6 +449,7 @@ export async function createWorld(opts = {}) {
         return buf;
       },
       _pre() {
+        if (parked) return;
         applyMotors();
         if (rootMove) {
           const p = new Jolt.RVec3(...rootMove[0]), q = new Jolt.Quat(...rootMove[1]);
