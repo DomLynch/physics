@@ -1381,9 +1381,11 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   for (const C of capsAll) {
     const rec = capsOut[C.id];
     if (!rec) { capsMissing.push(C.id); continue; }
-    // The winding is judged above on float64 positions, the file stores float32: a sliver a tenth of a millimetre wide can flip its sign under the rounding
-    // and then disagrees with its stored normal (CUT-VALIDATE `caps` allows 1 percent of a cap's triangles to disagree). When a cap is over that,
-    // every disagreeing triangle gets vertices of its own carrying the normal of its winding, like a folded one. A cap under it is left exactly as built.
+    // A triangle's winding is judged above on float64 positions, but the file stores float32 and the validator reads the file. A triangle whose winding
+    // then disagrees with its stored normals is either a sliver whose sign flips under the rounding, or a folded triangle (of a loop that crosses itself)
+    // that the float64 test did not catch: this pass does not tell them apart and does not look at size. CUT-VALIDATE `caps` allows 1 percent of a cap's
+    // triangles to disagree. When a cap is over that, every disagreeing triangle gets vertices of its own carrying the normal of its winding, like a
+    // folded one (geometry unchanged, only the stored normals). A cap within the allowance is left exactly as built.
     {
       const bad = [];
       let total = 0;
