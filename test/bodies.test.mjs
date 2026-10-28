@@ -7,7 +7,7 @@ import { createPhysics } from "../src/index.mjs";
 import { generateRow, loadTable } from "../src/index.mjs";
 
 // the ragdoll's capsule lengths must match the lengths measured from the GLB joints (the row is what the game's body really is)
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106"]) {
   test(`${name}: ragdoll part lengths match the measured bone lengths`, () => {
     const m = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
     const row = generateRow(name, m, loadTable());
@@ -17,7 +17,7 @@ for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", 
   });
 }
 
-for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106"]) {
+for (const name of ["minotaur", "psyche", "warrior", "veteran", "minotaur-106", "psyche-106", "gargantua-106"]) {
   const body = JSON.parse(readFileSync(new URL(`../data/bodies/${name}.measure.json`, import.meta.url), "utf8"));
   test(`${name}: holds its rest pose (hips kinematic), then dies and freezes on the floor`, async () => {
     const p = await createPhysics({ seed: 1 });

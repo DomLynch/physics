@@ -22,6 +22,14 @@
       "note": "published 2026-10-27 (hair-fix 3f3bfe6); hair goes whole to piece_head (plane_exempt); the cut must stay byte-identical"
     },
     {
+      "name": "gargantua-106",
+      "source": "gargantua-106.glb",
+      "rig_map": "data/rig-maps/mixamo-106.json",
+      "measure": "data/bodies/gargantua-106.measure.json",
+      "expect_sha256": "d4f4aad5198134952a46a97a590ee6f572e83e25d69770d9f044b51caf4b2aae",
+      "note": "V3 boss, Frankendom-v3 PR #181 head a7cf086; masked (no hair material), so no plane_exempt; source is decompressed by the batch"
+    },
+    {
       "name": "warrior-65",
       "source": "v3/warrior.glb",
       "rig_map": "data/rig-maps/v1-65.json",

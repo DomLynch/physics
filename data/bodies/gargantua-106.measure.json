@@ -1,0 +1,120 @@
+{
+ "id": "gargantua-106",
+ "source": "gargantua-106.glb bind pose via mixamo-106.json",
+ "height_m": 1.732,
+ "neck_len": 0.0786,
+ "torso_len": 0.5915,
+ "shoulder_w": 0.7028,
+ "upper_arm_len": 0.2276,
+ "forearm_len": 0.3224,
+ "thigh_len": 0.3608,
+ "shin_len": 0.2679,
+ "foot_len": 0.1497,
+ "chest_w": 0.7162,
+ "waist_w": 0.6606,
+ "hip_w": 0.4661,
+ "chest_d": 0.5586,
+ "proportions_source": "chest_w 1.019 x shoulder_w, waist_w 0.94 x shoulder_w, hip_w 1.716 x hip joint gap, chest_d 0.78 x chest_w: ratios of OpenTrident mh-gen-v2-0002; limb radii left to the role table (k_len x length)",
+ "joints": {
+  "Hips": [
+   0,
+   0.7724,
+   0.0719
+  ],
+  "Spine": [
+   0,
+   0.9193,
+   0.0546
+  ],
+  "Spine1": [
+   0,
+   1.0906,
+   0.0343
+  ],
+  "Spine2": [
+   0,
+   1.2864,
+   0.0112
+  ],
+  "Neck": [
+   0,
+   1.5067,
+   -0.0148
+  ],
+  "Head": [
+   0,
+   1.5844,
+   -0.0032
+  ],
+  "LeftArm": [
+   0.3514,
+   1.4037,
+   -0.0143
+  ],
+  "LeftForeArm": [
+   0.5777,
+   1.3813,
+   -0.0053
+  ],
+  "LeftHand": [
+   0.9001,
+   1.3835,
+   -0.0019
+  ],
+  "RightArm": [
+   -0.3514,
+   1.4037,
+   -0.0154
+  ],
+  "RightForeArm": [
+   -0.5777,
+   1.3813,
+   -0.0058
+  ],
+  "RightHand": [
+   -0.9001,
+   1.3835,
+   -0.0026
+  ],
+  "LeftUpLeg": [
+   0.1358,
+   0.6909,
+   0.0539
+  ],
+  "LeftLeg": [
+   0.1726,
+   0.3329,
+   0.0272
+  ],
+  "LeftFoot": [
+   0.1689,
+   0.0658,
+   0.0066
+  ],
+  "LeftToeBase": [
+   0.157,
+   0,
+   0.1407
+  ],
+  "RightUpLeg": [
+   -0.1358,
+   0.6909,
+   0.0494
+  ],
+  "RightLeg": [
+   -0.1726,
+   0.3329,
+   0.0262
+  ],
+  "RightFoot": [
+   -0.1689,
+   0.0658,
+   0.0053
+  ],
+  "RightToeBase": [
+   -0.157,
+   0,
+   0.139
+  ]
+ }
+}
