@@ -76,9 +76,10 @@ for (const unit of NEW) {
     assert.deepEqual(r.props, []);
     assert.deepEqual(rd.cuts, [unit]);
     assert.equal(rd.cut(unit), null);
-    run(p, 60);
-    assert.ok(dist(pos(rd, cutRole), h0) > 0.15, "the piece left its place");
-    assert.ok(dist(pos(rd, cutRole), pos(rd, parent)) > 0.2, "joint to the forearm/shin is gone");
+    let far = 0, apart = 0; // a foot thrown up falls back on the floor: look at the peak, not the end
+    for (let i = 0; i < 60; i++) { p.step(TICK); far = Math.max(far, dist(pos(rd, cutRole), h0)); apart = Math.max(apart, dist(pos(rd, cutRole), pos(rd, parent))); }
+    assert.ok(far > 0.15, "the piece left its place: " + far);
+    assert.ok(apart > 0.2, "joint to the forearm/shin is gone: " + apart);
     assert.equal(rd.row.roles.length, t0);
     p.destroy();
   });
