@@ -179,6 +179,10 @@ async function buildBody(variant = {}) {
     bodyParts.push(box([0, 0.83, 0], [0.011, 0.1, 0.07], 8, wSkirt)); // y 0.73 to 0.93: across the hip planes and the midline (a loop that runs along the hip plane and the wall)
     bodyParts.push(box([0, 0.78, 0.13], [0.011, 0.04, 0.02], 4, wSkirt)); // y 0.74 to 0.82: wholly below the hip planes (a loop on the midline alone)
   }
+  // variant.boot: a closed garment layer around each lower leg (material boot_mat, mesh Boot_Geo, y 0 to 0.3, across the ankle planes at y about 0.14), weighted whole to Hips
+  const wBoot = () => [["Hips", 1]];
+  const bootParts = variant.boot ? [box([0.11, 0.15, 0.01], [0.09, 0.15, 0.09], 6, wBoot), box([-0.11, 0.15, 0.01], [0.09, 0.15, 0.09], 6, wBoot)] : [];
+  if (bootParts.length) scene.addChild(doc.createNode("Boot").setMesh(doc.createMesh("Boot_Geo").addPrimitive(prim(bootParts, doc.createMaterial("boot_mat")))).setSkin(mkSkin()));
   const skin = mkSkin(), skin2 = variant.quantLash ? mkSkin(ibm2) : mkSkin();
   const lashStored = variant.quantLash ? lashParts.map((m) => ({ ...m, pos: m.pos.map((p) => p.map((x, k) => (x - QUANT.T[k]) / QUANT.S)) })) : lashParts;
   const mesh = doc.createMesh("Body").addPrimitive(prim(bodyParts, matBody)).addPrimitive(prim(armParts, matHorn));
@@ -1288,4 +1292,52 @@ test("hands_feet through the CLI flag --hands-feet", async () => {
   const plain = spawnSync(process.execPath, args([]), { encoding: "utf8" });
   assert.equal(plain.status, 0, plain.stderr);
   assert.equal(JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8")).optional_units, undefined);
+});
+
+// ---------------------------------------------------------------- hands_feet accessory_feet (a shoe layer sewn into a rigid garment shell)
+const bootCut = (b, hf) => cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", handsFeet: hf, rigidAccessoryMaterials: ["boot_mat"] });
+
+test("hands_feet accessory_feet: off (the default) a rigid layer across the ankle plane stays whole in its piece, and the row field is checked", async () => {
+  const b = await buildBody({ boot: true });
+  const r = await bootCut(b, true);
+  assert.deepEqual(why(validateAll(b, r)), []);
+  const out = await readOut(r.glb);
+  assert.ok(!out.meshes.piece_foot_left.prims.some((p) => p.material === "boot_mat.rigid"), "no boot in the foot piece");
+  assert.equal(r.manifest.rigid_accessories_on_feet, undefined);
+  assert.equal(r.manifest.optional_units.hands_feet.accessory_caps, undefined);
+  assert.equal(r.manifest.optional_units.hands_feet.params.accessory_feet, undefined);
+  assert.equal(HANDS_FEET.accessory_feet, false);
+  assert.throws(() => buildHandsFeetPlanes(Object.fromEntries(Object.keys(W0).map((k) => [k, [W0[k][0], W0[k][1] - FLOOR, W0[k][2]]])), { ...HANDS_FEET, accessory_feet: "yes" }), /accessory_feet/);
+});
+
+test("hands_feet accessory_feet: the layer is cut at the ankle planes, the foot gets the shoe on its Foot bone, each seam is closed by a cap of its own, the validator passes with nothing relaxed", async () => {
+  const b = await buildBody({ boot: true });
+  const r = await bootCut(b, { accessory_feet: true }), m = r.manifest;
+  assert.deepEqual(why(validateAll(b, r)), []);
+  const out = await readOut(r.glb);
+  const foot = out.meshes.piece_foot_left.prims.find((p) => p.material === "boot_mat.rigid"), rest = out.meshes.piece_root.prims.find((p) => p.material === "boot_mat.rigid");
+  assert.ok(foot && rest, "boot in the foot piece and in piece_root");
+  const bone = out.joints.indexOf("LeftFoot");
+  for (let i = 0; i < foot.jj.length; i++) { assert.equal(foot.jj[i][0], bone); assert.equal(foot.ww[i][0], 1); }
+  const hips = out.joints.indexOf("Hips");
+  for (let i = 0; i < rest.jj.length; i++) { assert.equal(rest.jj[i][0], hips); assert.equal(rest.ww[i][0], 1); }
+  const pl = m.optional_planes.ankle_left, side = (p, i) => pl.normal[0] * (p[i] - pl.point[0]) + pl.normal[1] * (p[i + 1] - (pl.point[1] + FLOOR)) + pl.normal[2] * (p[i + 2] - pl.point[2]);
+  for (let i = 0; i < foot.positions.length; i += 3) assert.ok(side(foot.positions, i) >= -1e-4, "the shoe is beyond the ankle plane");
+  assert.deepEqual(m.plane_exempt.piece_foot_left, ["boot_mat.rigid"]); assert.deepEqual(m.plane_exempt.piece_foot_right, ["boot_mat.rigid"]);
+  assert.deepEqual(m.optional_units.hands_feet.accessory_caps.map((c) => c.id).sort(), ["cap_ankle_left_foot_left", "cap_ankle_left_root", "cap_ankle_right_foot_right", "cap_ankle_right_root"]);
+  assert.equal(m.optional_units.hands_feet.params.accessory_feet, true);
+  for (const c of m.optional_units.hands_feet.accessory_caps) { const cap = m.caps.find((q) => q.id === c.id); assert.ok(cap && cap.region === c.region && cap.shown_when_cut === c.shown_when_cut, c.id); assert.ok(out.meshes[c.id], c.id + " is in the GLB"); }
+  // the flesh cut faces keep their ids and areas (the layer's seam has caps of its own)
+  const plainHf = await bootCut(b, true), outPlain = await readOut(plainHf.glb);
+  for (const cap of ["cap_ankle_left_foot", "cap_ankle_left_leg", "cap_ankle_right_foot", "cap_ankle_right_leg"]) assert.ok(Math.abs(sumArea(out, [cap]) - sumArea(outPlain, [cap])) < 1e-9, cap + " area unchanged");
+  assert.ok(Buffer.compare(Buffer.from((await bootCut(b, { accessory_feet: true })).glb), Buffer.from(r.glb)) === 0, "deterministic");
+});
+
+test("hands_feet accessory_feet: the validator is told the seam caps by the manifest and still fails a cut without them (not a rubber stamp)", async () => {
+  const b = await buildBody({ boot: true });
+  const r = await bootCut(b, { accessory_feet: true });
+  const stripped = JSON.parse(JSON.stringify(r.manifest)); delete stripped.optional_units.hands_feet.accessory_caps;
+  assert.ok(failing(validateAll(b, r, stripped)).includes("watertight"), "without the cap list the piece is open at its seam: " + failing(validateAll(b, r, stripped)));
+  const bent = JSON.parse(JSON.stringify(r.manifest)); bent.optional_units.hands_feet.accessory_caps[0].plane = "ankle_right";
+  assert.ok(failing(validateAll(b, r, bent)).length > 0, "a cap named for the wrong plane fails");
 });

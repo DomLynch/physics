@@ -76,11 +76,12 @@ export const HANDS_FEET = {
   unit: "hands_feet",
   wrist_frac: 0, // fraction of ForeArm to Hand, measured from the Hand joint back toward the ForeArm joint (0: at the Hand joint)
   ankle_frac: 0, // fraction of Leg to Foot, measured from the Foot joint back toward the Leg (knee) joint (0: at the Foot joint)
+  accessory_feet: false, // true: a rigid accessory layer that reaches past an ankle plane (shoes in the trouser shell) gives its triangles beyond the plane to piece_foot_* (Foot bone)
   limbs: [
     { id: "hand_left", mesh: "piece_hand_left", from: "arm_left", plane: "wrist_left", joint: "LeftHand", toward: "LeftForeArm", frac: "wrist_frac" },
     { id: "hand_right", mesh: "piece_hand_right", from: "arm_right", plane: "wrist_right", joint: "RightHand", toward: "RightForeArm", frac: "wrist_frac" },
-    { id: "foot_left", mesh: "piece_foot_left", from: "leg_left", plane: "ankle_left", joint: "LeftFoot", toward: "LeftLeg", frac: "ankle_frac" },
-    { id: "foot_right", mesh: "piece_foot_right", from: "leg_right", plane: "ankle_right", joint: "RightFoot", toward: "RightLeg", frac: "ankle_frac" },
+    { id: "foot_left", mesh: "piece_foot_left", from: "leg_left", plane: "ankle_left", joint: "LeftFoot", toward: "LeftLeg", frac: "ankle_frac", with_accessories: true },
+    { id: "foot_right", mesh: "piece_foot_right", from: "leg_right", plane: "ankle_right", joint: "RightFoot", toward: "RightLeg", frac: "ankle_frac", with_accessories: true },
   ],
   caps: [
     { id: "cap_wrist_left_hand", region: "hand_left", plane: "wrist_left", shown_when_cut: "hand_left" },
@@ -233,6 +234,7 @@ export function buildHeadSplitPlane(J, row = HEAD_SPLIT) {
 // so the + side is the hand or the foot. Returns { plane id: plane fn }.
 export function buildHandsFeetPlanes(J, row = HANDS_FEET) {
   const fns = {};
+  if (row.accessory_feet !== undefined && typeof row.accessory_feet !== "boolean") throw new Error(`hands_feet: accessory_feet must be true or false, got ${JSON.stringify(row.accessory_feet)}`);
   for (const L of row.limbs) {
     for (const r of [L.joint, L.toward]) if (!J[r]) throw new Error("hands_feet: measure row has no joint " + r);
     const f = row[L.frac];
@@ -1013,6 +1015,8 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // ---- hands_feet (opt-in): the arm and leg pieces are cut once more, at the wrist and ankle planes, with the same machinery as the other planes (shared split
   // vertices, every attribute and skin weight interpolated). The + side of the plane (hand, foot) becomes its own piece, the - side stays in the limb piece.
   let handsInfo = null;
+  const accCaps = []; // accessory_feet: the extra caps (the accessory's piece at an ankle plane)
+  const accFootVerts = {}, accFootBone = {}; // accessory_feet: foot region -> the accessory vertices it holds, and the Foot bone they are bound to
   if (handsFeet) {
     handsInfo = {};
     for (const L of handsFeet.limbs) {
@@ -1027,6 +1031,39 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       pieceTris[L.id] = beyond;
       handsInfo[L.id] = { cut_from: L.from, plane: L.plane, triangles_in: before, triangles_kept: kept.length, triangles_beyond: beyond.length };
     }
+    // accessory_feet (row field, default off): a rigid accessory that reaches past an ankle plane (shoes sewn into the trouser layer, one shell) is cut at that
+    // plane like the body: each of its triangles is split at the ankle plane of the foot nearest to it, the part beyond goes to piece_foot_* (bound rigidly to the
+    // Foot bone), the part before stays in the piece that holds the accessory (bound to the accessory's own bone). The seam loops then go through the normal cap
+    // code: the foot gets one more loop on cap_ankle_*_foot, the accessory's piece gets a cap of its own on the same plane (cap_ankle_*_<piece>).
+    if (handsFeet.accessory_feet) {
+      const feet = handsFeet.limbs.filter((L) => L.with_accessories);
+      for (const L of feet) { accFootVerts[L.id] = new Set(); accFootBone[L.id] = roleJoint[L.joint]; }
+      accSpecs.forEach((spec, k) => {
+        const from = accPlace[k].region, mine = new Set(accTris[k]), gone = new Set();
+        for (const t of accFor[from] ? accFor[from].filter((x) => mine.has(x)) : []) {
+          const cen = [0, 1, 2].map((a) => (V.pos[t[0]][a] + V.pos[t[1]][a] + V.pos[t[2]][a]) / 3);
+          let best = null, bd = Infinity;
+          for (const L of feet) { const j = bindPos[roleJoint[L.joint]], d = Math.hypot(cen[0] - j[0], cen[1] - j[1], cen[2] - j[2]); if (d < bd) { bd = d; best = L; } }
+          if (!best) continue;
+          const [pos, neg] = splitPoly([t[0], t[1], t[2]], fns[best.plane]);
+          if (!pos) continue; // wholly before the plane: stays in the accessory, uncut
+          gone.add(t);
+          for (const [poly, dst, foot] of [[pos, pieceTris[best.id], true], [neg, pieceTris[from], false]]) if (poly) for (let q = 1; q + 1 < poly.length; q++) {
+            const tri = [poly[0], poly[q], poly[q + 1], t[3]];
+            dst.push(tri);
+            for (let i = 0; i < 3; i++) { if (foot) accFootVerts[best.id].add(tri[i]); else accVertBone.set(tri[i], accPlace[k].bone); }
+          }
+          for (const v of [t[0], t[1], t[2]]) if (!accVertBone.has(v)) accVertBone.set(v, accPlace[k].bone);
+          handsInfo[best.id].accessory_triangles = (handsInfo[best.id].accessory_triangles || 0) + 1;
+          if (neg) { const R0 = regions.find((r) => r.id === from); R0.extra_planes = [...new Set([...(R0.extra_planes || []), best.plane])]; } // the accessory's piece now has this plane among its own
+          for (const region of neg ? [from, best.id] : [best.id]) {
+            const cid = `cap_${best.plane}_${region}`;
+            if (!capsAll.some((c) => c.id === cid)) { const cap = { id: cid, region, plane: best.plane, shown_when_cut: best.id }; capsAll.push(cap); accCaps.push(cap); }
+          }
+        }
+        if (accFor[from]) accFor[from] = accFor[from].filter((x) => !gone.has(x));
+      });
+    }
     wcl = weldCluster(V.pos, 1e-5); // the split vertices are new
   }
 
@@ -1036,6 +1073,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   const bindWeights = (v, region) => {
     // hair travels with the head as one rigid piece: Head bone only (renormalised weights of a single bone)
     const side = boneRegion(region); // a head half uses the bones of the head
+    if (accFootVerts[region] && accFootVerts[region].has(v)) return { j: [accFootBone[region], 0, 0, 0], w: [1, 0, 0, 0] }; // accessory_feet: a shoe is bound to the Foot bone
     if (accVertBone.has(v)) return { j: [accVertBone.get(v), 0, 0, 0], w: [1, 0, 0, 0] }; // a rigid accessory: its one bone
     if (side === "head" && hairVerts.has(v)) return { j: [roleJoint.Head, 0, 0, 0], w: [1, 0, 0, 0] };
     const key = v * 16 + sideIdx(side);
@@ -1081,14 +1119,16 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
 
   // ---- caps: boundary edges of each piece that lie on a cut plane, chained into loops, triangulated (outer rings + holes)
   const capStats = { loops: 0, open_chains: 0, holes: 0, forced_ears: 0, bridge_fallbacks: 0, fallback_loops: 0, inward_triangles: 0, nonplanar_loops: 0, gaps_bridged: 0 };
-  const capOf = new Map(capsAll.map((c) => [c.region + ":" + c.plane, c]));
+  const capOf = new Map(capsAll.filter((c) => !accCaps.includes(c)).map((c) => [c.region + ":" + c.plane, c]));
   const capsOut = {}; // cap id -> { verts: [{v, region}], uv, tris }
   for (const R of regions) {
     const edges = new Map(); // directed welded edge -> { count, a, b }
     const W = weldId;
     const rep = new Map(); // welded id -> lowest vertex id
-    for (const [a, b, c] of pieceTris[R.id]) for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+    const accEdge = new Set(); // accessory_feet: directed welded edges of rigid accessory triangles (their loops get caps of their own)
+    for (const [a, b, c, pi] of pieceTris[R.id]) for (const [u, v] of [[a, b], [b, c], [c, a]]) {
       const wu = W(u), wv = W(v);
+      if (accCaps.length && accPrim[pi] >= 0) accEdge.add(wu * 4194304 + wv);
       if (!rep.has(wu) || rep.get(wu) > u) rep.set(wu, u);
       if (!rep.has(wv) || rep.get(wv) > v) rep.set(wv, v);
       if (wu === wv) continue;
@@ -1254,8 +1294,9 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       (report.groups ||= []).push({ near, region: R.id, edges: edgeList.length, loops: loops.length, loops_by_plane: loopInfo.map((l) => l.dom + ":" + l.loop.length), unbalanced: bad.length, unbalancedSample: bad.slice(0, 4) });
     }
     const byDom = new Map();
-    for (const li of loopInfo) { if (!byDom.has(li.dom)) byDom.set(li.dom, []); byDom.get(li.dom).push(li); }
-    for (const [dom, infos] of byDom) {
+    for (const li of loopInfo) { const key = li.dom + (accEdge.has(li.loop[0] * 4194304 + li.loop[1]) && accCaps.some((c) => c.region === R.id && c.plane === li.dom) ? "|acc" : ""); if (!byDom.has(key)) byDom.set(key, []); byDom.get(key).push(li); }
+    for (const [domKey, infos] of byDom) {
+      const isAcc = domKey.endsWith("|acc"), dom = isAcc ? domKey.slice(0, -4) : domKey;
       const fn = fns[dom];
       const nOut = dot(sub(cen, fn.point), fn.n) > 0 ? fn.n.map((x) => -x) : fn.n.slice();
       const u = norm(Math.abs(nOut[2]) < 0.9 ? cross(nOut, [0, 0, 1]) : cross(nOut, [1, 0, 0]));
@@ -1294,7 +1335,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       // the caps this group may feed: planes it lies on that this region has a cap for (a loop along two planes, the Lambda of the root's lower edge,
       // is triangulated once and shared out by the nearest plane)
       const planesHere = [...new Set(infos.flatMap((i) => Object.keys(i.len)).map((p) => (p === "hip_split" ? (midline ? hipCapOf(p) : dom) : p)))].filter((p) => capOf.has(R.id + ":" + p)).sort((a, b) => planeOrder.indexOf(a) - planeOrder.indexOf(b));
-      let targets = planesHere.map((p) => capOf.get(R.id + ":" + p));
+      let targets = isAcc ? [accCaps.find((c) => c.region === R.id && c.plane === dom)] : planesHere.map((p) => capOf.get(R.id + ":" + p));
       // parallel thighs: the root's lower face is one plane, shared out between its two hip caps by the side of the midline
       const sideCaps = midline && capOf.has(R.id + ":hip_left") && capOf.has(R.id + ":hip_right") && (dom === "hip_left" || dom === "hip_right") ? [capOf.get(R.id + ":hip_left"), capOf.get(R.id + ":hip_right")] : null;
       if (sideCaps) targets = sideCaps;
@@ -1557,9 +1598,10 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   }
   if (handsFeet) {
     for (const L of handsFeet.limbs) optionalPlanes[L.plane] = planeRow(fns[L.plane]);
-    optionalUnits.hands_feet = { enabled: true, kind: "split", unit: handsFeet.unit, units: handsFeet.limbs.map((L) => L.id), planes: handsFeet.limbs.map((L) => L.plane), regions: handsFeet.limbs.map((L) => L.id), caps: handsFeet.caps.map((c) => c.id),
+    optionalUnits.hands_feet = { enabled: true, kind: "split", unit: handsFeet.unit, units: handsFeet.limbs.map((L) => L.id), planes: handsFeet.limbs.map((L) => L.plane), regions: handsFeet.limbs.map((L) => L.id), caps: handsFeet.caps.concat(accCaps).map((c) => c.id),
       about: "piece_arm_* end at the wrist plane and piece_hand_* hold everything beyond it (hand, fingers, gear on those bones); piece_leg_* end at the ankle plane and piece_foot_* hold foot and toes. Each is detached by its own unit (hand_left ...); the arm and leg regions keep their ids and detached_by. Every piece is bound only to the bones on its own side of its plane",
-      params: { wrist_frac: handsFeet.wrist_frac, ankle_frac: handsFeet.ankle_frac }, stats: handsInfo };
+      params: { wrist_frac: handsFeet.wrist_frac, ankle_frac: handsFeet.ankle_frac, ...(handsFeet.accessory_feet ? { accessory_feet: true } : {}) }, stats: handsInfo,
+      ...(accCaps.length ? { accessory_caps: accCaps.map((c) => ({ id: c.id, region: c.region, plane: c.plane, shown_when_cut: c.shown_when_cut })) } : {}) };
   }
   if (belly) {
     optionalPlanes.belly_open = planeRow(fns.belly_open);
@@ -1643,6 +1685,13 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const accReason = "rigid accessory layers (the row's rigid_accessory_materials: a skirt, sash, hem, jacket, trousers or pauldron layer) are kept whole and bound rigidly to one bone of the piece that holds them, so they are not cut at any plane (they reach across planes of the pieces beside them); cut-validate skips the planes check for them only";
     manifest.plane_exempt_reason = manifest.plane_exempt_reason ? manifest.plane_exempt_reason + "; " + accReason : accReason;
     manifest.rigid_accessories = entries;
+    if (handsFeet && handsFeet.accessory_feet) {
+      for (const L of handsFeet.limbs) if (L.with_accessories && accFootVerts[L.id] && accFootVerts[L.id].size) {
+        const own = pieceTris[L.id].filter((t) => accPrim[t[3]] >= 0);
+        pe[L.mesh] = [...new Set(own.map((t) => srcPrims[t[3]].material.getName()))].sort();
+        manifest.rigid_accessories_on_feet = { ...(manifest.rigid_accessories_on_feet || {}), [L.mesh]: { bone: joints[accFootBone[L.id]].getName(), triangles: own.length, vertices: accFootVerts[L.id].size } };
+      }
+    }
   }
   return { glb, manifest, report };
 }
