@@ -34,6 +34,7 @@ node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--ou
 | `overrides.crotch_planes` | `false` for plain thigh-normal hip planes |
 | `overrides.head_split`, `overrides.belly_open`, `overrides.hands_feet` | opt-in cuts (`docs/CUT-CONTRACT.md` "Optional cuts"), true or a row that overrides fields |
 | `expect_sha256` | the cut GLB must hash to this: the published bodies carry it, so a tool change that moves their bytes fails the batch |
+| `expect_sha256_hands_feet` | the same for a `--hands-feet` run: that cut GLB (with the row's `hands_feet_params`) must hash to this. Read only on `--hands-feet` runs of rows whose `overrides.hands_feet` is unset; a default run ignores it. Without it a `--hands-feet` run reports `expect_sha256` as skipped |
 | `blocked` | the cause, when the body is known not to validate: it is still run and reported as BLOCKED with the cause. It needs `blocked_checks`; the body is BLOCKED (does not fail the run) only when there is no error and exactly those checks fail. Any other failure (an exception, a missing source, a hash mismatch, an extra or missing failing check) is FAIL and fails the run, and a blocked body that passes is UNBLOCKED (fails the run: delete the row's `blocked` and `blocked_checks`) |
 | `blocked_checks` | with `blocked`: the names of the validator checks the body is expected to fail, for example `["watertight"]`; refused without `blocked` |
 | `note` | free text |

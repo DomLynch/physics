@@ -512,3 +512,24 @@ test("anime-girl-blonde-106 (V3 body): a pinned, unblocked row whose only overri
   assert.match(b.expect_sha256, /^[0-9a-f]{64}$/);
   assert.match(b.note, /narrow/i);
 });
+
+test("expect_sha256_hands_feet: checked only on a --hands-feet run (a wrong pin fails it, a right pin passes), ignored on the default run; a malformed pin is refused", async () => {
+  const f = await fixture();
+  const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
+  const hf0 = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "e-hf0"), handsFeet: true });
+  assert.deepEqual(hf0.failed.map((r) => r.name), []);
+  rows.bodies[0].expect_sha256_hands_feet = hf0.results[0].sha256;
+  rows.bodies[1].expect_sha256_hands_feet = "0".repeat(64);
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const plain = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "e-plain") });
+  assert.deepEqual(plain.failed.map((r) => r.name), [], "the default cut ignores the hands_feet pin");
+  assert.ok(plain.results.every((r) => r.stages.expect === undefined));
+  const hf = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "e-hf"), handsFeet: true });
+  assert.deepEqual(hf.failed.map((r) => r.name), [hf.results[1].name], "only the wrong pin fails");
+  assert.equal(hf.results[0].stages.expect.ok, true);
+  assert.equal(hf.results[0].stages.expect.expected, hf0.results[0].sha256);
+  assert.match(hf.results[1].error, /not the expected/);
+  rows.bodies[1].expect_sha256_hands_feet = "abc";
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  assert.throws(() => loadRows(f.bodiesPath), /expect_sha256_hands_feet/);
+});

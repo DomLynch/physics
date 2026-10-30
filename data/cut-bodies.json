@@ -11,6 +11,7 @@
       "measure": "data/bodies/minotaur-106.measure.json",
       "overrides": { "head_split": true, "belly_open": true },
       "expect_sha256": "813e13c1c914f8fe2df950ba8bb74d4ec3bfa106264fb021bc39e7a4a157182c",
+      "expect_sha256_hands_feet": "b386080a5442adfe5876390aabe246f6414813e14b02fc514d583bb2072427d1",
       "note": "published 2026-10-27 (hair-fix 3f3bfe6); with head-split and belly-open (piece_head_left, piece_head_right, 3 caps) as shipped in V3 #111 (physics 9056ef7); the cut must stay byte-identical"
     },
     {
@@ -20,6 +21,7 @@
       "measure": "data/bodies/psyche-106.measure.json",
       "hands_feet_params": { "ankle_frac": 0.2 },
       "expect_sha256": "204e7674e4e3118fee3ea768a8306505a8d96240946b0b3fec36d3abbe61690e",
+      "expect_sha256_hands_feet": "98775863505b5534fc7c9b09aad808635bde369da3b5825c89c810dc7094609d",
       "note": "re-pinned 2026-10-28 to V3's own source: Frankendom-v3 commit 3e2a48c0 src/assets/psyche-106.glb (same bytes as V3 main), sha256 11c8e72da363f3b04e1d2d2bd5b68ffca00dfa9b2e759565b395b689057c8c74 (decompressed by the batch to e31c31c44a90a94941c2c4870a1ca78d4b0ef395be31a0fbaa77aff3d480a1fc); replaces the unknown-origin plain copy e9f15ce7 (cut b684b455); hair goes whole to piece_head (plane_exempt); the cut must stay byte-identical. hands_feet_params applies only on a --hands-feet run: Psyche's source has a native slit of about 2.5 mm at the ankle joint plane (ankle_frac 0) that the 1 mm gap bridge does not close; ankle_frac 0.1, 0.2 and 0.3 pass every check (0.05 and 0.15 do not), measured 2026-10-30; the default cut and its pin are unchanged"
     },
     {
@@ -28,6 +30,7 @@
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/gargantua-106.measure.json",
       "expect_sha256": "d4f4aad5198134952a46a97a590ee6f572e83e25d69770d9f044b51caf4b2aae",
+      "expect_sha256_hands_feet": "0e8c675da1ecabe818ab7397f792dd9ecf921e9987a423134edcd38dd9546cc6",
       "note": "V3 boss, Frankendom-v3 PR #181 head a7cf086; masked (no hair material), so no plane_exempt; source is decompressed by the batch"
     },
     {
@@ -37,6 +40,7 @@
       "measure": "data/bodies/arachne-106.measure.json",
       "overrides": { "planes": { "neck_frac": 0.2 } },
       "expect_sha256": "30a476c4447b50f5d46ac46ee15e277d66b3e61e5ef9c4aca0098479c115b10a",
+      "expect_sha256_hands_feet": "e6acd44726180afcec38cdfed9bb6c0ba084a8a0f66e20cd0153c403bef65565",
       "note": "V3 boss Arachne, Frankendom-v3 PR 181 head a7cf086 (slim woman; the GLB carries only the body, eyes, lashes, face and hair, the shield and axe are runtime sockets); five meshes on five skins with five dequantisation matrices (cut-units.mjs now uses one per skin); hair goes whole to piece_head (plane_exempt). neck_frac 0.2: at the default 0.5 the neck plane runs along the seam between the body mesh and the face mesh and leaves 42 unclosed cap edges (24 open chains) each side; 0.2 and 0.8 both close (0.35 and 0.65 do not)."
     },
     {
@@ -88,6 +92,7 @@
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/pumpkinhulk-106.measure.json",
       "expect_sha256": "6613caf075ab8bf8133ffff0cdd05d036960de495e8fad9a2d53c5e69cb35573",
+      "expect_sha256_hands_feet": "7785b807e30b20c333729cddf1bf6209aa7dd0f7fd64448047e700eabab154f5",
       "note": "V3 boss Pumpkinhulk, Frankendom-v3 PR 224 head bbcf39c (1,514,336 bytes, sha256 42c32d30...e8b3, 9,648 tris, 106 joints); default planes, no hair material; the limb-loss row loadLimbLoss('pumpkinhulk') takes arm_left and arm_right as piece_hostile units"
     },
     {
@@ -96,6 +101,7 @@
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/parasite-106.measure.json",
       "expect_sha256": "de0b245c479ac24c85bd11b6619285b319076925b60ebb969c052e007e547ad7",
+      "expect_sha256_hands_feet": "7b2cef4a42dc0bac09c3b0a116a9328981ef60f81d99a88594905169983f73d9",
       "note": "V3 boss Parasite (The Titan's Envoy), Frankendom-v3 PR 226 head 017f932 (src/assets/parasite-106.glb, 2,009,476 bytes, sha256 e3014ea7...ee1f, 10,930 tris, 106 joints, stem parasite; confidential source, not committed). OpenTrident Dev capped 66 open edges (throat ring + 2 jaw holes) in the source; all 8 checks pass with no bypass. The source keeps native boundary edges that the cut leaves alone: OpenTrident counted 410 (eye loops); the validator counts 438 on the source surface and 442 on the pieces (head 296, upper torso 50, root 38, legs 29 + 29), none introduced by a cut and none crossing a cut plane. Capping them would cover the eyeballs. Default planes, no hair material; 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; cut GLB 2,848,452 bytes, 1,943,703 gzipped."
     },
     {
@@ -103,15 +109,19 @@
       "source": "big-vegas-106.glb",
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/big-vegas-106.measure.json",
+      "hands_feet_params": { "ankle_frac": 0.08 },
       "expect_sha256": "643bffb53360bbcca570f740e8b3ca8e079edbf7151e49eb553db8aa7ca1443e",
-      "note": "V3 boss Big Vegas (The King), Frankendom-v3 PR 229 head 7327835 (src/assets/big-vegas-106.glb, 678,832 bytes, one skinned mesh Steel 4,584 vertices plus eyes, brows and mouth). Parallel thighs, the belly apron and the Hips-skinned crotch run across the midline below the hip planes while the legs never reach it (inner thighs at x = +-0.10 m, crotch underside y = 0.76 m). Cut by the midline wall cap: the two hip planes are one shared plane (still two named planes and four hip caps), the leg pieces get wall caps on the midline, the root's lower face is shared out left and right by it; the neck/shoulder collar island loop is chained plane by plane; cap triangles whose float32 winding disagrees with their stored normals are re-wound when over the validator's allowance. All 8 checks pass, validator unchanged (2 over-used edges native to the source). The shipped pinned rows regenerate byte-identical."
+      "expect_sha256_hands_feet": "4f43bed2aefe8a0cb1f1ad81317e6774bc62b0793311e46641aeb772841a26ba",
+      "note": "hands_feet_params (a --hands-feet run only): the Foot joint (y 0.2655 m) sits at the shoe rim, so at ankle_frac 0 a ring of grey shoe stayed on the leg piece under the bare ankle; ankle_frac 0.08 (2.6 cm up) leaves the whole shoe on the foot piece (0.06 fails the validator: one seam vertex without a partner; 0, 0.02, 0.04, 0.08 and 0.1 pass). V3 boss Big Vegas (The King), Frankendom-v3 PR 229 head 7327835 (src/assets/big-vegas-106.glb, 678,832 bytes, one skinned mesh Steel 4,584 vertices plus eyes, brows and mouth). Parallel thighs, the belly apron and the Hips-skinned crotch run across the midline below the hip planes while the legs never reach it (inner thighs at x = +-0.10 m, crotch underside y = 0.76 m). Cut by the midline wall cap: the two hip planes are one shared plane (still two named planes and four hip caps), the leg pieces get wall caps on the midline, the root's lower face is shared out left and right by it; the neck/shoulder collar island loop is chained plane by plane; cap triangles whose float32 winding disagrees with their stored normals are re-wound when over the validator's allowance. All 8 checks pass, validator unchanged (2 over-used edges native to the source). The shipped pinned rows regenerate byte-identical."
     },
     {
       "name": "anime-boy-black-106",
       "source": "anime-boy-black-106.glb",
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/anime-boy-black-106.measure.json",
+      "hands_feet_params": { "wrist_frac": 0.1 },
       "expect_sha256": "56c0fbd010783bc1e3425803dc56398981dd31019b3a270ae543d82471e4dad4",
+      "expect_sha256_hands_feet": "da967525ca2890556e159273393e38d269c880c06319f8712f4784f9984d6c3d",
       "note": "V3 boss/body anime-boy-black, Frankendom-v3 PR 235 head 30978b8 (src/assets/anime-boy-black-106.glb, 853,344 bytes, sha256 cf907471...91de, meshopt-compressed, 106 joints = 64 mixamorig + 42 VRM extras for hair, spring and eye that are unanimated and ignored by the rig map; stem anime-boy-black; confidential source, not committed). Source repairs by OpenTrident Dev, position-only: 94 leg vertices, 70 pelvis-flank vertices, 12 crotch-seam vertices; all 8 checks pass unmodified with no bypass. The source keeps native open edges that the cut leaves alone (face cards, collar, shoes): OpenTrident counted 602; the validator counts 606 on the source surface (584 open, 22 over-used) and on the pieces (head 538 incl. 22 over-used, upper torso 34, root 10, legs 12 + 12), none introduced by a cut and none crossing a cut plane. Default planes, no hair material; 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; cut GLB 3,263,772 bytes, 1,321,434 gzipped."
     },
     {
@@ -120,6 +130,7 @@
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/sporty-granny-106.measure.json",
       "expect_sha256": "bdd5dca31f12d252d04d17565aa46c4edd9a57dd352f16844f1b2c45a65a8bef",
+      "expect_sha256_hands_feet": "325d5c9efc56316d41a67069fab30b6c73313b89e31796a1775d17e6fe9a47d0",
       "note": "V3 boss Sporty Granny (Nan the Impaler), Frankendom-v3 PR 230 head b373905 (src/assets/sporty-granny-106.glb, 782,760 bytes, sha256 f0b76d70...6db1, 106 joints, stem sporty-granny; confidential source, not committed). Source repairs by OpenTrident Dev, before this cut: capped eight open loops, nudged three vertices, reweighted 38 crotch vertices. All 8 checks pass unmodified with no bypass and default settings (no rigid accessory layers, no plane_snap_m); re-verified here at physics ba2daea. The source keeps native open edges that the cut leaves alone (hair and brows, eyes): the validator counts 688 on the source surface (676 open, 12 over-used) and 728 on the pieces (all in the head: 715 open, 13 over-used), none introduced by a cut and none crossing a cut plane. Default planes; the brows (FitGrandma_Brows_MAT1, 80 head vertices) go whole to piece_head (plane_exempt); 7 pieces (root, upper_torso, head, arm_left, arm_right, leg_left, leg_right) + 12 caps; measured height 1.6388 m; cut GLB 1,826,360 bytes, 699,141 gzipped."
     },
     {
@@ -129,6 +140,7 @@
       "measure": "data/bodies/anime-girl-blonde-106.measure.json",
       "overrides": { "planes": { "shoulder_mode": "tilt" } },
       "expect_sha256": "5b8cb96e61b7242c6312a370678c81dce43cbff7863e718cad46a2b852999fde",
+      "expect_sha256_hands_feet": "cb03b9f2a025b867fcf0778af38e4a87371f0cf0a5ef74aae4d6c997dae14e10",
       "note": "V3 body anime-girl-blonde, Frankendom-v3 PR 236 head 4afdaf9 (src/assets/anime-girl-blonde-106.glb, 845,304 bytes, sha256 3ed06959...90d9; 3 skinned primitives, 106 joints; confidential source, not committed). Narrow anime shoulders over a wide waist and hips: the LeftArm joint is at x = +-0.108 m, the waist skin reaches 0.123, the vest 0.159 and the skirt 0.2, so the default vertical shoulder plane left waist, hip and skirt vertices on the arm side (default planes: 6 of 8, watertight and orientation fail). The one row override is planes.shoulder_mode tilt (the general narrow-shoulder rule: the plane keeps its arm joint and turns about it, 33 degrees here, until it clears every vertex another region owns below the shoulder); all 8 checks pass with no other override and no bypass, and bone_side holds by construction because the plane still passes through the joint. Measure row regenerated from the PR's packed GLB. Source shells of F00_ATLAS_MASK_DS: vest 2,066 triangles, skirt 758, bow 384, hair and trim shells above y 1.37. The source keeps 8 native over-used edges that the cut leaves alone (0 open); 7 pieces + 12 caps; cut GLB 3,229,644 bytes, 1,327,526 gzipped."
     },
     {
@@ -184,7 +196,9 @@
       "source": "kachujin-106.glb",
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/kachujin-106.measure.json",
+      "hands_feet_params": { "wrist_frac": 0.02 },
       "expect_sha256": "ed1ce1d402dac0f63eb08a0a64e46d90d45cd199d1fdc65b22dc3e012f2d0357",
+      "expect_sha256_hands_feet": "6d1b46881bbe2b7a95702a1fee7e74ccd64922dfc4c45e95976a28f210fef3c7",
       "overrides": {
         "plane_snap_m": 9e-5,
         "rigid_accessory_materials": [
@@ -201,6 +215,7 @@
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/castle-guard-106.measure.json",
       "expect_sha256": "ccbc64a54b33c22e8a2a7c94f2766834afb44e8da0d820d312b2a6745d02aad1",
+      "expect_sha256_hands_feet": "a3f3a1bc2e0e3379f8f36444d05540b43bae8d5c016953202d9225a4cc682dfa",
       "overrides": {
         "rigid_accessory_materials": [
           { "name": "Guard_02", "shells_inside": [[-0.46, 1.54, -0.23], [-0.1, 1.73, 0.12]] },
@@ -215,8 +230,10 @@
       "rig_map": "data/rig-maps/mixamo-106.json",
       "measure": "data/bodies/the-boss-106.measure.json",
       "overrides": { "rigid_accessory_materials": [{ "name": "Clothes_MAT" }, { "name": "Clothes_MAT.001", "piece": "root", "shells_inside": [[-0.5, -0.02, -0.4], [0.5, 1.03, 0.5]] }] },
+      "hands_feet_params": { "ankle_frac": 0.04, "accessory_feet": true },
       "expect_sha256": "367554e5baddc5e921e9ba007ced91b7b9def499818d29a4cfb0d85d6ef2404a",
-      "note": "V3 boss body, rebuilt by OpenTrident Dev: Frankendom-v3 PR #242 head 43916a8 (src/assets/the-boss-106.glb, 1,465,828 bytes, sha256 1fb54cf4...22f7, 106 joints). Replaces the PR #232 body (head 9d5a66b), which was BLOCKED on watertight, orientation and caps because the jacket was the torso and the trousers were the legs. The new source adds a closed body shell (6,867 vertices, 13,632 triangles: torso, both legs, two shoulder stubs) inside the clothes, appended to the Skin_MAT primitive, and keeps jacket and trousers as separate layers. Both layers are rigid accessories (kept whole, plane_exempt): the jacket (Clothes_MAT) to upper_torso, the trousers and shoes (Clothes_MAT.001, shells inside the box so the hat, same material, stays head geometry) to root. Default planes, no plane_snap_m, tool and validator unchanged. 8 of 8 PASS; 7 pieces + 12 caps; measured height 1.7367 m; 226 native open edges (head: mouth, eye sockets, eyeball backs, hat underside), none introduced; cut GLB 2,745,280 bytes, 1,591,911 gzipped. Reproduced three times with identical bytes. The pass is sensitive to the shell shape near the crotch: OpenTrident swept 12 shell variants (voxel size, crotch ceiling height) and 3 passed 8 of 8, the neighbours failed orientation or caps; a re-exported shell needs a re-run, the pin will say so."
+      "expect_sha256_hands_feet": "05dfa26a6d6d630eaf9f641b0d26e219e18af8bc85fcbb19c6f1bb7b951162bd",
+      "note": "hands_feet_params (a --hands-feet run only, the default cut and its pin are unchanged): the trousers and the shoes are ONE connected shell (Clothes_MAT.001, 1,760 triangles, y -0.002 to 0.984) kept whole on piece_root, so a plain hands/feet cut left the shoes behind and piece_foot_* was a bare skin dome. accessory_feet true cuts that shell at the ankle planes too: each foot gets the shoe plus a short trouser collar (bound to the Foot bone), piece_root keeps the trouser leg above the plane, each side closed by a cap of its own (cap_ankle_*_root, cap_ankle_*_foot_*; manifest hands_feet.accessory_caps). ankle_frac 0.04 puts the plane 1.6 cm above the Foot joint (y 0.1242 m, the shoe top is about 0.13 m); 0, 0.01 and 0.03 to 0.12 pass the validator (0.02 fails: flipped winding on piece_root, a non-flat seam cap). V3 boss body, rebuilt by OpenTrident Dev: Frankendom-v3 PR #242 head 43916a8 (src/assets/the-boss-106.glb, 1,465,828 bytes, sha256 1fb54cf4...22f7, 106 joints). Replaces the PR #232 body (head 9d5a66b), which was BLOCKED on watertight, orientation and caps because the jacket was the torso and the trousers were the legs. The new source adds a closed body shell (6,867 vertices, 13,632 triangles: torso, both legs, two shoulder stubs) inside the clothes, appended to the Skin_MAT primitive, and keeps jacket and trousers as separate layers. Both layers are rigid accessories (kept whole, plane_exempt): the jacket (Clothes_MAT) to upper_torso, the trousers and shoes (Clothes_MAT.001, shells inside the box so the hat, same material, stays head geometry) to root. Default planes, no plane_snap_m, tool and validator unchanged. 8 of 8 PASS; 7 pieces + 12 caps; measured height 1.7367 m; 226 native open edges (head: mouth, eye sockets, eyeball backs, hat underside), none introduced; cut GLB 2,745,280 bytes, 1,591,911 gzipped. Reproduced three times with identical bytes. The pass is sensitive to the shell shape near the crotch: OpenTrident swept 12 shell variants (voxel size, crotch ceiling height) and 3 passed 8 of 8, the neighbours failed orientation or caps; a re-exported shell needs a re-run, the pin will say so."
     }
   ]
 }

@@ -73,7 +73,13 @@ export function tablesFor(manifest) {
     constraints[L.from] = [...T.constraints[L.from], [L.plane, "-"]];
     regionUnit[L.id] = L.id;
   }
-  return { ...T, regions: T.regions.flatMap((r) => [r, ...HAND_FOOT_LIMBS.filter((L) => L.from === r).map((L) => L.id)]), regionUnit, caps: { ...T.caps, ...HAND_FOOT_CAPS }, constraints, hands: true, handPlanes: HAND_FOOT_LIMBS.map((L) => L.plane), limbs: HAND_FOOT_LIMBS };
+  // accessory_feet: a rigid accessory cut at an ankle plane (shoes in the trouser shell) leaves a seam in its piece and in the foot; the manifest lists the caps
+  // that close those seams (hands_feet.accessory_caps: { id, region, plane, shown_when_cut }). They are held to everything a cap is held to (structure, caps,
+  // watertight with their piece, flat on their plane and facing away, below); a cap that names no ankle plane or no piece is ignored here and fails structure.
+  const accCaps = {}, regionIds = new Set(T.regions.flatMap((r) => [r, ...HAND_FOOT_LIMBS.filter((L) => L.from === r).map((L) => L.id)]));
+  const accList = (manifest.optional_units.hands_feet.accessory_caps || []).filter((c) => c && typeof c.id === "string" && /^cap_ankle_(left|right)_/.test(c.id) && regionIds.has(c.region) && HAND_FOOT_LIMBS.some((L) => L.plane === c.plane && L.id === c.shown_when_cut));
+  for (const c of accList) accCaps[c.id] = [c.region, c.shown_when_cut];
+  return { ...T, regions: T.regions.flatMap((r) => [r, ...HAND_FOOT_LIMBS.filter((L) => L.from === r).map((L) => L.id)]), regionUnit, caps: { ...T.caps, ...HAND_FOOT_CAPS, ...accCaps }, constraints, hands: true, handPlanes: HAND_FOOT_LIMBS.map((L) => L.plane), limbs: HAND_FOOT_LIMBS, accessoryCaps: accList };
 }
 
 // ---- GLB reader -------------------------------------------------------------------------------------------------------------------------------------------
@@ -586,6 +592,7 @@ export function validate(glbBuf, manifest, opts = {}) {
     for (const p of parts) {
       const cons = T.constraints[p.region];
       if (!cons) continue;
+      if (p.kind === "cap" && (T.accessoryCaps || []).some((c) => c.id === p.id)) continue; // an accessory's seam cap is as plane_exempt as the accessory it closes; hands_feet checks it flat on its own plane
       const ex = exemptMask(p);
       if (ex) exemptNote.push(`${ex.reduce((s, x) => s + x, 0)} ${p.id} vertices (${manifest.plane_exempt[p.id].join(", ")})`);
       for (const [pn, sign] of cons) {
@@ -783,6 +790,18 @@ export function validate(glbBuf, manifest, opts = {}) {
       table.push(`${L.plane}: seam ${wl.reps.length} welded vertices on the plane in ${L.from}, ${we.reps.length} in ${L.id}`);
       if (!wl.reps.length) bad.push(`${L.plane}: the pieces share no vertex on the plane`);
       else if (miss) bad.push(`${L.plane}: ${miss} welded seam vertices have no partner in the other piece: the pieces do not meet`);
+    }
+    // accessory caps (accessory_feet): flat on their ankle plane and wound away from their own piece, like the cut faces above
+    for (const ac of T.accessoryCaps) {
+      const cp = get(ac.id), pl = optPlanes[ac.plane];
+      if (!cp || !pl) { bad.push(`${ac.id}: the cap or its plane ${ac.plane} is missing`); continue; }
+      const m = cp.mesh, own = ac.region === ac.shown_when_cut ? -1 : 1; // the foot's own cap faces -n, the cap of the piece left behind +n
+      let offN = 0, good = 0, total = 0;
+      for (let v = 0; v < m.nv; v++) if (Math.abs(dist(pl, m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2])) > PLANE_TOL) offN++;
+      for (let t = 0; t + 2 < m.idx.length; t += 3) { const gn = triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2]); if (!(Math.hypot(...gn) > 1e-14)) continue; total++; if ((gn[0] * pl.normal[0] + gn[1] * pl.normal[1] + gn[2] * pl.normal[2]) * own > 0) good++; }
+      if (offN) bad.push(`${ac.id}: ${offN} vertices off the ${ac.plane} plane: the cut face is not flat`);
+      if (!total) bad.push(`${ac.id}: no triangles`); else if (good / total < 0.99) bad.push(`${ac.id}: ${total - good} of ${total} triangles face the wrong way`);
+      table.push(`${ac.id}: ${total} triangles flat on ${ac.plane}, facing ${own < 0 ? "-" : "+"} normal`);
     }
     add("hands_feet", !bad.length, bad.length ? `${bad.length} problem(s)` : `${T.limbs.length} planes: normals along the bones, pieces on their sides, cut faces flat and facing away with equal areas, pieces meet along one seam per plane`, bad, table);
   }
