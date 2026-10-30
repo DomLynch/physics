@@ -11,5 +11,5 @@
   "{S}UpLeg":{"end":"{S}Leg","parent":"Hips","r":0.04154,"l":0.12217,"m":0.11887,"j":["ball",85,45]},
   "{S}Leg":{"end":"{S}Foot","parent":"{S}UpLeg","r":0.04482,"l":0.18715,"m":0.05598,"j":["hinge",-3.2,136.8]},
   "{S}Foot":{"end":"{S}ToeBase","parent":"{S}Leg","r":0.026,"l":0.10533,"m":0.01444,"j":["ball",40,20]},
-  "{S}ToeBase":{"end":null,"ext":0.05,"parent":"{S}Foot","r":0.02,"l":0.05,"m":0.00305,"j":["ball",30,5]}
+  "{S}ToeBase":{"end":null,"ext":0.05,"parent":"{S}Foot","r":0.012,"l":0.05,"m":0.00305,"j":["ball",30,5]}
 }}

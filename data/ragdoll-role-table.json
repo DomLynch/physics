@@ -62,7 +62,7 @@
       "joint": { "type": "ball", "swing_deg": 40, "twist_deg": 20, "source": "HQ LeftFoot +-50, Y 50, Z 25 (reduced: the toe body takes the rest)" },
       "damage_multiplier": 0.5, "damage_source": "own (lower leg value)", "material": "flesh", "armour_slot": "feet" },
     { "id": "toe", "sided": true, "start": "ToeBase", "ext": "toe", "parent": "foot", "mass_hq_kg": 0.19, "mass_source": "HQ LeftFoot split",
-      "r": { "from": "fixed_height_ratio", "fixed_height_ratio": 0.02, "max_len_ratio": 0.5, "source": "own" },
+      "r": { "from": "fixed_height_ratio", "fixed_height_ratio": 0.012, "max_len_ratio": 0.5, "source": "own, measured 2026-10-30 (was 0.02): a killed ragdoll often ends standing on its toe tip, and the toe capsule, which sticks out past the foot, sank 0.06 to 0.07 m (vagrant-106, anime-girl) in proportion to its radius; 0.012 sinks 0.03 m or less on flat and slope15 over ten drops on vagrant, brute, big-vegas and anime-girl, the same as every other part (Jolt penetration slop 0.02 m)" },
       "joint": { "type": "ball", "swing_deg": 30, "twist_deg": 5, "source": "own (M1 harness value)" },
       "damage_multiplier": 0.5, "damage_source": "own", "material": "flesh", "armour_slot": "feet" }
   ],
