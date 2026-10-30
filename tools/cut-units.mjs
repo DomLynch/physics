@@ -1143,7 +1143,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     }
     // centroid for the outward direction
     const used = new Set();
-    for (const [a, b, c] of pieceTris[R.id]) { used.add(a); used.add(b); used.add(c); }
+    for (const [a, b, c, pi] of pieceTris[R.id]) { if (accPrim[pi] >= 0) continue; used.add(a); used.add(b); used.add(c); } // a rigid accessory's seam part (accessory_feet) is not the piece's body: the validator's centroid leaves it out too
     const cen = [0, 0, 0];
     for (const v of used) for (let k = 0; k < 3; k++) cen[k] += V.pos[v][k] / used.size;
     // classify the boundary edges that lie on a cut plane; the others are native open edges of the source mesh (reported, not capped)
