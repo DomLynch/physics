@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 export const SCHEMA = "cut-bodies/1";
 // the row keys a body may carry (anything else is refused: a typo in a row must not silently cut with defaults)
-const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "hands_feet_params", "expect_sha256", "blocked", "blocked_checks", "note"]);
+const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "hands_feet_params", "expect_sha256", "expect_sha256_hands_feet", "blocked", "blocked_checks", "note"]);
 const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open", "hands_feet", "rigid_accessory_materials", "plane_snap_m"]);
 const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac", "shoulder_mode"]);
 
@@ -54,6 +54,7 @@ export function loadRows(path) {
     if (row.blocked !== undefined && !(Array.isArray(row.blocked_checks) && row.blocked_checks.length && row.blocked_checks.every((c) => typeof c === "string" && c))) throw new Error(`${where}: a blocked row names the checks it expects to fail: blocked_checks, a non-empty list of check names`);
     if (row.blocked === undefined && row.blocked_checks !== undefined) throw new Error(`${where}: blocked_checks without blocked`);
     if (row.expect_sha256 !== undefined && !/^[0-9a-f]{64}$/.test(row.expect_sha256)) throw new Error(`${where}: expect_sha256 must be 64 hex digits`);
+    if (row.expect_sha256_hands_feet !== undefined && !/^[0-9a-f]{64}$/.test(row.expect_sha256_hands_feet)) throw new Error(`${where}: expect_sha256_hands_feet must be 64 hex digits`);
     return row;
   });
   return { schema: SCHEMA, bodies };
@@ -125,7 +126,11 @@ export async function runBody(row, ctx) {
     res.checks = v.checks.map((c) => ({ name: c.name, result: c.skipped || c.summary.startsWith("skipped") ? "SKIP" : c.ok ? "PASS" : "FAIL", summary: c.summary, details: c.ok ? [] : c.details.slice(0, 12) }));
     writeFileSync(join(ctx.out, row.name + ".validate.txt"), validateText(row.name, v));
     res.ok = v.ok;
-    if (row.expect_sha256 && ctx.handsFeet && (row.overrides || {}).hands_feet === undefined) {
+    if (row.expect_sha256_hands_feet && ctx.handsFeet && (row.overrides || {}).hands_feet === undefined) {
+      // the hands/feet cut of this body is pinned too, so the file V3 gets from a --hands-feet run is reproducible (a default run never reads this key)
+      res.stages.expect = { ok: res.sha256 === row.expect_sha256_hands_feet, expected: row.expect_sha256_hands_feet };
+      if (!res.stages.expect.ok) { res.ok = false; res.error = `sha256 ${res.sha256} is not the expected ${row.expect_sha256_hands_feet} (expect_sha256_hands_feet)`; }
+    } else if (row.expect_sha256 && ctx.handsFeet && (row.overrides || {}).hands_feet === undefined) {
       // the pinned hash is the published (default) cut; a hands_feet pass is a different file by design. Said in the receipt, not hidden.
       res.stages.expect = { ok: true, skipped: "the pinned sha256 is of the cut without hands_feet; this run adds the wrist and ankle cuts" };
     } else if (row.expect_sha256) {
