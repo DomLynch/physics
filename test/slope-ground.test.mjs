@@ -20,8 +20,7 @@ import { qrot } from "../src/math.mjs";
 
 const GR = JSON.parse(readFileSync(new URL("../data/ground-rows.json", import.meta.url), "utf8"));
 const ST = GR.settle;
-// KNOWN DEFECT (not a pass): ST.sink_epsilon_m (0.12) tolerates a toe capsule that sinks 0.072 m into the DEFAULT flat floor, 0.021 m on plane rows,
-// 0.105 m into the slope15 heightfield and 0.114 m after a 4 m fall onto it (margin 0.006 m). The clearance checks below prove "no tunnelling", not "no sink". Fix the toe sink, then tighten the row.
+// Toe sink fixed 2026-10-30 (toe radius ratio 0.012, docs/API.md): ST.sink_epsilon_m (0.06) is now about Jolt's own penetration slop plus margin, not a tolerated defect.
 const measure = (n) => JSON.parse(readFileSync(new URL(`../data/bodies/${n}.measure.json`, import.meta.url), "utf8"));
 const TICK = 1 / 60;
 const BODIES = {
