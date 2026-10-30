@@ -5,7 +5,7 @@
 //   node tools/cut-validate.mjs <plain.glb> --self       (the open, over-used and flipped edges a surface already has: run on the plain source)
 // With --source, watertight and orientation separate defects native to the source from defects the cut introduced (docs/CUT-VALIDATE.md).
 // Exit code 1 on any failed check. Checks: structure, watertight, orientation, weights, bone_side, caps, conservation (needs --source), planes,
-// then head_split and belly_open when the manifest enables those optional cuts (optional_units).
+// then head_split, belly_open and hands_feet when the manifest enables those optional cuts (optional_units).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { sha256HexBytes } from "../src/sha256.mjs";

@@ -3,10 +3,10 @@
 Measure, cut, validate and receipt for a list of bodies, from one row file. Built on `tools/glb-measure.mjs`, `tools/cut-units.mjs` (`cutGlb`, `decompressGlb`) and `tools/cut-validate.mjs` (`validate`); nothing about a body lives in the tool.
 
 ```
-node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure]
+node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure] [--hands-feet]
 ```
 
-`--sources` (default `$CUT_SOURCES`, else `/root/cut-out`) is the folder `source` paths are relative to. `--out` (default `./cut-batch-out`) receives, per body: `<name>.cut.glb`, `<name>.cut.manifest.json`, `<name>.source-plain.glb` (when the source was compressed), `<name>.measure.json`, `<name>.validate.txt`, and for the run `RECEIPT.md` and `receipt.json`. `--update-measure` also writes each fresh measure row to the row's `measure` path (otherwise the batch reports whether the committed row has the same joints). Exit code 1 if any body FAILs. Body sources are confidential: run it where they live (the VPS), never upload them; only the rows, the receipt and the hashes are committed.
+`--sources` (default `$CUT_SOURCES`, else `/root/cut-out`) is the folder `source` paths are relative to. `--out` (default `./cut-batch-out`) receives, per body: `<name>.cut.glb`, `<name>.cut.manifest.json`, `<name>.source-plain.glb` (when the source was compressed), `<name>.measure.json`, `<name>.validate.txt`, and for the run `RECEIPT.md` and `receipt.json`. `--update-measure` also writes each fresh measure row to the row's `measure` path (otherwise the batch reports whether the committed row has the same joints). `--hands-feet` builds every body of the run with the wrist and ankle cuts (`docs/CUT-CONTRACT.md`) unless its row already sets `overrides.hands_feet`; a row's pinned `expect_sha256` is the published cut without them, so the receipt marks it skipped for that pass instead of failing it (the validator still decides the verdict). Exit code 1 if any body FAILs. Body sources are confidential: run it where they live (the VPS), never upload them; only the rows, the receipt and the hashes are committed.
 
 ## Per body
 
@@ -32,7 +32,7 @@ node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--ou
 | `overrides.plane_snap_m` | metres (0 to 0.0001, the validator's plane tolerance): how close to a plane a vertex counts as on it. Default `5e-5 x body height`, which on a body over 2.0 m is above the validator's 1e-4 plane tolerance |
 | `overrides.home_min_weight` | the bone rule's threshold (0.2): a fragment whose cell region owns less of its skin weight goes to the region that owns most |
 | `overrides.crotch_planes` | `false` for plain thigh-normal hip planes |
-| `overrides.head_split`, `overrides.belly_open` | opt-in cuts (`docs/CUT-CONTRACT.md` "Optional cuts"), true or a row that overrides fields |
+| `overrides.head_split`, `overrides.belly_open`, `overrides.hands_feet` | opt-in cuts (`docs/CUT-CONTRACT.md` "Optional cuts"), true or a row that overrides fields |
 | `expect_sha256` | the cut GLB must hash to this: the published bodies carry it, so a tool change that moves their bytes fails the batch |
 | `blocked` | the cause, when the body is known not to validate: it is still run and reported as BLOCKED with the cause. It needs `blocked_checks`; the body is BLOCKED (does not fail the run) only when there is no error and exactly those checks fail. Any other failure (an exception, a missing source, a hash mismatch, an extra or missing failing check) is FAIL and fails the run, and a blocked body that passes is UNBLOCKED (fails the run: delete the row's `blocked` and `blocked_checks`) |
 | `blocked_checks` | with `blocked`: the names of the validator checks the body is expected to fail, for example `["watertight"]`; refused without `blocked` |
