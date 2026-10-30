@@ -440,7 +440,7 @@ export async function createWorld(opts = {}) {
         bi.AddImpulse(bodies[i].GetID(), iv);
         Jolt.destroy(iv);
       },
-      // detach a severable unit (head, arm_left, arm_right, leg_left, leg_right, torso_waist): removes the joint of its cut role; the part and what hangs below it fall free
+      // detach a severable unit (head, arm_left, arm_right, leg_left, leg_right, torso_waist, hand_left, hand_right, foot_left, foot_right): removes the joint of its cut role; the part and what hangs below it fall free
       // copts: { helmet: true | { radius_m, mass_kg } } spawns the head gear as a rigid prop (a head cut only), { impulse: [x,y,z] } pushes the severed piece.
       // Works on a frozen corpse too: the severed piece wakes, the rest stays asleep. Returns { unit, mass_kg, carries_roles, gear_slots, cap, props } or null.
       cut(unit, copts = {}) {
@@ -463,11 +463,18 @@ export async function createWorld(opts = {}) {
         const pi = D.def[ci].parent, pb = bodies[pi], pp = pb.GetPosition(), pr = pb.GetRotation();
         const local = qrot(qconj(D.spawn[pi].q), vsub(D.pivot[ci], D.spawn[pi].c)), pw = qrot([pr.GetX(), pr.GetY(), pr.GetZ(), pr.GetW()], local);
         const cap = { part: u.cut_role, position: [pp.GetX() + pw[0], pp.GetY() + pw[1], pp.GetZ() + pw[2]] };
+        // what the piece carries is what is still attached to the cut role: a role below an earlier cut (hand cut before its arm) is already gone and is left out
+        // (carries_roles, mass_kg, gear_slots); cut after the arm, the hand's own joint is still there, so the hand detaches from the flying arm
+        const attachedBelow = (i) => { for (let j = i; j !== ci; j = D.def[j].parent) if (j < 0 || !cons.some((c) => c.i === j)) return false; return true; };
+        const roles = u.carries_roles.filter((id) => attachedBelow(D.idx[id])), left = u.carries_roles.filter((id) => !roles.includes(id));
+        const mass_kg = left.length ? Math.round(roles.reduce((a, id) => a + row.roles[D.idx[id]].mass_kg, 0) * 1000) / 1000 : u.mass_kg;
+        const worn = new Set(roles.map((id) => row.roles[D.idx[id]].armour_slot)), gone = new Set(left.map((id) => row.roles[D.idx[id]].armour_slot));
+        const gear_slots = u.gear_slots.filter((s) => !(gone.has(s) && !worn.has(s)));
         physics.RemoveConstraint(cons[k].c);
         cons.splice(k, 1);
         cut.add(unit);
         highRateTicks = W.cut_high_rate_ticks;
-        const carried = u.carries_roles.map((id) => D.idx[id]);
+        const carried = roles.map((id) => D.idx[id]);
         loose.push(ci, ...carried.filter((i) => i !== ci)); // detached: on a non-flat ground these lose spin on contact (rollDrag)
         if (frozen) for (const i of carried) bi.ActivateBody(bodies[i].GetID());
         if (copts.impulse) { const iv = new Jolt.Vec3(...copts.impulse); bi.AddImpulse(bodies[ci].GetID(), iv); Jolt.destroy(iv); }
@@ -479,7 +486,7 @@ export async function createWorld(opts = {}) {
             velocity: [hv.GetX() + h.pop_impulse[0] / h.mass_kg, hv.GetY() + h.pop_impulse[1] / h.mass_kg, hv.GetZ() + h.pop_impulse[2] / h.mass_kg], spin: h.spin_rad_s, id: "helmet",
           }));
         }
-        return { unit, mass_kg: u.mass_kg, carries_roles: u.carries_roles, gear_slots: u.gear_slots, cap, props };
+        return { unit, mass_kg, carries_roles: left.length ? roles : u.carries_roles, gear_slots: left.length ? gear_slots : u.gear_slots, cap, props };
       },
       // swept blade test (M5): the blade segment (base, tip) at the start of the tick and at its end. Returns the parts whose capsule axis it passes within
       // radius of, nearest first: [{ part, dist, radius, through }]; `through` = passed within through_core x radius of the axis (cut THROUGH the part, not a graze).

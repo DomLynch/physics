@@ -61,4 +61,6 @@ What V3 must still do to use them: call `rd.cut("head_split")` / `rd.cut("belly_
 Vertex and skin-weight conservation (every original vertex lands in exactly one piece, or is split with its weights interpolated), watertight pieces with their caps on, no vertex bound to a bone across a cut, a render of every unit cut in turn from 8 angles at 375 wide with no hole or ledge, runs on the Minotaur-106 and Psyche-106 first (V3 `rig/106-default` GLBs; warrior and Centurion 106 files when V3 provides them).
 
 ## Runtime (`src/three-cuts.mjs`)
+Hands and feet (Dom 2026-10-30) are severable units in the physics: `hand_left`, `hand_right`, `foot_left`, `foot_right`. The cut rig accepts caps `cap_wrist_*_hand/arm` and `cap_ankle_*_foot/leg` (`shown_when_cut` = the unit) and regions `piece_hand_*` / `piece_foot_*` (`detached_by` = the unit) from a manifest, and treats a manifest without them as before. The manifest part is the tool's; order rules and return values: docs/API.md "Hands and feet".
+
 `createCutRig(THREE, rd, scene, manifest)` returns `{ update() }` (call every frame after `rig.applyPose()`; shows or hides caps from `rd.cuts`), plus a `capMaterial` row hook (blood tint), and exposes the pieces by region. The bones are driven by the existing `createThreeRig(...).applyPose()`, so a severed piece moves with its capsule with no extra code.
