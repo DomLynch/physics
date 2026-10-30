@@ -174,6 +174,34 @@ test("the same batch twice gives the same bytes", async () => {
   assert.equal(readFileSync(join(o1, "RECEIPT.md"), "utf8"), readFileSync(join(o2, "RECEIPT.md"), "utf8"));
 });
 
+test("hands_feet pass-through: a batch built with handsFeet cuts and validates every body with the six severable parts; a row override does the same for one body; a bad override value is refused", async () => {
+  const f = await fixture();
+  const { results, failed } = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out-hf"), handsFeet: true });
+  assert.deepEqual(failed.map((r) => r.name), [], JSON.stringify(results.map((r) => [r.name, r.error, r.checks.filter((c) => c.result === "FAIL")]), null, 1));
+  for (const r of results) {
+    assert.deepEqual(r.checks.map((c) => c.name), ["structure", "watertight", "orientation", "weights", "bone_side", "caps", "conservation", "planes", "hands_feet"]);
+    assert.ok(r.checks.every((c) => c.result === "PASS"), r.name);
+    const m = JSON.parse(readFileSync(join(f.dir, "out-hf", r.name + ".cut.manifest.json"), "utf8"));
+    assert.equal(m.optional_units.hands_feet.enabled, true);
+    assert.equal(m.regions.length, 11);
+  }
+  // without the pass-through nothing changes
+  const plain = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out-plain") });
+  assert.ok(plain.results.every((r) => r.checks.length === 8));
+  assert.notEqual(plain.results[0].sha256, results[0].sha256);
+  // a row override turns it on for that body only
+  const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
+  rows.bodies[1].overrides = { ...rows.bodies[1].overrides, hands_feet: true };
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const one = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out-one") });
+  assert.deepEqual(one.results.map((r) => r.checks.length), [8, 9]);
+  assert.equal(cutOpts({ name: "a", rig_map: "data/rig-maps/v1-65.json", overrides: { hands_feet: true } }).handsFeet, true);
+  assert.equal(cutOpts({ name: "a", rig_map: "data/rig-maps/v1-65.json", overrides: {} }).handsFeet, undefined);
+  rows.bodies[1].overrides = { hands_feet: "yes" };
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  assert.throws(() => loadRows(f.bodiesPath), /hands_feet/);
+});
+
 test("a body that does not validate fails the run loudly; a blocked row is reported, not hidden; a blocked row that passes fails too", async () => {
   const f = await fixture();
   // an impossible expected hash fails a body that otherwise validates

@@ -1,5 +1,5 @@
 // Body GLB -> seven skinned cut regions + twelve cap meshes on the unchanged skeleton (docs/CUT-CONTRACT.md, docs/CUT-TOOL.md).
-//   node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name] [--head-split] [--belly-open]
+//   node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name] [--head-split] [--belly-open] [--hands-feet]
 // writes <out-dir>/<body>.cut.glb and <out-dir>/<body>.cut.manifest.json.
 // Needs @gltf-transform/core + /extensions + meshoptimizer (devDependencies; the package's runtime never loads this file).
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -65,6 +65,33 @@ export const BELLY_OPEN = {
   min_clearance_frac: 0.08, // the ellipse must stay at least this fraction of waist to neck above the waist plane (so it is wholly on the torso's side)
   rings: 6, segments: 32, core_frac: 0.62, // polar tessellation; the core (cap_inner) is the inner part up to this fraction of the radius
   rim_lift: 0.0015, bulge: 0.008, // metres in front of the skin along the body's forward axis: at the rim, and the extra at the centre (1 - s^2)
+};
+// HANDS_FEET: four more planes cut the arm pieces at the wrists and the leg pieces at the ankles, so a body has six severable parts: head, body, arms, legs,
+// feet, hands. With it on, piece_arm_* end at the wrist plane and piece_hand_* hold everything beyond it (hand, fingers, gear on those bones); piece_leg_* end
+// at the ankle plane and piece_foot_* hold foot and toes. The arm and leg regions keep their ids and `detached_by` (an arm cut at the shoulder carries its hand
+// because the hand piece is bound to the Hand bone, which the physics carries). A wrist plane stands at the Hand joint (or `wrist_frac` of the forearm back
+// toward the elbow), square to ForeArm to Hand; an ankle plane at the Foot joint (or `ankle_frac` of the lower leg back toward the knee), square to Leg to Foot.
+// Each limb: the plane id, the joint the plane stands at, the joint it looks back toward, the row field holding the fraction, and the piece it is cut out of.
+export const HANDS_FEET = {
+  unit: "hands_feet",
+  wrist_frac: 0, // fraction of ForeArm to Hand, measured from the Hand joint back toward the ForeArm joint (0: at the Hand joint)
+  ankle_frac: 0, // fraction of Leg to Foot, measured from the Foot joint back toward the Leg (knee) joint (0: at the Foot joint)
+  limbs: [
+    { id: "hand_left", mesh: "piece_hand_left", from: "arm_left", plane: "wrist_left", joint: "LeftHand", toward: "LeftForeArm", frac: "wrist_frac" },
+    { id: "hand_right", mesh: "piece_hand_right", from: "arm_right", plane: "wrist_right", joint: "RightHand", toward: "RightForeArm", frac: "wrist_frac" },
+    { id: "foot_left", mesh: "piece_foot_left", from: "leg_left", plane: "ankle_left", joint: "LeftFoot", toward: "LeftLeg", frac: "ankle_frac" },
+    { id: "foot_right", mesh: "piece_foot_right", from: "leg_right", plane: "ankle_right", joint: "RightFoot", toward: "RightLeg", frac: "ankle_frac" },
+  ],
+  caps: [
+    { id: "cap_wrist_left_hand", region: "hand_left", plane: "wrist_left", shown_when_cut: "hand_left" },
+    { id: "cap_wrist_left_arm", region: "arm_left", plane: "wrist_left", shown_when_cut: "hand_left" },
+    { id: "cap_wrist_right_hand", region: "hand_right", plane: "wrist_right", shown_when_cut: "hand_right" },
+    { id: "cap_wrist_right_arm", region: "arm_right", plane: "wrist_right", shown_when_cut: "hand_right" },
+    { id: "cap_ankle_left_foot", region: "foot_left", plane: "ankle_left", shown_when_cut: "foot_left" },
+    { id: "cap_ankle_left_leg", region: "leg_left", plane: "ankle_left", shown_when_cut: "foot_left" },
+    { id: "cap_ankle_right_foot", region: "foot_right", plane: "ankle_right", shown_when_cut: "foot_right" },
+    { id: "cap_ankle_right_leg", region: "leg_right", plane: "ankle_right", shown_when_cut: "foot_right" },
+  ],
 };
 const rowOf = (def, opt) => (opt && typeof opt === "object" ? { ...def, ...opt } : def);
 
@@ -200,6 +227,20 @@ export function buildHeadSplitPlane(J, row = HEAD_SPLIT) {
   const { lat, centre } = bodyAxes(J);
   const a = lerp3(J.Neck, J.Head, row.point_frac), pt = sub(a, lat.map((x) => x * (dot(lat, a) - centre)));
   return makeFn("head_split", pt, lat, "Neck to Head midline " + row.point_frac + " of the way, moved onto the body's symmetry plane; normal = the left-right axis (Right to Left, from the arm and hip joints)");
+}
+
+// hands_feet: wrist and ankle planes from the measure row's joints. The normal points from the proximal joint to the distal one (ForeArm to Hand, Leg to Foot),
+// so the + side is the hand or the foot. Returns { plane id: plane fn }.
+export function buildHandsFeetPlanes(J, row = HANDS_FEET) {
+  const fns = {};
+  for (const L of row.limbs) {
+    for (const r of [L.joint, L.toward]) if (!J[r]) throw new Error("hands_feet: measure row has no joint " + r);
+    const f = row[L.frac];
+    if (!(typeof f === "number" && Number.isFinite(f) && f >= 0 && f <= 1)) throw new Error(`hands_feet: ${L.frac} must be a number from 0 to 1, got ${JSON.stringify(f)}`);
+    fns[L.plane] = makeFn(L.plane, alongPair(J[L.joint], J[L.toward], f), sub(J[L.joint], J[L.toward]),
+      `${L.joint} joint${f ? ", " + f + " of the way back toward " + L.toward : ""}, normal along ${L.toward} to ${L.joint}`);
+  }
+  return fns;
 }
 
 // ---------------------------------------------------------------- weld analysis (exported: the tests use the same measure)
@@ -487,6 +528,13 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     rolePos[role] = [t[0] + (m[4] / yl) * spec.along_local_y_m, t[1] + (m[5] / yl) * spec.along_local_y_m, t[2] + (m[6] / yl) * spec.along_local_y_m];
   }
   for (const role of Object.keys(ANCHOR_ROLES)) if (roleJoint[role] === undefined) throw new Error(`rig map role ${role} must be a skin joint: it anchors a region`);
+  // hands_feet (opt-in, default off): the hand and foot pieces are anchored at the Hand and Foot joints, so the bones past the wrist or ankle belong to them
+  const handsFeet = opts.handsFeet ? rowOf(HANDS_FEET, opts.handsFeet) : null;
+  if (handsFeet) for (const L of handsFeet.limbs) if (roleJoint[L.joint] === undefined) throw new Error(`rig map role ${L.joint} must be a skin joint: it anchors the region ${L.id}`);
+  const anchorRoles = handsFeet ? { ...ANCHOR_ROLES, ...Object.fromEntries(handsFeet.limbs.map((L) => [L.joint, L.id])) } : ANCHOR_ROLES;
+  const regionAnchor = handsFeet ? { ...REGION_ANCHOR, ...Object.fromEntries(handsFeet.limbs.map((L) => [L.id, L.joint])) } : REGION_ANCHOR;
+  const sideIds = REGIONS.map((r) => r.id).concat(handsFeet ? handsFeet.limbs.map((L) => L.id) : []); // every id a piece can be bound as (the key of the bind caches)
+  const sideIdx = (id) => sideIds.indexOf(id);
   // vertex space -> world: jointWorld x inverseBind is the same matrix Q for every joint (gltfpack bakes its position dequantisation into the
   // inverse binds, so the vertices of the quantised bodies are not in metres). Everything geometric below runs in world space.
   const ibm = skin0.getInverseBindMatrices();
@@ -539,13 +587,17 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   for (const r of Object.keys(row.joints)) J[r] = [row.joints[r][0] + offset[0], row.joints[r][1] + offset[1], row.joints[r][2] + offset[2]];
 
   const owner = joints.map((n) => { // region owning each joint: nearest ancestor-or-self that is an anchor
-    for (let p = n; p; p = p.getParentNode()) for (const [role, region] of Object.entries(ANCHOR_ROLES)) if (jIndex.get(p) === roleJoint[role]) return region;
+    for (let p = n; p; p = p.getParentNode()) for (const [role, region] of Object.entries(anchorRoles)) if (jIndex.get(p) === roleJoint[role]) return region;
     return "root";
   });
+  // the same ownership with the hand and foot folded back into their arm and leg: what decides which of the seven plain regions holds a fragment (hands_feet
+  // splits those pieces afterwards, so everything before the split sees the plain seven)
+  const baseRegionOf = handsFeet ? Object.fromEntries(handsFeet.limbs.map((L) => [L.id, L.from])) : {};
+  const baseOwner = handsFeet ? owner.map((o) => baseRegionOf[o] || o) : owner;
   const nodeNeighbours = (n) => [n.getParentNode(), ...n.listChildren()].filter(Boolean);
   const nearCache = new Map();
   const nearOwned = (j, region) => { // the nearest joint (tree distance) owned by `region`
-    const key = j * 8 + REGIONS.findIndex((r) => r.id === region);
+    const key = j * 16 + sideIdx(region);
     if (nearCache.has(key)) return nearCache.get(key);
     let level = [joints[j]];
     const seen = new Set(level);
@@ -557,7 +609,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
       for (const n of level) for (const m of nodeNeighbours(n)) if (!seen.has(m)) { seen.add(m); next.push(m); }
       level = next;
     }
-    if (found === null) found = roleJoint[REGION_ANCHOR[region]];
+    if (found === null) found = roleJoint[regionAnchor[region]];
     nearCache.set(key, found);
     return found;
   };
@@ -652,7 +704,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const legs = [];
     for (let v = 0; v < verticesIn; v++) {
       let l = 0, r = 0, all = 0;
-      for (const [j, w] of V.skin[v]) { all += w; if (owner[j] === "leg_left") l += w; else if (owner[j] === "leg_right") r += w; }
+      for (const [j, w] of V.skin[v]) { all += w; if (baseOwner[j] === "leg_left") l += w; else if (baseOwner[j] === "leg_right") r += w; }
       if (all > 0 && (l / all >= 0.5 || r / all >= 0.5)) legs.push({ p: V.pos[v], left: l >= r });
     }
     for (let y = yTop; y >= yTop - 0.6 * thigh && !apex; y -= 0.005) {
@@ -677,7 +729,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const dominant = new Array(verticesIn);
     for (let v = 0; v < verticesIn; v++) {
       const share = {};
-      for (const [j, w] of V.skin[v]) share[owner[j]] = (share[owner[j]] || 0) + w;
+      for (const [j, w] of V.skin[v]) share[baseOwner[j]] = (share[baseOwner[j]] || 0) + w;
       let best = "root", bw = -1;
       for (const k of Object.keys(share).sort()) if (share[k] > bw) { bw = share[k]; best = k; }
       dominant[v] = best;
@@ -696,12 +748,17 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // optional cuts (rows above): off unless asked for
   const headSplit = opts.headSplit ? rowOf(HEAD_SPLIT, opts.headSplit) : null, bellyOpen = opts.bellyOpen ? rowOf(BELLY_OPEN, opts.bellyOpen) : null;
   if (headSplit) fns.head_split = buildHeadSplitPlane(J, headSplit);
-  // the regions and caps of this run: the plain seven and twelve, with piece_head replaced by its halves when head_split is on
-  const regions = headSplit ? REGIONS.flatMap((r) => (r.id === headSplit.replaces ? headSplit.regions : [r])) : REGIONS;
-  const capsAll = headSplit ? CAPS.filter((c) => c.region !== headSplit.replaces).concat(headSplit.caps) : CAPS;
+  if (handsFeet) Object.assign(fns, buildHandsFeetPlanes(J, handsFeet));
+  // the regions and caps of this run: the plain seven and twelve, with piece_head replaced by its halves when head_split is on, and each limb piece followed
+  // by its hand or foot when hands_feet is on (the limb piece gets the wrist or ankle plane among its own planes)
+  let regions = headSplit ? REGIONS.flatMap((r) => (r.id === headSplit.replaces ? headSplit.regions : [r])) : REGIONS;
+  if (handsFeet) regions = regions.flatMap((r) => { const ls = handsFeet.limbs.filter((L) => L.from === r.id); return ls.length ? [{ ...r, extra_planes: ls.map((L) => L.plane) }, ...ls.map((L) => ({ id: L.id, mesh: L.mesh, detached_by: L.id, extra_planes: [L.plane] }))] : [r]; });
+  let capsAll = headSplit ? CAPS.filter((c) => c.region !== headSplit.replaces).concat(headSplit.caps) : CAPS;
+  if (handsFeet) capsAll = capsAll.concat(handsFeet.caps);
   const boneRegion = (id) => (regions.find((r) => r.id === id) || {}).bones || id; // the region whose bones a piece may use
-  const planeOrder = ["neck", "shoulder_left", "shoulder_right", "hip_left", "hip_right", "waist", "hip_split"].concat(headSplit ? ["head_split"] : []);
-  const regionPlanes = (R) => planeOrder.filter((id) => id !== "head_split" || R.extra_plane === "head_split"); // head_split only matters to the halves
+  const extraPlanes = new Set(["head_split"].concat(handsFeet ? handsFeet.limbs.map((L) => L.plane) : [])); // planes that only matter to the pieces they bound
+  const planeOrder = ["neck", "shoulder_left", "shoulder_right", "hip_left", "hip_right", "waist", "hip_split"].concat(headSplit ? ["head_split"] : [], handsFeet ? handsFeet.limbs.map((L) => L.plane) : []);
+  const regionPlanes = (R) => planeOrder.filter((id) => !extraPlanes.has(id) || R.extra_plane === id || (R.extra_planes || []).includes(id));
 
   // ---- split every triangle at the planes (decision tree of half-space clips); split vertices are shared through a cache
   const edgeCache = new Map();
@@ -857,13 +914,13 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   // is the heaviest joint of that piece in the layer (none: the piece's anchor joint)
   const accPlace = accSpecs.map((spec, k) => {
     const score = new Array(REGIONS.length).fill(0), jointW = new Map();
-    for (const v of accVerts[k]) for (const [j, w] of V.skin[v]) { score[REGIONS.findIndex((r) => r.id === owner[j])] += w; jointW.set(j, (jointW.get(j) || 0) + w); }
+    for (const v of accVerts[k]) for (const [j, w] of V.skin[v]) { score[REGIONS.findIndex((r) => r.id === baseOwner[j])] += w; jointW.set(j, (jointW.get(j) || 0) + w); }
     let region = spec.piece;
     if (!region) { let best = 0; for (let i = 1; i < score.length; i++) if (score[i] > score[best]) best = i; region = REGIONS[best].id; }
     if (headSplit && region === "head") throw new Error(`rigid accessory ${JSON.stringify(spec.name)} would go to piece_head, which head_split replaces by its halves: name another piece`);
     let bone = -1;
     for (const [j, w] of [...jointW.entries()].sort((x, y) => x[0] - y[0])) if (owner[j] === region && (bone < 0 || w > jointW.get(bone))) bone = j;
-    if (bone < 0) bone = roleJoint[REGION_ANCHOR[region]];
+    if (bone < 0) bone = roleJoint[regionAnchor[region]];
     return { region, bone };
   });
   const accVertBone = new Map();
@@ -899,7 +956,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
   for (const [f, set] of [...fragVerts.entries()].sort((a, b) => a[0] - b[0])) {
     const home = homeOf(cellOfFrag.get(f));
     const score = new Array(REGIONS.length).fill(0);
-    for (const v of set) for (const [j, w] of V.skin[v]) score[regionIdx[owner[j]]] += w;
+    for (const v of set) for (const [j, w] of V.skin[v]) score[regionIdx[baseOwner[j]]] += w;
     const total = score.reduce((s, x) => s + x, 0);
     let region = home;
     if (total > 0 && score[regionIdx[home]] / total < (opts.homeMinWeight ?? 0.2)) {
@@ -953,6 +1010,26 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     splitInfo = { head_triangles_in: headIn, left_triangles: halves[idOfSide(1)].length, right_triangles: halves[idOfSide(-1)].length, hair_triangles: Object.fromEntries(Object.keys(halves).map((id) => [id, hairFor[id].length])) };
   }
 
+  // ---- hands_feet (opt-in): the arm and leg pieces are cut once more, at the wrist and ankle planes, with the same machinery as the other planes (shared split
+  // vertices, every attribute and skin weight interpolated). The + side of the plane (hand, foot) becomes its own piece, the - side stays in the limb piece.
+  let handsInfo = null;
+  if (handsFeet) {
+    handsInfo = {};
+    for (const L of handsFeet.limbs) {
+      const fn = fns[L.plane], beyond = [], kept = [];
+      let before = 0;
+      for (const [a, b, c, pi] of pieceTris[L.from]) {
+        before++;
+        const [pos, neg] = splitPoly([a, b, c], fn);
+        for (const [poly, dst] of [[pos, beyond], [neg, kept]]) if (poly) for (let k = 1; k + 1 < poly.length; k++) dst.push([poly[0], poly[k], poly[k + 1], pi]);
+      }
+      pieceTris[L.from] = kept;
+      pieceTris[L.id] = beyond;
+      handsInfo[L.id] = { cut_from: L.from, plane: L.plane, triangles_in: before, triangles_kept: kept.length, triangles_beyond: beyond.length };
+    }
+    wcl = weldCluster(V.pos, 1e-5); // the split vertices are new
+  }
+
   // ---- bind weights to the bones of the piece's own side
   let weightsRebound = 0, weightsTruncated = 0, orphan = 0;
   const bindCache = new Map();
@@ -961,7 +1038,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     const side = boneRegion(region); // a head half uses the bones of the head
     if (accVertBone.has(v)) return { j: [accVertBone.get(v), 0, 0, 0], w: [1, 0, 0, 0] }; // a rigid accessory: its one bone
     if (side === "head" && hairVerts.has(v)) return { j: [roleJoint.Head, 0, 0, 0], w: [1, 0, 0, 0] };
-    const key = v * 8 + REGIONS.findIndex((r) => r.id === side);
+    const key = v * 16 + sideIdx(side);
     if (bindCache.has(key)) return bindCache.get(key);
     const acc = new Map();
     for (const [j, w] of V.skin[v]) {
@@ -975,7 +1052,7 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     }
     let list = [...acc.entries()].sort((x, y) => y[1] - x[1] || x[0] - y[0]);
     if (list.length > 4) { weightsTruncated++; list = list.slice(0, 4); }
-    if (!list.length) list = [[roleJoint[REGION_ANCHOR[side]], 1]];
+    if (!list.length) list = [[roleJoint[regionAnchor[side]], 1]];
     const sum = list.reduce((s, e) => s + e[1], 0);
     const jj = [0, 0, 0, 0], ww = [0, 0, 0, 0];
     list.forEach((e, k) => { jj[k] = e[0]; ww[k] = e[1] / sum; });
@@ -1478,6 +1555,12 @@ export async function cutGlb(glbBytes, row, rigMap, opts = {}) {
     optionalUnits.head_split = { enabled: true, kind: "split", unit: headSplit.unit, plane: headSplit.plane, replaces: "piece_" + headSplit.replaces, regions: headSplit.regions.map((r) => r.id), caps: headSplit.caps.map((c) => c.id),
       about: "piece_head is cut at a sagittal plane into piece_head_left (+ side of the plane) and piece_head_right; both are detached by the unit head and separated by the unit head_split. Hair cards go whole to the half they lie mostly in", stats: splitInfo };
   }
+  if (handsFeet) {
+    for (const L of handsFeet.limbs) optionalPlanes[L.plane] = planeRow(fns[L.plane]);
+    optionalUnits.hands_feet = { enabled: true, kind: "split", unit: handsFeet.unit, units: handsFeet.limbs.map((L) => L.id), planes: handsFeet.limbs.map((L) => L.plane), regions: handsFeet.limbs.map((L) => L.id), caps: handsFeet.caps.map((c) => c.id),
+      about: "piece_arm_* end at the wrist plane and piece_hand_* hold everything beyond it (hand, fingers, gear on those bones); piece_leg_* end at the ankle plane and piece_foot_* hold foot and toes. Each is detached by its own unit (hand_left ...); the arm and leg regions keep their ids and detached_by. Every piece is bound only to the bones on its own side of its plane",
+      params: { wrist_frac: handsFeet.wrist_frac, ankle_frac: handsFeet.ankle_frac }, stats: handsInfo };
+  }
   if (belly) {
     optionalPlanes.belly_open = planeRow(fns.belly_open);
     const B = belly.B;
@@ -1571,12 +1654,12 @@ async function main() {
   let bodyName = null;
   if (bi >= 0) { bodyName = args[bi + 1]; args.splice(bi, 2); }
   const [glbPath, rowPath, mapPath, outDir] = args;
-  if (!outDir) { console.error("usage: node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name] [--head-split] [--belly-open]"); process.exit(2); }
+  if (!outDir) { console.error("usage: node tools/cut-units.mjs <body.glb> <body.measure.json> <rig-map.json> <out-dir> [--body name] [--head-split] [--belly-open] [--hands-feet]"); process.exit(2); }
   const row = JSON.parse(readFileSync(rowPath, "utf8"));
   const rigMap = JSON.parse(readFileSync(mapPath, "utf8"));
   const name = bodyName || row.id || basename(glbPath, ".glb");
   const debug = args.includes("--debug") || process.env.CUT_DEBUG === "1";
-  const { glb, manifest, report } = await cutGlb(readFileSync(glbPath), row, rigMap, { body: name, rig: basename(mapPath, ".json"), source: basename(glbPath), debug, headSplit: args.includes("--head-split"), bellyOpen: args.includes("--belly-open") });
+  const { glb, manifest, report } = await cutGlb(readFileSync(glbPath), row, rigMap, { body: name, rig: basename(mapPath, ".json"), source: basename(glbPath), debug, headSplit: args.includes("--head-split"), bellyOpen: args.includes("--belly-open"), handsFeet: args.includes("--hands-feet") });
   if (debug) console.log(JSON.stringify(report, null, 1));
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, name + ".cut.glb"), glb);
