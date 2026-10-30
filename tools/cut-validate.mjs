@@ -39,17 +39,41 @@ const PLANES = ["neck", "waist", "shoulder_left", "shoulder_right", "hip_left", 
 // `head_split`. belly_open: one more skinned mesh (cap_belly_opening) on piece_upper_torso, a decal that removes nothing.
 export const SPLIT_PLANE_SIGN = { head_left: "+", head_right: "-" };
 const unitOn = (manifest, id) => !!(manifest && manifest.optional_units && manifest.optional_units[id] && manifest.optional_units[id].enabled === true);
+// hands_feet: the arm and leg pieces end at the wrist and ankle planes (their sign "-": the side that stays), and piece_hand_* / piece_foot_* hold what is beyond
+// ("+"). Each hand or foot is its own severable unit. `from` is the limb piece it is cut out of, `plane` the plane between them, `joint` / `toward` the two
+// skeleton joints the plane must stand between (the plane's normal runs from `toward` to `joint`).
+export const HAND_FOOT_LIMBS = [
+  { id: "hand_left", from: "arm_left", plane: "wrist_left", proximal: "shoulder_left", joint: "LeftHand", toward: "LeftForeArm" },
+  { id: "hand_right", from: "arm_right", plane: "wrist_right", proximal: "shoulder_right", joint: "RightHand", toward: "RightForeArm" },
+  { id: "foot_left", from: "leg_left", plane: "ankle_left", proximal: "hip_left", joint: "LeftFoot", toward: "LeftLeg" },
+  { id: "foot_right", from: "leg_right", plane: "ankle_right", proximal: "hip_right", joint: "RightFoot", toward: "RightLeg" },
+];
+export const HAND_FOOT_CAPS = { // cap id -> [region, unit that shows it]
+  cap_wrist_left_hand: ["hand_left", "hand_left"], cap_wrist_left_arm: ["arm_left", "hand_left"], cap_wrist_right_hand: ["hand_right", "hand_right"], cap_wrist_right_arm: ["arm_right", "hand_right"],
+  cap_ankle_left_foot: ["foot_left", "foot_left"], cap_ankle_left_leg: ["leg_left", "foot_left"], cap_ankle_right_foot: ["foot_right", "foot_right"], cap_ankle_right_leg: ["leg_right", "foot_right"],
+};
 export function tablesFor(manifest) {
-  const split = unitOn(manifest, "head_split");
-  if (!split) return { regions: REGIONS, regionUnit: REGION_UNIT, caps: CAPS, constraints: CONSTRAINTS, split: false, belly: unitOn(manifest, "belly_open") };
-  const caps = {};
-  for (const [id, v] of Object.entries(CAPS)) if (id !== "cap_neck_head") caps[id] = v;
-  Object.assign(caps, { cap_neck_head_left: ["head_left", "head"], cap_neck_head_right: ["head_right", "head"], cap_split_head_left: ["head_left", "head_split"], cap_split_head_right: ["head_right", "head_split"] });
-  const constraints = { ...CONSTRAINTS, head_left: [["neck", "+"], ["head_split", "+"]], head_right: [["neck", "+"], ["head_split", "-"]] };
-  delete constraints.head;
-  const regionUnit = { ...REGION_UNIT, head_left: "head", head_right: "head" };
-  delete regionUnit.head;
-  return { regions: [...REGIONS.filter((r) => r !== "head"), "head_left", "head_right"], regionUnit, caps, constraints, split: true, belly: unitOn(manifest, "belly_open") };
+  const split = unitOn(manifest, "head_split"), hands = unitOn(manifest, "hands_feet");
+  let T;
+  if (!split) T = { regions: REGIONS, regionUnit: REGION_UNIT, caps: CAPS, constraints: CONSTRAINTS, split: false, belly: unitOn(manifest, "belly_open") };
+  else {
+    const caps = {};
+    for (const [id, v] of Object.entries(CAPS)) if (id !== "cap_neck_head") caps[id] = v;
+    Object.assign(caps, { cap_neck_head_left: ["head_left", "head"], cap_neck_head_right: ["head_right", "head"], cap_split_head_left: ["head_left", "head_split"], cap_split_head_right: ["head_right", "head_split"] });
+    const constraints = { ...CONSTRAINTS, head_left: [["neck", "+"], ["head_split", "+"]], head_right: [["neck", "+"], ["head_split", "-"]] };
+    delete constraints.head;
+    const regionUnit = { ...REGION_UNIT, head_left: "head", head_right: "head" };
+    delete regionUnit.head;
+    T = { regions: [...REGIONS.filter((r) => r !== "head"), "head_left", "head_right"], regionUnit, caps, constraints, split: true, belly: unitOn(manifest, "belly_open") };
+  }
+  if (!hands) return { ...T, hands: false, handPlanes: [], limbs: [] };
+  const constraints = { ...T.constraints }, regionUnit = { ...T.regionUnit };
+  for (const L of HAND_FOOT_LIMBS) {
+    constraints[L.id] = [...T.constraints[L.from], [L.plane, "+"]]; // beyond the plane and, as the limb piece, beyond the shoulder or hip plane
+    constraints[L.from] = [...T.constraints[L.from], [L.plane, "-"]];
+    regionUnit[L.id] = L.id;
+  }
+  return { ...T, regions: T.regions.flatMap((r) => [r, ...HAND_FOOT_LIMBS.filter((L) => L.from === r).map((L) => L.id)]), regionUnit, caps: { ...T.caps, ...HAND_FOOT_CAPS }, constraints, hands: true, handPlanes: HAND_FOOT_LIMBS.map((L) => L.plane), limbs: HAND_FOOT_LIMBS };
 }
 
 // ---- GLB reader -------------------------------------------------------------------------------------------------------------------------------------------
@@ -289,6 +313,14 @@ export function validate(glbBuf, manifest, opts = {}) {
       if (SPLIT_PLANE_SIGN[id] && r.separated_by !== "head_split") bad.push(`region "${id}" separated_by ${JSON.stringify(r.separated_by)}, want "head_split"`);
     }
     if (T.split && regs.head) bad.push(`manifest has both "head" and its halves: head_split replaces piece_head`);
+    if (T.hands) {
+      const spec = manifest.optional_units.hands_feet;
+      if (spec.unit !== "hands_feet") bad.push(`optional_units.hands_feet.unit is ${JSON.stringify(spec.unit)}, want "hands_feet"`);
+      for (const L of T.limbs) if (!manifest.optional_planes || !manifest.optional_planes[L.plane]) bad.push(`optional_planes.${L.plane} is missing from the manifest although hands_feet is enabled`);
+    } else {
+      // pieces in the GLB that the manifest does not own: a hands_feet cut described by a plain manifest
+      for (const L of HAND_FOOT_LIMBS) if ("piece_" + L.id in byName) bad.push(`mesh "piece_${L.id}" is in the GLB but the manifest does not enable hands_feet`);
+    }
     if (T.belly) {
       const c = caps.cap_belly_opening;
       if (!c) bad.push(`manifest has no cap "cap_belly_opening" although belly_open is enabled`);
@@ -339,7 +371,7 @@ export function validate(glbBuf, manifest, opts = {}) {
         if (moved.length) bad.push(`skeleton parents changed vs source: ${names(moved)}`);
       }
     }
-    add("structure", !bad.length, bad.length ? `${bad.length} problem(s)` : `schema ${SCHEMA}, ${T.regions.length} pieces + ${Object.keys(T.caps).length} caps${T.belly ? " + cap_belly_opening" : ""}${T.split ? " (head_split on)" : ""}, one skin (${jointNames.length} joints)` + (opts.source ? ", skeleton matches source" : ""), bad);
+    add("structure", !bad.length, bad.length ? `${bad.length} problem(s)` : `schema ${SCHEMA}, ${T.regions.length} pieces + ${Object.keys(T.caps).length} caps${T.belly ? " + cap_belly_opening" : ""}${T.split ? " (head_split on)" : ""}${T.hands ? " (hands_feet on)" : ""}, one skin (${jointNames.length} joints)` + (opts.source ? ", skeleton matches source" : ""), bad);
   }
 
   // gather what exists
@@ -436,6 +468,7 @@ export function validate(glbBuf, manifest, opts = {}) {
     if (len > 0) optPlanes[k] = { point: v.point.map((x, i) => x + off[i]), normal: v.normal.map((x) => x / len) };
   }
   if (optPlanes.head_split) planes.head_split = optPlanes.head_split;
+  if (T.hands) for (const pn of T.handPlanes) if (optPlanes[pn]) planes[pn] = optPlanes[pn];
   const dist = (pl, x, y, z) => pl.normal[0] * (x - pl.point[0]) + pl.normal[1] * (y - pl.point[1]) + pl.normal[2] * (z - pl.point[2]);
 
   // ---- 4 bone side
@@ -446,7 +479,8 @@ export function validate(glbBuf, manifest, opts = {}) {
     const children = tree.nodes.map((n) => n.children || []);
     const desc = (n, into) => { into.add(n); for (const c of children[n]) desc(c, into); };
     const nearestJointAncestor = (n) => { let p = tree.parent[n]; while (p >= 0 && !inJoint.has(p)) p = tree.parent[p]; return p; };
-    for (const pn of PLANES) {
+    const bonePlanes = PLANES.concat(T.handPlanes), proximalOf = Object.fromEntries(T.limbs.map((L) => [L.plane, L.proximal]));
+    for (const pn of bonePlanes) {
       const pl = planes[pn];
       if (!pl || !skin) { bad.push(`cannot derive the sides of plane "${pn}": ${!skin ? "no skin" : "not in the manifest"}`); continue; }
       const side = (n) => { const q = tree.pos(n); return dist(pl, q[0], q[1], q[2]); };
@@ -456,12 +490,14 @@ export function validate(glbBuf, manifest, opts = {}) {
         if (a >= 0 && side(a) < -PLANE_TOL && side(n) >= -PLANE_TOL) desc(n, set);
       }
       for (const n of [...set]) if (!inJoint.has(n)) set.delete(n);
+      // a wrist or ankle plane only separates the bones of its own limb: the bones that cross it elsewhere (the other foot's toes, past a tilted plane) are not its hand or foot
+      if (proximalOf[pn] && positive[proximalOf[pn]]) for (const n of [...set]) if (!positive[proximalOf[pn]].has(n)) set.delete(n);
       if (!set.size) bad.push(`no bone crosses plane "${pn}" in the skeleton tree`);
       positive[pn] = set;
     }
     const viol = {};
     for (const p of parts) {
-      const cons = (T.constraints[p.region] || []).filter(([pn]) => PLANES.includes(pn)); // the sagittal plane has no bone side: both halves use the head's bones (neck +)
+      const cons = (T.constraints[p.region] || []).filter(([pn]) => bonePlanes.includes(pn)); // the sagittal plane has no bone side: both halves use the head's bones (neck +)
       if (!cons.length || cons.some(([pn]) => !positive[pn])) continue;
       const m = p.mesh;
       for (let v = 0; v < m.nv; v++) for (let k = 0; k < 4; k++) {
@@ -686,6 +722,69 @@ export function validate(glbBuf, manifest, opts = {}) {
       if (!mats.has("cap_flesh") || !mats.has("cap_inner")) bad.push(`the patch needs the materials cap_flesh and cap_inner, has ${[...mats].join(", ")}`);
     }
     add("belly_open", !bad.length, bad.length ? `${bad.length} problem(s)` : "patch inside its ellipse, on the torso skin by the declared lift, facing forward, covers the ellipse; removes no geometry (weights, bone side and waist plane are checked above)", bad, table);
+  }
+
+  // ---- 10 hands_feet (only when the manifest enables it). No tolerance is relaxed for it: every number below is the same PLANE_TOL (1e-4) the planes check uses.
+  if (T.hands) {
+    const bad = [], table = [], spec = manifest.optional_units.hands_feet, get = (id) => parts.find((p) => p.id === id);
+    const areaOf = (m) => { let a = 0; for (let t = 0; t + 2 < m.idx.length; t += 3) a += 0.5 * Math.hypot(...triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2])); return a; };
+    const jointNode = (name) => { const hits = (skin ? skin.joints : []).filter((n) => { const s = tree.nodes[n].name || ""; return s === name || s.endsWith(":" + name); }); return hits.length === 1 ? hits[0] : -1; };
+    const expectPlanes = T.limbs.map((L) => L.plane);
+    if (JSON.stringify(spec.planes) !== JSON.stringify(expectPlanes)) bad.push(`optional_units.hands_feet.planes is ${JSON.stringify(spec.planes)}, want ${JSON.stringify(expectPlanes)}`);
+    for (const L of T.limbs) {
+      const pl = optPlanes[L.plane], limb = get("piece_" + L.from), end = get("piece_" + L.id);
+      const capEnd = get(Object.keys(HAND_FOOT_CAPS).find((c) => HAND_FOOT_CAPS[c][0] === L.id)), capLimb = get(Object.keys(HAND_FOOT_CAPS).find((c) => HAND_FOOT_CAPS[c][0] === L.from && HAND_FOOT_CAPS[c][1] === L.id));
+      if (!pl) { bad.push(`optional_planes.${L.plane} is missing from the manifest`); continue; }
+      if (!limb || !end || !capEnd || !capLimb) { bad.push(`${L.plane}: a piece or a cap is missing (${L.from}, ${L.id}, and their two caps)`); continue; }
+      // 1. the plane stands between the two skeleton joints and its normal runs along the bone (by joint name; a rig without those names is reported, not failed)
+      const jn = jointNode(L.joint), tn = jointNode(L.toward);
+      if (jn < 0 || tn < 0) table.push(`${L.plane}: joints ${L.joint} / ${L.toward} not found by name in the skeleton: plane direction and position not checked`);
+      else {
+        const a = tree.pos(jn), b = tree.pos(tn), d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], len = Math.hypot(...d), cos = (d[0] * pl.normal[0] + d[1] * pl.normal[1] + d[2] * pl.normal[2]) / len;
+        const at = dist(pl, a[0], a[1], a[2]);
+        table.push(`${L.plane}: normal ${cos.toFixed(5)} along ${L.toward} to ${L.joint}; the ${L.joint} joint is ${at.toFixed(5)} m beyond the plane (bone ${len.toFixed(4)} m)`);
+        if (cos < 0.999) bad.push(`${L.plane}: normal ${fmt(pl.normal)} is not along ${L.toward} to ${L.joint} (cosine ${cos.toFixed(4)}, want at least 0.999)`);
+        if (at < -PLANE_TOL || at > len + PLANE_TOL) bad.push(`${L.plane}: the ${L.joint} joint is ${at.toFixed(5)} m beyond the plane; the plane must stand between ${L.toward} and ${L.joint} (0 to ${len.toFixed(4)})`);
+      }
+      // 2. both pieces are non-empty and really on their side
+      const sideCount = (m, sign, ex) => { let n = 0, tot = 0; for (let v = 0; v < m.nv; v++) { if (ex && ex[v]) continue; tot++; if (dist(pl, m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2]) * sign > PLANE_TOL) n++; } return [n, tot]; };
+      const [nl, tl] = sideCount(limb.mesh, -1, exemptMask(limb)), [ne, te] = sideCount(end.mesh, 1, exemptMask(end));
+      table.push(`${L.plane}: ${L.from} ${nl} of ${tl} vertices strictly on the - side, ${L.id} ${ne} of ${te} strictly on the + side (the rest on the cut face)`);
+      if (!nl) bad.push(`piece_${L.from} has no vertex strictly on the - side of ${L.plane}: the plane does not leave the limb a body`);
+      if (!ne) bad.push(`piece_${L.id} has no vertex strictly on the + side of ${L.plane}: the plane cuts nothing off`);
+      // 3. cut faces: flat on the plane, wound away from their own piece (the end piece's cap faces -n, the limb piece's cap +n), stored normals agree
+      for (const [cap, want] of [[capEnd, -1], [capLimb, 1]]) {
+        const m = cap.mesh;
+        let offN = 0, worst = 0, good = 0, total = 0, ns = 0;
+        for (let v = 0; v < m.nv; v++) { const d = Math.abs(dist(pl, m.pos[v * 3], m.pos[v * 3 + 1], m.pos[v * 3 + 2])); if (d > PLANE_TOL) { offN++; worst = Math.max(worst, d); } ns += (m.nrm[v * 3] * pl.normal[0] + m.nrm[v * 3 + 1] * pl.normal[1] + m.nrm[v * 3 + 2] * pl.normal[2]) / m.nv; }
+        for (let t = 0; t + 2 < m.idx.length; t += 3) {
+          const gn = triArea(m.pos, m.idx[t], m.idx[t + 1], m.idx[t + 2]);
+          if (!(Math.hypot(...gn) > 1e-14)) continue;
+          total++; if ((gn[0] * pl.normal[0] + gn[1] * pl.normal[1] + gn[2] * pl.normal[2]) * want > 0) good++;
+        }
+        if (offN) bad.push(`${cap.id}: ${offN} vertices off the ${L.plane} plane (worst ${worst.toFixed(5)}): the cut face is not flat`);
+        if (!total) bad.push(`${cap.id}: no triangles`);
+        else if (good / total < 0.99) bad.push(`${cap.id}: ${total - good} of ${total} triangles face the wrong way (want ${want < 0 ? "-" : "+"} normal of ${L.plane})`);
+        if (!(ns * want > 0)) bad.push(`${cap.id}: stored normals do not face away from piece_${cap.region}`);
+      }
+      // 4. the two cut faces are the same section seen from each side
+      const aE = areaOf(capEnd.mesh), aL = areaOf(capLimb.mesh);
+      table.push(`${L.plane}: cut face area ${L.id} ${aE.toFixed(6)}, ${L.from} ${aL.toFixed(6)}`);
+      if (!(aE > 0)) bad.push(`${capEnd.id} has no area`);
+      else if (Math.abs(aE - aL) / aE > 0.01) bad.push(`${L.plane}: the two cut faces differ: ${aE.toFixed(6)} vs ${aL.toFixed(6)} (off by ${(Math.abs(aE - aL) / aE * 100).toFixed(2)} percent, limit 1)`);
+      // 5. the pieces meet along one seam: every welded vertex of one on the plane has a partner in the other (vertex conservation across the cut)
+      const onPlane = (p, ex) => { const o = []; for (let v = 0; v < p.mesh.nv; v++) { if (ex && ex[v]) continue; if (Math.abs(dist(pl, p.mesh.pos[v * 3], p.mesh.pos[v * 3 + 1], p.mesh.pos[v * 3 + 2])) <= PLANE_TOL) o.push(v); } return o; };
+      const wl = makeWelder(), we = makeWelder();
+      for (const v of onPlane(limb, exemptMask(limb))) wl.id(limb.mesh.pos[v * 3], limb.mesh.pos[v * 3 + 1], limb.mesh.pos[v * 3 + 2]);
+      for (const v of onPlane(end, exemptMask(end))) we.id(end.mesh.pos[v * 3], end.mesh.pos[v * 3 + 1], end.mesh.pos[v * 3 + 2]);
+      let miss = 0;
+      for (const q of wl.reps) if (we.find(q[0], q[1], q[2]) < 0) miss++;
+      for (const q of we.reps) if (wl.find(q[0], q[1], q[2]) < 0) miss++;
+      table.push(`${L.plane}: seam ${wl.reps.length} welded vertices on the plane in ${L.from}, ${we.reps.length} in ${L.id}`);
+      if (!wl.reps.length) bad.push(`${L.plane}: the pieces share no vertex on the plane`);
+      else if (miss) bad.push(`${L.plane}: ${miss} welded seam vertices have no partner in the other piece: the pieces do not meet`);
+    }
+    add("hands_feet", !bad.length, bad.length ? `${bad.length} problem(s)` : `${T.limbs.length} planes: normals along the bones, pieces on their sides, cut faces flat and facing away with equal areas, pieces meet along one seam per plane`, bad, table);
   }
 
   return { ok: checks.every((c) => c.ok), sha256: sha256HexBytes(glbBuf), checks };

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Document, NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, KHRMeshQuantization } from "@gltf-transform/extensions";
-import { cutGlb, decompressGlb, weldReport, triangulateLoops, buildPlanes, shoulderTiltFor, REGIONS, CAPS } from "../tools/cut-units.mjs";
+import { cutGlb, decompressGlb, weldReport, triangulateLoops, buildPlanes, shoulderTiltFor, buildHandsFeetPlanes, HANDS_FEET, REGIONS, CAPS } from "../tools/cut-units.mjs";
 import { validate } from "../tools/cut-validate.mjs";
 import { sha256HexBytes } from "../src/sha256.mjs";
 
@@ -1099,4 +1099,193 @@ test("shoulder_mode tilt: a wide skirt over the joint-width arms cuts and valida
   assert.ok(pl.normal[1] > 0 && Math.abs(pl.point[0] - 0.2) < 1e-4, "the plane passes through the LeftArm joint and is turned: " + JSON.stringify(pl.normal));
   const again = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", planes: { shoulder_mode: "tilt" } });
   assert.equal(sha256HexBytes(again.glb), sha256HexBytes(tilt.glb), "deterministic");
+});
+
+// ---------------------------------------------------------------- optional cut: hands_feet (opt-in, default off): six severable parts, head / body / arms / legs / feet / hands
+const HF_IDS = ["hand_left", "hand_right", "foot_left", "foot_right"];
+const HF_OWN = { // bones on each side of the wrist and ankle planes, from the skeleton alone
+  arm_left: ["LeftArm", "LeftForeArm"], arm_right: ["RightArm", "RightForeArm"], hand_left: ["LeftHand"], hand_right: ["RightHand"],
+  leg_left: ["LeftUpLeg", "LeftLeg"], leg_right: ["RightUpLeg", "RightLeg"], foot_left: ["LeftFoot", "LeftToeBase"], foot_right: ["RightFoot", "RightToeBase"],
+};
+const HF_CAPS = {
+  cap_wrist_left_hand: ["hand_left", "hand_left"], cap_wrist_left_arm: ["arm_left", "hand_left"], cap_wrist_right_hand: ["hand_right", "hand_right"], cap_wrist_right_arm: ["arm_right", "hand_right"],
+  cap_ankle_left_foot: ["foot_left", "foot_left"], cap_ankle_left_leg: ["leg_left", "foot_left"], cap_ankle_right_foot: ["foot_right", "foot_right"], cap_ankle_right_leg: ["leg_right", "foot_right"],
+};
+const HF_PLANES = { wrist_left: ["LeftHand", "LeftForeArm"], wrist_right: ["RightHand", "RightForeArm"], ankle_left: ["LeftFoot", "LeftLeg"], ankle_right: ["RightFoot", "RightLeg"] };
+const sumArea = (o, names) => names.reduce((s, n) => s + o.meshes[n].prims.reduce((t, p) => t + areaOf(p.positions, p.indices), 0), 0);
+
+test("hands_feet off: explicit false, null or undefined is the same file as the default, with no hands_feet anywhere in the manifest", async () => {
+  const { b, r } = await run();
+  for (const o of [{ handsFeet: false }, { handsFeet: undefined }, { handsFeet: null }]) {
+    const off = await cutWith(b, o);
+    assert.ok(Buffer.compare(Buffer.from(off.glb), Buffer.from(r.glb)) === 0, JSON.stringify(o));
+    assert.equal(JSON.stringify(off.manifest), JSON.stringify(r.manifest));
+  }
+  assert.equal(JSON.stringify(r.manifest).includes("hands_feet"), false);
+  assert.equal(JSON.stringify(r.manifest).includes("wrist"), false);
+  assert.deepEqual(r.manifest.regions.map((x) => x.id), ["root", "upper_torso", "head", "arm_left", "arm_right", "leg_left", "leg_right"]);
+});
+
+test("hands_feet planes: the wrist stands at the Hand joint square to ForeArm to Hand, the ankle at the Foot joint square to Leg to Foot; a data fraction moves the point back toward the elbow or knee", () => {
+  const J = Object.fromEntries(Object.keys(W0).map((k) => [k, [W0[k][0], W0[k][1] - FLOOR, W0[k][2]]]));
+  const f = buildHandsFeetPlanes(J);
+  assert.deepEqual(Object.keys(f).sort(), ["ankle_left", "ankle_right", "wrist_left", "wrist_right"]);
+  assert.deepEqual(HANDS_FEET.limbs.map((l) => l.plane), ["wrist_left", "wrist_right", "ankle_left", "ankle_right"]);
+  for (const [id, [joint, back]] of Object.entries(HF_PLANES)) {
+    const d = [0, 1, 2].map((k) => J[joint][k] - J[back][k]), l = Math.hypot(...d);
+    assert.deepEqual(f[id].point, J[joint], id + " point is the joint at fraction 0");
+    d.forEach((x, k) => assert.ok(Math.abs(f[id].n[k] - x / l) < 1e-12, id + " normal"));
+    assert.match(f[id].source, new RegExp(joint));
+  }
+  assert.equal(HANDS_FEET.wrist_frac, 0); assert.equal(HANDS_FEET.ankle_frac, 0);
+  const half = buildHandsFeetPlanes(J, { ...HANDS_FEET, wrist_frac: 0.5, ankle_frac: 0.25 });
+  assert.ok(Math.abs(half.wrist_left.point[0] - 0.575) < 1e-12, "half way from the Hand back to the ForeArm: x " + half.wrist_left.point[0]);
+  assert.ok(Math.abs(half.ankle_left.point[1] - (0.09 + 0.25 * 0.33)) < 1e-12);
+  assert.throws(() => buildHandsFeetPlanes(J, { ...HANDS_FEET, wrist_frac: 1.5 }), /wrist_frac/);
+  assert.throws(() => buildHandsFeetPlanes(J, { ...HANDS_FEET, ankle_frac: -0.1 }), /ankle_frac/);
+  const noHand = { ...J }; delete noHand.LeftHand;
+  assert.throws(() => buildHandsFeetPlanes(noHand), /LeftHand/);
+});
+
+test("hands_feet: arms end at the wrist, legs at the ankle; hands and feet are their own pieces with flat caps on both sides", async () => {
+  const b = await buildBody();
+  const base = await cut(b), baseOut = await readOut(base.glb);
+  const r = await cutWith(b, { handsFeet: true });
+  const out = await readOut(r.glb), m = r.manifest;
+  assert.equal(m.schema, "cut-pieces/1");
+  assert.deepEqual(m.regions.map((x) => x.id).sort(), ["arm_left", "arm_right", "foot_left", "foot_right", "hand_left", "hand_right", "head", "leg_left", "leg_right", "root", "upper_torso"]);
+  for (const id of HF_IDS) { const x = m.regions.find((q) => q.id === id); assert.equal(x.mesh, "piece_" + id); assert.equal(x.detached_by, id); }
+  for (const id of ["arm_left", "arm_right", "leg_left", "leg_right"]) assert.equal(m.regions.find((q) => q.id === id).detached_by, id, "the existing regions keep their detached_by");
+  assert.equal(m.caps.length, 20);
+  for (const [id, [region, unit]] of Object.entries(HF_CAPS)) { const c = m.caps.find((q) => q.id === id); assert.ok(c, id); assert.equal(c.mesh, id); assert.equal(c.region, region); assert.equal(c.shown_when_cut, unit); }
+  const u = m.optional_units.hands_feet;
+  assert.equal(u.enabled, true);
+  assert.deepEqual(u.units, HF_IDS); assert.deepEqual(u.regions, HF_IDS); assert.deepEqual(u.planes, Object.keys(HF_PLANES)); assert.deepEqual([...u.caps].sort(), Object.keys(HF_CAPS).sort());
+  assert.ok(u.stats);
+  assert.deepEqual(Object.keys(m.planes), Object.keys(base.manifest.planes), "the six contract planes are unchanged");
+  // planes, in the measure row's frame
+  for (const [id, [joint]] of Object.entries(HF_PLANES)) {
+    const pl = m.optional_planes[id];
+    assert.ok(pl && typeof pl.source === "string" && pl.source.length > 10, id + " has a source");
+    const w = W0[joint], want = [w[0], w[1] - FLOOR, w[2]];
+    pl.point.forEach((x, k) => assert.ok(Math.abs(x - want[k]) < 1e-5, `${id} point ${k}: ${x} vs ${want[k]}`));
+  }
+  assert.ok(Math.abs(m.optional_planes.wrist_left.normal[0] - 1) < 1e-9 && Math.abs(m.optional_planes.wrist_right.normal[0] + 1) < 1e-9, "wrist normals point out along the arms");
+  assert.ok(m.optional_planes.ankle_left.normal[1] < -0.99, "ankle normal points down the leg");
+  // meshes: the base ones plus the new pieces and caps, all skinned
+  assert.deepEqual(Object.keys(out.meshes).sort(), [...REGIONS.map((x) => x.mesh), ...HF_IDS.map((x) => "piece_" + x), ...CAPS.map((c) => c.id), ...Object.keys(HF_CAPS)].sort());
+  for (const [name, mm] of Object.entries(out.meshes)) assert.ok(mm.node.getSkin(), name + " is skinned");
+  // untouched pieces keep their geometry exactly; arm + hand and leg + foot hold the old arm and leg's area
+  for (const id of ["root", "upper_torso", "head"]) assert.deepEqual(out.meshes["piece_" + id].prims.map((p) => [...p.positions]), baseOut.meshes["piece_" + id].prims.map((p) => [...p.positions]), id + " unchanged");
+  for (const s of ["left", "right"]) {
+    for (const [limb, end] of [["arm", "hand"], ["leg", "foot"]]) {
+      const was = sumArea(baseOut, [`piece_${limb}_${s}`]), now = sumArea(out, [`piece_${limb}_${s}`, `piece_${end}_${s}`]);
+      assert.ok(Math.abs(now - was) / was < 1e-7, `${limb}_${s} + ${end}_${s} area ${now} vs ${was}`);
+      assert.ok(sumArea(out, [`piece_${end}_${s}`]) > 0.01 && sumArea(out, [`piece_${limb}_${s}`]) < was, `${end}_${s} took its part`);
+    }
+  }
+  // every vertex on its side of its plane (1e-4)
+  const side = (pl, p, i) => (pl.normal[0] * (p[i] - pl.point[0]) + pl.normal[1] * (p[i + 1] - (pl.point[1] + FLOOR)) + pl.normal[2] * (p[i + 2] - pl.point[2]));
+  for (const [piece, plane, sign] of [["arm_left", "wrist_left", -1], ["hand_left", "wrist_left", 1], ["arm_right", "wrist_right", -1], ["hand_right", "wrist_right", 1], ["leg_left", "ankle_left", -1], ["foot_left", "ankle_left", 1], ["leg_right", "ankle_right", -1], ["foot_right", "ankle_right", 1]]) {
+    for (const p of out.meshes["piece_" + piece].prims) for (let i = 0; i < p.positions.length; i += 3) assert.ok(side(m.optional_planes[plane], p.positions, i) * sign >= -1e-4, `${piece} vertex ${i / 3} on the wrong side of ${plane}`);
+  }
+  // caps: flat on their plane, facing away from their own piece, area = the section (arm box 0.1 x 0.1; leg box 0.156 x 0.14 cut on a plane 1.7 degrees off horizontal)
+  for (const [cap, [region]] of Object.entries(HF_CAPS)) {
+    const plane = cap.replace(/^cap_/, "").replace(/_(hand|arm|foot|leg)$/, ""), pl = m.optional_planes[plane], want = HF_IDS.includes(region) ? -1 : 1;
+    for (const p of out.meshes[cap].prims) {
+      for (let i = 0; i < p.positions.length; i += 3) assert.ok(Math.abs(side(pl, p.positions, i)) < 1e-4, cap + " flat");
+      for (const n of p.nor) assert.ok((n[0] * pl.normal[0] + n[1] * pl.normal[1] + n[2] * pl.normal[2]) * want > 0.99, cap + " normal faces away from " + region);
+      for (let t = 0; t < p.indices.length; t += 3) {
+        const q = (k) => p.indices[t + k] * 3, P = p.positions, a = [0, 1, 2].map((c) => P[q(1) + c] - P[q(0) + c]), c2 = [0, 1, 2].map((c) => P[q(2) + c] - P[q(0) + c]);
+        const g = [a[1] * c2[2] - a[2] * c2[1], a[2] * c2[0] - a[0] * c2[2], a[0] * c2[1] - a[1] * c2[0]];
+        if (Math.hypot(...g) < 1e-12) continue;
+        assert.ok((g[0] * pl.normal[0] + g[1] * pl.normal[1] + g[2] * pl.normal[2]) * want > 0, cap + " winding of triangle " + t / 3);
+      }
+    }
+    const a = sumArea(out, [cap]), section = plane.startsWith("wrist") ? 0.01 : 0.156 * 0.14 / Math.abs(pl.normal[1]);
+    assert.ok(Math.abs(a - section) < 2e-6, `${cap} area ${a} vs section ${section}`);
+  }
+  // every piece with its caps is watertight
+  for (const R of m.regions) {
+    const parts = out.meshes[R.mesh].prims.map((p) => ({ positions: p.positions, indices: p.indices }));
+    for (const c of m.caps) if (c.region === R.id) for (const p of out.meshes[c.id].prims) parts.push({ positions: p.positions, indices: p.indices });
+    const rep = weldReport(parts, 1e-5);
+    assert.equal(rep.boundary_edges + rep.non_manifold_edges + rep.degenerate, 0, `${R.id}: open ${rep.boundary_edges}, non-manifold ${rep.non_manifold_edges}, degenerate ${rep.degenerate} at ${JSON.stringify(rep.boundary_sample)}`);
+  }
+  // bone side: each piece and its caps only on bones of its own side
+  const ALL_OWN = { ...OWN, ...HF_OWN };
+  for (const R of m.regions) for (const name of [R.mesh, ...m.caps.filter((c) => c.region === R.id).map((c) => c.id)]) for (const p of out.meshes[name].prims) p.jj.forEach((j, i) => j.forEach((ji, k) => { if (p.ww[i][k] > 0) assert.ok(ALL_OWN[R.id].includes(out.joints[ji]), `${name} vertex ${i} on ${out.joints[ji]}`); }));
+  assert.equal(m.stats.orphan_weights, 0);
+  for (const id of ["arm_left", "leg_left", "hand_left", "foot_left"]) assert.equal(m.stats.watertight_by_region[id].boundary_edges, 0);
+  // weights sum to one everywhere
+  for (const nm of Object.keys(out.meshes)) for (const p of out.meshes[nm].prims) for (const w of p.ww) assert.ok(Math.abs(w[0] + w[1] + w[2] + w[3] - 1) < 1e-5, nm);
+  // the independent validator agrees and runs its extra check
+  const v = validateAll(b, r);
+  assert.deepEqual(why(v), []);
+  assert.deepEqual(v.checks.map((c) => c.name), ["structure", "watertight", "orientation", "weights", "bone_side", "caps", "conservation", "planes", "hands_feet"]);
+  assert.match(v.checks[0].summary, /11 pieces \+ 20 caps/);
+  assert.match(v.checks.find((c) => c.name === "hands_feet").summary, /4 planes/);
+  assert.ok(Buffer.compare(Buffer.from((await cutWith(b, { handsFeet: true })).glb), Buffer.from(r.glb)) === 0, "deterministic");
+});
+
+test("hands_feet: the validator FAILS a body whose hands_feet is wrong, with the reason, and no tolerance is relaxed", async () => {
+  const b = await buildBody();
+  const r = await cutWith(b, { handsFeet: true }), m = r.manifest;
+  const clone = () => JSON.parse(JSON.stringify(m));
+  const moved = clone(); moved.optional_planes.wrist_left.point[0] -= 0.05; // the plane moved into the forearm: arm vertices end up beyond it
+  const mv = validateAll(b, r, moved);
+  assert.ok(failing(mv).includes("planes"), "moved plane: " + failing(mv));
+  assert.match(why(mv).join("\n"), /piece_arm_left: \d+ vertices on the wrong side of the wrist_left plane \(worst 0\.0\d+\)/);
+  const tilted = clone(); tilted.optional_planes.ankle_right.normal = [0.5, -0.85, 0];
+  assert.ok(failing(validateAll(b, r, tilted)).length > 0, "a tilted ankle plane");
+  const noCap = clone(); noCap.caps = noCap.caps.filter((c) => c.id !== "cap_ankle_left_foot");
+  assert.ok(failing(validateAll(b, r, noCap)).includes("structure"), "cap missing from the manifest");
+  const wrongUnit = clone(); wrongUnit.caps.find((c) => c.id === "cap_wrist_right_arm").shown_when_cut = "arm_right";
+  assert.ok(failing(validateAll(b, r, wrongUnit)).includes("structure"), "cap shown by the wrong unit");
+  const wrongBy = clone(); wrongBy.regions.find((x) => x.id === "foot_left").detached_by = "leg_left";
+  assert.ok(failing(validateAll(b, r, wrongBy)).includes("structure"), "foot detached by the leg");
+  const noPlane = clone(); delete noPlane.optional_planes.wrist_right;
+  assert.ok(failing(validateAll(b, r, noPlane)).length > 0, "a plane missing from the manifest");
+  const asPlain = clone(); delete asPlain.optional_units; delete asPlain.optional_planes; // the GLB has hands and feet, the manifest claims the plain seven
+  assert.ok(failing(validateAll(b, r, asPlain)).includes("structure"), "pieces in a plain manifest");
+  const base = await cut(b);
+  assert.ok(failing(validate(Buffer.from(base.glb), m, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset })).includes("structure"), "manifest claims pieces the GLB lacks");
+  // a hand vertex bound to the ForeArm fails bone_side: rebind one vertex in a copy of the GLB
+  const doc = await new NodeIO().registerExtensions(ALL_EXTENSIONS).readBinary(r.glb);
+  const fore = doc.getRoot().listSkins()[0].listJoints().findIndex((j) => j.getName() === "mixamorig:LeftForeArm");
+  const hand = doc.getRoot().listNodes().find((n) => n.getName() === "piece_hand_left").getMesh().listPrimitives()[0];
+  hand.getAttribute("JOINTS_0").setElement(0, [fore, 0, 0, 0]); hand.getAttribute("WEIGHTS_0").setElement(0, [1, 0, 0, 0]);
+  const bad = validate(Buffer.from(await new NodeIO().registerExtensions(ALL_EXTENSIONS).writeBinary(doc)), m, { source: Buffer.from(b.bytes), planeOffset: m.plane_frame.bind_offset });
+  assert.ok(failing(bad).includes("bone_side"), "a hand vertex bound to the ForeArm: " + failing(bad));
+  assert.match(why(bad).join("\n"), /piece_hand_left uses mixamorig:LeftForeArm \(across the wrist_left cut\)/);
+});
+
+test("hands_feet with head_split, hair, a rigid skirt layer and the tilted shoulder plane: all of it keeps working and the validator passes every check", async () => {
+  const b = await buildBody({ hair: true, skirt: true });
+  const r = await cutGlb(b.bytes, b.row, rigMap, { body: "synthetic", rig: "mixamo-106", source: "synthetic.glb", headSplit: true, handsFeet: true, rigidAccessoryMaterials: ["skirt_mat"], planes: { shoulder_mode: "tilt" } });
+  const v = validateAll(b, r);
+  assert.deepEqual(why(v), []);
+  assert.deepEqual(v.checks.map((c) => c.name), ["structure", "watertight", "orientation", "weights", "bone_side", "caps", "conservation", "planes", "head_split", "hands_feet"]);
+  assert.match(v.checks[0].summary, /12 pieces \+ 23 caps/);
+  assert.deepEqual(Object.keys(r.manifest.optional_units).sort(), ["hands_feet", "head_split"]);
+  assert.ok(r.report.shoulder_tilt.left.tilt > 0);
+  assert.deepEqual(r.manifest.plane_exempt.piece_root, ["skirt_mat"]);
+  const out = await readOut(r.glb);
+  assert.ok(out.meshes.piece_hand_left && out.meshes.piece_foot_right && out.meshes.piece_head_left);
+});
+
+test("hands_feet through the CLI flag --hands-feet", async () => {
+  const b = await buildBody();
+  const dir = mkdtempSync(join(tmpdir(), "cut-units-hf-"));
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(join(dir, "syn.glb"), b.bytes); writeFileSync(join(dir, "syn.measure.json"), JSON.stringify(b.row));
+  const args = (extra) => [new URL("../tools/cut-units.mjs", import.meta.url).pathname, join(dir, "syn.glb"), join(dir, "syn.measure.json"), new URL("../data/rig-maps/mixamo-106.json", import.meta.url).pathname, join(dir, "out"), "--body", "syn", ...extra];
+  const res = spawnSync(process.execPath, args(["--hands-feet"]), { encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr);
+  const man = JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8"));
+  assert.equal(man.optional_units.hands_feet.enabled, true);
+  assert.equal(man.regions.length, 11);
+  const plain = spawnSync(process.execPath, args([]), { encoding: "utf8" });
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.equal(JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8")).optional_units, undefined);
 });
