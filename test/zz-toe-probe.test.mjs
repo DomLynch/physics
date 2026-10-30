@@ -6,16 +6,17 @@ import { qrot } from "../src/math.mjs";
 
 const measure = (n) => JSON.parse(readFileSync(new URL(`../data/bodies/${n}.measure.json`, import.meta.url), "utf8"));
 const DROPS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
-const T = (f) => () => { const t = loadTable(); f(t); return t; };
+const T = (f) => () => { const t = structuredClone(loadTable()); f(t); return t; };
 const toeRole = (t) => t.roles.find((r) => r.id === "toe");
 const VARIANTS = {
   base: [{}, T(() => {})],
-  iters12: [{ rows: { velocity_iterations: 12 } }, T(() => {})],
-  iters24: [{ rows: { velocity_iterations: 24 } }, T(() => {})],
+  toe_ext_0_035: [{}, T((t) => { t.reference.toe_ext_height_ratio = 0.035; })],
   toe_ext_0_02: [{}, T((t) => { t.reference.toe_ext_height_ratio = 0.02; })],
-  toe_ext_0: [{}, T((t) => { t.reference.toe_ext_height_ratio = 0; })],
+  toe_ext_0_01: [{}, T((t) => { t.reference.toe_ext_height_ratio = 0.01; })],
   toe_r_0_03: [{}, T((t) => { toeRole(t).r.fixed_height_ratio = 0.03; })],
   toe_r_0_012: [{}, T((t) => { toeRole(t).r.fixed_height_ratio = 0.012; })],
+  ext_0_02_r_0_012: [{}, T((t) => { t.reference.toe_ext_height_ratio = 0.02; toeRole(t).r.fixed_height_ratio = 0.012; })],
+  ext_0_02_iters24: [{ rows: { velocity_iterations: 24 } }, T((t) => { t.reference.toe_ext_height_ratio = 0.02; })],
 };
 
 for (const ground of [undefined, "slope15"]) test(`probe toe variants ground=${ground}`, async () => {
