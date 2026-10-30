@@ -1302,7 +1302,7 @@ test("hands_feet accessory_feet: off (the default) a rigid layer across the ankl
   const r = await bootCut(b, true);
   assert.deepEqual(why(validateAll(b, r)), []);
   const out = await readOut(r.glb);
-  assert.ok(!out.meshes.piece_foot_left.prims.some((p) => p.material === "boot_mat.rigid"), "no boot in the foot piece");
+  assert.ok(!out.meshes.piece_foot_left.prims.some((p) => p.material === "boot_mat"), "no boot in the foot piece");
   assert.equal(r.manifest.rigid_accessories_on_feet, undefined);
   assert.equal(r.manifest.optional_units.hands_feet.accessory_caps, undefined);
   assert.equal(r.manifest.optional_units.hands_feet.params.accessory_feet, undefined);
@@ -1315,7 +1315,7 @@ test("hands_feet accessory_feet: the layer is cut at the ankle planes, the foot 
   const r = await bootCut(b, { accessory_feet: true }), m = r.manifest;
   assert.deepEqual(why(validateAll(b, r)), []);
   const out = await readOut(r.glb);
-  const foot = out.meshes.piece_foot_left.prims.find((p) => p.material === "boot_mat.rigid"), rest = out.meshes.piece_root.prims.find((p) => p.material === "boot_mat.rigid");
+  const foot = out.meshes.piece_foot_left.prims.find((p) => p.material === "boot_mat"), rest = out.meshes.piece_root.prims.find((p) => p.material === "boot_mat");
   assert.ok(foot && rest, "boot in the foot piece and in piece_root");
   const bone = out.joints.indexOf("LeftFoot");
   for (let i = 0; i < foot.jj.length; i++) { assert.equal(foot.jj[i][0], bone); assert.equal(foot.ww[i][0], 1); }
@@ -1323,7 +1323,7 @@ test("hands_feet accessory_feet: the layer is cut at the ankle planes, the foot 
   for (let i = 0; i < rest.jj.length; i++) { assert.equal(rest.jj[i][0], hips); assert.equal(rest.ww[i][0], 1); }
   const pl = m.optional_planes.ankle_left, side = (p, i) => pl.normal[0] * (p[i] - pl.point[0]) + pl.normal[1] * (p[i + 1] - (pl.point[1] + FLOOR)) + pl.normal[2] * (p[i + 2] - pl.point[2]);
   for (let i = 0; i < foot.positions.length; i += 3) assert.ok(side(foot.positions, i) >= -1e-4, "the shoe is beyond the ankle plane");
-  assert.deepEqual(m.plane_exempt.piece_foot_left, ["boot_mat.rigid"]); assert.deepEqual(m.plane_exempt.piece_foot_right, ["boot_mat.rigid"]);
+  assert.deepEqual(m.plane_exempt.piece_foot_left, ["boot_mat"]); assert.deepEqual(m.plane_exempt.piece_foot_right, ["boot_mat"]);
   assert.deepEqual(m.optional_units.hands_feet.accessory_caps.map((c) => c.id).sort(), ["cap_ankle_left_foot_left", "cap_ankle_left_root", "cap_ankle_right_foot_right", "cap_ankle_right_root"]);
   assert.equal(m.optional_units.hands_feet.params.accessory_feet, true);
   for (const c of m.optional_units.hands_feet.accessory_caps) { const cap = m.caps.find((q) => q.id === c.id); assert.ok(cap && cap.region === c.region && cap.shown_when_cut === c.shown_when_cut, c.id); assert.ok(out.meshes[c.id], c.id + " is in the GLB"); }
