@@ -74,12 +74,29 @@ Errors at creation: a model without a bone the spec names, an unknown `virtual` 
 
 ## Visual-only units: `head_split`, `belly_open`
 
-`rd.row.severable` lists eight units: the six above plus `head_split` and `belly_open`, rows in `data/ragdoll-role-table.json` flagged `visual_only: true` (`cut_role: null`, `joint: null`, `mass_kg: 0`, `carries_roles: []`, `cap_role` = the part the event points at: `head` and `spine1`). They exist for cut GLBs made with `tools/cut-units.mjs --head-split --belly-open` (docs/CUT-CONTRACT.md, Optional cuts).
+`rd.row.severable` lists twelve units on a humanoid: the ten detaching ones (see "Hands and feet") plus `head_split` and `belly_open`, rows in `data/ragdoll-role-table.json` flagged `visual_only: true` (`cut_role: null`, `joint: null`, `mass_kg: 0`, `carries_roles: []`, `cap_role` = the part the event points at: `head` and `spine1`). They exist for cut GLBs made with `tools/cut-units.mjs --head-split --belly-open` (docs/CUT-CONTRACT.md, Optional cuts).
 
 - `rd.cut("head_split")` / `rd.cut("belly_open")` return `{ unit, mass_kg: 0, carries_roles: [], gear_slots: [], cap: { part, position }, props: [], visual_only: true }` and put the unit in `rd.cuts`. Nothing detaches: no capsule or joint is removed, no mass moves, no helmet prop (the `helmet` and `impulse` options are ignored), the 120 Hz window is not started, the ragdoll stays alive and its per-tick hash is identical to a run without the call. A second cut of the same unit returns `null`. They can be cut in any order with `head` (`head` after `head_split`, or the reverse), on a living or a frozen body.
 - `createCutRig(...).update()` shows `cap_split_head_left` / `cap_split_head_right` once `head_split` is in `rd.cuts` and `cap_belly_opening` once `belly_open` is; a manifest region may carry `separated_by: "head_split"` (checked against the known units, like `detached_by`).
 - `rd.reset()` still returns false after a detaching cut, but works after visual-only cuts alone (it clears them, so the caps hide again).
 - A `ragdoll-row/2` generated before these units existed is accepted: `createRagdoll` adds the visual-only units from the role table to its `severable` list (the row you passed in is not touched). The two head halves do NOT move independently yet: both follow the `head` capsule (a separate step, not done).
+
+## Hands and feet: `hand_left`, `hand_right`, `foot_left`, `foot_right`
+
+Dom's ruling (2026-10-30): six severable parts, head, body, arms, legs, feet, hands. The four new units are data rows in `data/ragdoll-role-table.json` (same keys as the arm and leg units), listed in `rd.row.severable` after `torso_waist`:
+
+| unit | cut_role | detaches from | carries_roles | gear_slots |
+|---|---|---|---|---|
+| `hand_left` / `hand_right` | `handLeft` / `handRight` | `forearmLeft` / `forearmRight` | `[handX]` | `["hands"]` |
+| `foot_left` / `foot_right` | `footLeft` / `footRight` | `shinLeft` / `shinRight` | `[footX, toeX]` | `["feet"]` |
+
+- `rd.cut("hand_left")` etc. behave like the arm cuts: the wrist/ankle joint is removed, mass is the sum of the carried roles, the 120 Hz window starts, the stump pivot is the cut joint on the forearm/shin capsule (`cap.part` is the cut role, `cap.position` lies on the forearm/shin). Return shape `{ unit, mass_kg, carries_roles, gear_slots, cap, props }`, `null` for a unit already cut or whose joint is gone.
+- **Order rule: a unit carries what is still attached when it is cut.** Hand then arm: the `arm_*` result carries `[armX, forearmX]`, `gear_slots ["arms"]` and the mass without the hand. Arm then hand: allowed, the hand detaches from the flying arm; the arm result carried everything (`[armX, forearmX, handX]`, `["arms","hands"]`). Foot then leg and leg then foot work the same way (`["legs"]` / `["legs","feet"]`). The same filter applies to `torso_waist` and `head` after an earlier cut. With no earlier cut the result is exactly as before. The sum of the masses of the two results is the full arm (or leg) mass.
+- Gear: the armour rows `hands` and `feet` have `detach_as_prop_on_sever: true`; a glove leaves with the hand cut (`gear_slots ["hands"]`), a boot with the foot cut (`["feet"]`).
+- Cut rig (`src/three-cuts.mjs`): a manifest may carry caps `cap_wrist_{left,right}_hand` / `cap_wrist_{left,right}_arm` and `cap_ankle_{left,right}_foot` / `cap_ankle_{left,right}_leg` with `shown_when_cut` `hand_left`, `hand_right`, `foot_left`, `foot_right`, and regions `piece_hand_*` / `piece_foot_*` with `detached_by` the same ids; they show and hide from `rd.cuts` like the others. A manifest without them works unchanged (a hand cut shows nothing).
+- Bodies that cannot cut a unit do not list it: `rd.row.severable` only has units whose roles exist in the body (chain bodies keep their own units, `rd.cut("hand_left")` on a dog throws `unknown severable unit`). A `ragdoll-row/2` generated before these units existed gets them added by `createRagdoll`.
+- `data/limb-loss.json`: `piece_hostile` may name a hand or foot unit. No hand/foot rows were added to any body: the part budgets (`PARTS`) and the hit rules (`zone_cut_unit.feet: null`) have no hand/foot zone yet, so there is no natural place; tune on clips.
+- Tests: `test/hands-feet.test.mjs`.
 
 ## Cuts (M5)
 

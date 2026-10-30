@@ -3,7 +3,7 @@
 import DATA from "../data/limb-loss.json" with { type: "json" };
 
 const PARTS = ["head", "torso", "arm_left", "arm_right", "leg_left", "leg_right"];
-const CUT_UNITS = ["head", "torso_waist", "arm_left", "arm_right", "leg_left", "leg_right"]; // the severable units (tools/cut-units.mjs REGIONS.detached_by)
+const CUT_UNITS = ["head", "torso_waist", "arm_left", "arm_right", "leg_left", "leg_right", "hand_left", "hand_right", "foot_left", "foot_right"]; // the detaching severable units of the role table (tools/cut-units.mjs REGIONS.detached_by is a subset until the tool writes hand/foot regions)
 const LEG_STATES = ["kneel", "limp"];
 const ROW_KEYS = ["body", "budgets", "arm_gone_damage_mult", "leg_state", "piece_hostile", "note", "source"];
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

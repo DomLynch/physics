@@ -17,8 +17,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 export const SCHEMA = "cut-bodies/1";
 // the row keys a body may carry (anything else is refused: a typo in a row must not silently cut with defaults)
-const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "expect_sha256", "blocked", "blocked_checks", "note"]);
-const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open", "rigid_accessory_materials", "plane_snap_m"]);
+const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "hands_feet_params", "expect_sha256", "blocked", "blocked_checks", "note"]);
+const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open", "hands_feet", "rigid_accessory_materials", "plane_snap_m"]);
 const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac", "shoulder_mode"]);
 
 // Reads and checks a body-row file. `defaults` fills every body's missing keys (rig_map, overrides merge one level deep).
@@ -44,7 +44,8 @@ export function loadRows(path) {
     if (ov.plane_snap_m !== undefined && !(typeof ov.plane_snap_m === "number" && ov.plane_snap_m > 0 && ov.plane_snap_m <= 1e-4)) throw new Error(`${where}: overrides.plane_snap_m must be a number from 0 (exclusive) to 0.0001 metres (the validator's plane tolerance), got ${JSON.stringify(ov.plane_snap_m)}`);
     if (ov.rigid_accessory_materials !== undefined) { try { rigidAccessorySpecs(ov.rigid_accessory_materials); } catch (e) { throw new Error(`${where}: overrides.${e.message}`); } }
     if (ov.crotch_planes !== undefined && typeof ov.crotch_planes !== "boolean") throw new Error(`${where}: overrides.crotch_planes must be true or false, got ${JSON.stringify(ov.crotch_planes)}`);
-    for (const k of ["head_split", "belly_open"]) if (ov[k] !== undefined && typeof ov[k] !== "boolean" && !(ov[k] && typeof ov[k] === "object" && !Array.isArray(ov[k]))) throw new Error(`${where}: overrides.${k} must be true, false or a row object`);
+    for (const k of ["head_split", "belly_open", "hands_feet"]) if (ov[k] !== undefined && typeof ov[k] !== "boolean" && !(ov[k] && typeof ov[k] === "object" && !Array.isArray(ov[k]))) throw new Error(`${where}: overrides.${k} must be true, false or a row object`);
+    if (row.hands_feet_params !== undefined && !(row.hands_feet_params && typeof row.hands_feet_params === "object" && !Array.isArray(row.hands_feet_params))) throw new Error(`${where}: hands_feet_params must be a row object (fields of HANDS_FEET, applied only on a --hands-feet run)`);
     for (const k of ["name", "source", "rig_map", "measure"]) if (typeof row[k] !== "string" || !row[k]) throw new Error(`${where}: needs ${k}`);
     if (!/^[A-Za-z0-9._-]+$/.test(row.name)) throw new Error(`${where}: name must be a plain file stem`);
     if (seen.has(row.name)) throw new Error(`${where}: duplicate name`);
@@ -70,6 +71,7 @@ export function cutOpts(row, extra = {}) {
   if (o.crotch_planes === false) opts.crotchPlanes = false;
   if (o.head_split) opts.headSplit = o.head_split;
   if (o.belly_open) opts.bellyOpen = o.belly_open;
+  if (o.hands_feet) opts.handsFeet = o.hands_feet;
   return opts;
 }
 
@@ -109,7 +111,8 @@ export async function runBody(row, ctx) {
     res.stages.source = { plain: row.plain ? "as given" : "decompressed", file: basename(plainPath), sha256: sha256HexBytes(plainBytes) };
 
     // 3 cut
-    const { glb, manifest, report } = await cutGlb(plainBytes, mrow, rigMap, cutOpts(row, { source: basename(plainPath) }));
+    // ctx.handsFeet (--hands-feet): every body of the run is built with the wrist and ankle cuts too, unless its row already says what it wants
+    const { glb, manifest, report } = await cutGlb(plainBytes, mrow, rigMap, cutOpts(row, { source: basename(plainPath), ...(ctx.handsFeet && (row.overrides || {}).hands_feet === undefined ?{ handsFeet: row.hands_feet_params || true } : {}) }));
     const glbBytes = Buffer.from(glb);
     writeFileSync(join(ctx.out, row.name + ".cut.glb"), glbBytes);
     writeFileSync(join(ctx.out, row.name + ".cut.manifest.json"), JSON.stringify(manifest, null, 1) + "\n");
@@ -122,7 +125,10 @@ export async function runBody(row, ctx) {
     res.checks = v.checks.map((c) => ({ name: c.name, result: c.skipped || c.summary.startsWith("skipped") ? "SKIP" : c.ok ? "PASS" : "FAIL", summary: c.summary, details: c.ok ? [] : c.details.slice(0, 12) }));
     writeFileSync(join(ctx.out, row.name + ".validate.txt"), validateText(row.name, v));
     res.ok = v.ok;
-    if (row.expect_sha256) {
+    if (row.expect_sha256 && ctx.handsFeet && (row.overrides || {}).hands_feet === undefined) {
+      // the pinned hash is the published (default) cut; a hands_feet pass is a different file by design. Said in the receipt, not hidden.
+      res.stages.expect = { ok: true, skipped: "the pinned sha256 is of the cut without hands_feet; this run adds the wrist and ankle cuts" };
+    } else if (row.expect_sha256) {
       res.stages.expect = { ok: res.sha256 === row.expect_sha256, expected: row.expect_sha256 };
       if (!res.stages.expect.ok) { res.ok = false; res.error = `sha256 ${res.sha256} is not the expected ${row.expect_sha256}`; }
     }
@@ -189,12 +195,12 @@ export function receiptMarkdown(results, meta) {
   return L.join("\n");
 }
 
-export async function runBatch({ bodiesPath, sources, out, only = null, updateMeasure = false }) {
+export async function runBatch({ bodiesPath, sources, out, only = null, updateMeasure = false, handsFeet = false }) {
   const { bodies } = loadRows(bodiesPath);
   const pick = only ? bodies.filter((b) => only.includes(b.name)) : bodies;
   if (only) for (const n of only) if (!bodies.some((b) => b.name === n)) throw new Error("no body named " + n + " in " + bodiesPath);
   mkdirSync(out, { recursive: true });
-  const ctx = { root: ROOT, sources, out, updateMeasure };
+  const ctx = { root: ROOT, sources, out, updateMeasure, handsFeet };
   const results = [];
   for (const row of pick) {
     const r = await runBody(row, ctx);
@@ -213,12 +219,12 @@ export async function runBatch({ bodiesPath, sources, out, only = null, updateMe
 async function main() {
   const a = process.argv.slice(2);
   const opt = (k, d) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : d; };
-  if (a.includes("--help") || a.includes("-h")) { console.log("usage: node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure]"); return 0; }
+  if (a.includes("--help") || a.includes("-h")) { console.log("usage: node tools/cut-batch.mjs [--bodies data/cut-bodies.json] [--sources <dir>] [--out <dir>] [--only a,b] [--update-measure] [--hands-feet]"); return 0; }
   const bodiesPath = rel(process.cwd(), opt("--bodies", join(ROOT, "data/cut-bodies.json")));
   const sources = rel(process.cwd(), opt("--sources", process.env.CUT_SOURCES || "/root/cut-out"));
   const out = rel(process.cwd(), opt("--out", "cut-batch-out"));
   const only = opt("--only", null);
-  const { results, failed } = await runBatch({ bodiesPath, sources, out, only: only ? only.split(",") : null, updateMeasure: a.includes("--update-measure") });
+  const { results, failed } = await runBatch({ bodiesPath, sources, out, only: only ? only.split(",") : null, updateMeasure: a.includes("--update-measure"), handsFeet: a.includes("--hands-feet") });
   console.log(`receipt ${join(out, "RECEIPT.md")}`);
   if (failed.length) { console.error(`CUT BATCH FAILED: ${failed.map((r) => r.name + " " + verdict(r)).join(", ")}`); return 1; }
   console.log(`cut batch ok: ${results.length} bodies`);

@@ -194,6 +194,12 @@ export function lintSelfTest(table) {
   return { probes: results, table_clean: clean, ok: results.every((r) => r.rejected) && clean };
 }
 
+// A role-table unit can be cut on this body only if every role it names exists in the body's rows (a body without hands lists no hand unit).
+export function severableFits(u, roleRows) {
+  const have = new Set(roleRows.map((r) => r.id));
+  return u.visual_only ? have.has(u.cap_role) : [u.cut_role, ...u.carries_roles].every((id) => have.has(id));
+}
+
 // One severable unit of a ragdoll row from its role-table entry. A visual-only unit (visual_only: true: head_split, belly_open) detaches nothing: no cut role,
 // no joint, no mass; `cap_role` is the part its cut event points at. The six detaching units keep exactly the fields they always had.
 export function severableRow(u, roleRows) {
@@ -256,7 +262,7 @@ export function generateRow(bodyId, m, table, opts = {}) {
   const reachOf = (id) => { const r = roleRows[idx[id]]; return r.length_m + Math.max(0, ...(kids[id] || []).map(reachOf)); };
   roleRows.forEach((r) => { r.reach_m = round(reachOf(r.id), 4); r.tip_speed_per_rad_s = r.reach_m; });
   // severable units: the cut role, its parent joint, what goes with it, the gear slots on it, the mass and the cut position (the cut role's pivot)
-  const severable = table.severable.units.map((u) => severableRow(u, roleRows));
+  const severable = table.severable.units.filter((u) => severableFits(u, roleRows)).map((u) => severableRow(u, roleRows));
   const armLeft = roleRows[idx.armLeft], armRight = roleRows[idx.armRight], thighLeft = roleRows[idx.thighLeft], thighRight = roleRows[idx.thighRight];
   const row = {
     schema: "ragdoll-row/2",

@@ -10,7 +10,8 @@ import { createCutRig } from "../src/three-cuts.mjs";
 const body = JSON.parse(readFileSync(new URL("../data/bodies/minotaur-106.measure.json", import.meta.url), "utf8"));
 const TABLE = JSON.parse(readFileSync(new URL("../data/ragdoll-role-table.json", import.meta.url), "utf8"));
 const VISUAL = ["head_split", "belly_open"];
-const DETACHING = ["head", "arm_left", "arm_right", "leg_left", "leg_right", "torso_waist"];
+const SIX = ["head", "arm_left", "arm_right", "leg_left", "leg_right", "torso_waist"];
+const DETACHING = [...SIX, "hand_left", "hand_right", "foot_left", "foot_right"]; // hands and feet are severable too (test/hands-feet.test.mjs)
 const TICK = 1 / 60;
 
 // regions and caps exactly as the cut tool writes them with both flags on (piece_head replaced by its halves, extra belly cap)
@@ -63,7 +64,7 @@ test("the role table and rd.row.severable list the two visual-only units as rows
 
 test("a pre-generated ragdoll-row/2 without the visual units gets them from the role table; the row passed in is not changed", async () => {
   const p = await createPhysics({ seed: 1 }), full = p.createRagdoll(body).row;
-  const old = { ...full, severable: full.severable.filter((s) => !s.visual_only) };
+  const old = { ...full, severable: full.severable.filter((s) => SIX.includes(s.id)) };
   const rd = p.createRagdoll(old);
   assert.deepEqual(rd.row.severable.map((s) => s.id), [...DETACHING, ...VISUAL]);
   assert.equal(old.severable.length, 6);
