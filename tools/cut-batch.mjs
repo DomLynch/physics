@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 export const SCHEMA = "cut-bodies/1";
 // the row keys a body may carry (anything else is refused: a typo in a row must not silently cut with defaults)
-const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "expect_sha256", "blocked", "blocked_checks", "note"]);
+const BODY_KEYS = new Set(["name", "source", "plain", "rig_map", "measure", "overrides", "hands_feet_params", "expect_sha256", "blocked", "blocked_checks", "note"]);
 const OVERRIDE_KEYS = new Set(["planes", "hair_materials", "home_min_weight", "crotch_planes", "head_split", "belly_open", "hands_feet", "rigid_accessory_materials", "plane_snap_m"]);
 const PLANE_KEYS = new Set(["neck_frac", "waist_frac", "shoulder_frac", "hip_frac", "shoulder_mode"]);
 
@@ -45,6 +45,7 @@ export function loadRows(path) {
     if (ov.rigid_accessory_materials !== undefined) { try { rigidAccessorySpecs(ov.rigid_accessory_materials); } catch (e) { throw new Error(`${where}: overrides.${e.message}`); } }
     if (ov.crotch_planes !== undefined && typeof ov.crotch_planes !== "boolean") throw new Error(`${where}: overrides.crotch_planes must be true or false, got ${JSON.stringify(ov.crotch_planes)}`);
     for (const k of ["head_split", "belly_open", "hands_feet"]) if (ov[k] !== undefined && typeof ov[k] !== "boolean" && !(ov[k] && typeof ov[k] === "object" && !Array.isArray(ov[k]))) throw new Error(`${where}: overrides.${k} must be true, false or a row object`);
+    if (row.hands_feet_params !== undefined && !(row.hands_feet_params && typeof row.hands_feet_params === "object" && !Array.isArray(row.hands_feet_params))) throw new Error(`${where}: hands_feet_params must be a row object (fields of HANDS_FEET, applied only on a --hands-feet run)`);
     for (const k of ["name", "source", "rig_map", "measure"]) if (typeof row[k] !== "string" || !row[k]) throw new Error(`${where}: needs ${k}`);
     if (!/^[A-Za-z0-9._-]+$/.test(row.name)) throw new Error(`${where}: name must be a plain file stem`);
     if (seen.has(row.name)) throw new Error(`${where}: duplicate name`);
@@ -111,7 +112,7 @@ export async function runBody(row, ctx) {
 
     // 3 cut
     // ctx.handsFeet (--hands-feet): every body of the run is built with the wrist and ankle cuts too, unless its row already says what it wants
-    const { glb, manifest, report } = await cutGlb(plainBytes, mrow, rigMap, cutOpts(row, { source: basename(plainPath), ...(ctx.handsFeet && (row.overrides || {}).hands_feet === undefined ?{ handsFeet: true } : {}) }));
+    const { glb, manifest, report } = await cutGlb(plainBytes, mrow, rigMap, cutOpts(row, { source: basename(plainPath), ...(ctx.handsFeet && (row.overrides || {}).hands_feet === undefined ?{ handsFeet: row.hands_feet_params || true } : {}) }));
     const glbBytes = Buffer.from(glb);
     writeFileSync(join(ctx.out, row.name + ".cut.glb"), glbBytes);
     writeFileSync(join(ctx.out, row.name + ".cut.manifest.json"), JSON.stringify(manifest, null, 1) + "\n");

@@ -174,6 +174,25 @@ test("the same batch twice gives the same bytes", async () => {
   assert.equal(readFileSync(join(o1, "RECEIPT.md"), "utf8"), readFileSync(join(o2, "RECEIPT.md"), "utf8"));
 });
 
+test("hands_feet_params: a row's wrist/ankle parameters apply only on a --hands-feet run (the default cut and its pinned hash are untouched); a bad value is refused", async () => {
+  const f = await fixture();
+  const rows = JSON.parse(readFileSync(f.bodiesPath, "utf8"));
+  rows.bodies[1].hands_feet_params = { ankle_frac: 0.2 };
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  const plainBase = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "p-plain") });
+  assert.ok(plainBase.results.every((r) => r.checks.length === 8), "without --hands-feet the params do nothing");
+  const hf = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "p-hf"), handsFeet: true });
+  assert.deepEqual(hf.failed.map((r) => r.name), []);
+  const m0 = JSON.parse(readFileSync(join(f.dir, "p-hf", hf.results[0].name + ".cut.manifest.json"), "utf8"));
+  const m1 = JSON.parse(readFileSync(join(f.dir, "p-hf", hf.results[1].name + ".cut.manifest.json"), "utf8"));
+  const ank = (m) => JSON.stringify(m.optional_planes.ankle_left);
+  assert.notEqual(ank(m0), ank(m1), "the row with ankle_frac 0.2 puts its ankle plane elsewhere");
+  assert.equal(cutOpts({ name: "a", rig_map: "data/rig-maps/v1-65.json", hands_feet_params: { ankle_frac: 0.2 } }).handsFeet, undefined);
+  rows.bodies[1].hands_feet_params = [1];
+  writeFileSync(f.bodiesPath, JSON.stringify(rows));
+  assert.throws(() => loadRows(f.bodiesPath), /hands_feet_params/);
+});
+
 test("hands_feet pass-through: a batch built with handsFeet cuts and validates every body with the six severable parts; a row override does the same for one body; a bad override value is refused", async () => {
   const f = await fixture();
   const { results, failed } = await runBatch({ bodiesPath: f.bodiesPath, sources: f.sources, out: join(f.dir, "out-hf"), handsFeet: true });
