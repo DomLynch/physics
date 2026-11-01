@@ -1,6 +1,7 @@
 // tools/cut-units.mjs on a small synthetic skinned body (boxes, strands and a hollow tube across the cut planes), plus the V3 106-rig bodies when
 // their GLBs are on this machine (CUT_BODIES_DIR, default /root/bodies; licence: not in the repo).
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -385,7 +386,7 @@ test("the CLI writes <body>.cut.glb and <body>.cut.manifest.json", async () => {
   const { writeFileSync } = await import("node:fs");
   writeFileSync(join(dir, "syn.glb"), b.bytes);
   writeFileSync(join(dir, "syn.measure.json"), JSON.stringify(b.row));
-  const res = spawnSync(process.execPath, [new URL("../tools/cut-units.mjs", import.meta.url).pathname, join(dir, "syn.glb"), join(dir, "syn.measure.json"), new URL("../data/rig-maps/mixamo-106.json", import.meta.url).pathname, join(dir, "out"), "--body", "syn"], { encoding: "utf8" });
+  const res = spawnSync(process.execPath, [fileURLToPath(new URL("../tools/cut-units.mjs", import.meta.url)), join(dir, "syn.glb"), join(dir, "syn.measure.json"), fileURLToPath(new URL("../data/rig-maps/mixamo-106.json", import.meta.url)), join(dir, "out"), "--body", "syn"], { encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr);
   assert.ok(existsSync(join(dir, "out", "syn.cut.glb")) && existsSync(join(dir, "out", "syn.cut.manifest.json")));
   const m = JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8"));
@@ -703,7 +704,7 @@ test("both optional cuts together, with hair: the validator passes all ten check
   const dir = mkdtempSync(join(tmpdir(), "cut-units-opt-"));
   const { writeFileSync } = await import("node:fs");
   writeFileSync(join(dir, "syn.glb"), b.bytes); writeFileSync(join(dir, "syn.measure.json"), JSON.stringify(b.row));
-  const args = (extra) => [new URL("../tools/cut-units.mjs", import.meta.url).pathname, join(dir, "syn.glb"), join(dir, "syn.measure.json"), new URL("../data/rig-maps/mixamo-106.json", import.meta.url).pathname, join(dir, "out"), "--body", "syn", ...extra];
+  const args = (extra) => [fileURLToPath(new URL("../tools/cut-units.mjs", import.meta.url)), join(dir, "syn.glb"), join(dir, "syn.measure.json"), fileURLToPath(new URL("../data/rig-maps/mixamo-106.json", import.meta.url)), join(dir, "out"), "--body", "syn", ...extra];
   const res = spawnSync(process.execPath, args(["--head-split"]), { encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8")).regions.map((x) => x.id).filter((x) => x.startsWith("head")).sort(), ["head_left", "head_right"]);
@@ -1283,7 +1284,7 @@ test("hands_feet through the CLI flag --hands-feet", async () => {
   const dir = mkdtempSync(join(tmpdir(), "cut-units-hf-"));
   const { writeFileSync } = await import("node:fs");
   writeFileSync(join(dir, "syn.glb"), b.bytes); writeFileSync(join(dir, "syn.measure.json"), JSON.stringify(b.row));
-  const args = (extra) => [new URL("../tools/cut-units.mjs", import.meta.url).pathname, join(dir, "syn.glb"), join(dir, "syn.measure.json"), new URL("../data/rig-maps/mixamo-106.json", import.meta.url).pathname, join(dir, "out"), "--body", "syn", ...extra];
+  const args = (extra) => [fileURLToPath(new URL("../tools/cut-units.mjs", import.meta.url)), join(dir, "syn.glb"), join(dir, "syn.measure.json"), fileURLToPath(new URL("../data/rig-maps/mixamo-106.json", import.meta.url)), join(dir, "out"), "--body", "syn", ...extra];
   const res = spawnSync(process.execPath, args(["--hands-feet"]), { encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr);
   const man = JSON.parse(readFileSync(join(dir, "out", "syn.cut.manifest.json"), "utf8"));

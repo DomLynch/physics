@@ -4,6 +4,7 @@
 // A cell whose tooling or data is absent at the checked-out sha (an old pin without admit(), loadChainBody(), a body file, or a tool) is SKIPPED, never failed. Run an older pin's src/ and data/ with the CURRENT tools/
 // (scripts/physics-nightly.sh does the overlay). This is the CPU cost of one 60 Hz physics tick on whatever machine runs it; src/ never reads a clock, the timing lives here.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
 import { availableParallelism } from "node:os";
 import * as P from "../src/index.mjs";
@@ -27,7 +28,7 @@ function whyNot(cell, br) {
 // one timed run of one cell -> p95_ms
 async function once(cell, br, over) {
   if (cell.kind === "parked") {
-    const out = execFileSync(process.execPath, [new URL(cell.needs, ROOT).pathname, "--parked", "--counts", `0,${cell.n}`, "--repeats", "1"], { encoding: "utf8", maxBuffer: 1 << 26 });
+    const out = execFileSync(process.execPath, [fileURLToPath(new URL(cell.needs, ROOT)), "--parked", "--counts", `0,${cell.n}`, "--repeats", "1"], { encoding: "utf8", maxBuffer: 1 << 26 });
     const line = out.split("\n").find((l) => l.startsWith("PARKED_COST_JSON "));
     const c = JSON.parse(line.slice("PARKED_COST_JSON ".length)).cells.find((x) => x.parked_n === cell.n && !x.dying);
     return c.p95_ms;
@@ -39,7 +40,7 @@ async function once(cell, br, over) {
 
 // the same, in a fresh node process: a Jolt WASM abort (OOM on an old pin, say) kills only that cell's run, not the rest of the night
 function onceIsolated(cell, over) {
-  const a = [new URL(import.meta.url).pathname, "--cell", JSON.stringify(cell)];
+  const a = [fileURLToPath(import.meta.url), "--cell", JSON.stringify(cell)];
   if (over.ticks) a.push("--ticks", String(over.ticks));
   if (over.warm_ticks) a.push("--warm", String(over.warm_ticks));
   const r = spawnSync(process.execPath, a, { encoding: "utf8", maxBuffer: 1 << 26 });
@@ -86,7 +87,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   const nr = JSON.parse(readFileSync(opt("rows", new URL("../data/nightly-rows.json", import.meta.url)), "utf8"));
   const br = JSON.parse(readFileSync(new URL("../data/budget-rows.json", import.meta.url), "utf8"));
-  const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT.pathname, encoding: "utf8" }).trim();
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fileURLToPath(ROOT), encoding: "utf8" }).trim();
   const res = await runNightly(nr, br, { isolate: true, runs: opt("runs") ? +opt("runs") : undefined, target: opt("target", "local"), sha });
   const out = opt("out");
   if (out) writeFileSync(out, JSON.stringify(res, null, 2) + "\n");

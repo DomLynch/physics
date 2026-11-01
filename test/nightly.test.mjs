@@ -1,5 +1,6 @@
 // Nightly benchmark: the pure gate (tools/nightly-gate.mjs), the table, the results-file schema, the rows file, and a reduced run of tools/nightly.mjs. Timing lives in the tool, never in src/.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -59,7 +60,7 @@ test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the on
   writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*|*"issue edit"*) cat >/dev/null; echo https://example.test/1;; esac\n`);
   chmodSync(join(bin, "gh"), 0o755);
   writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells: { "a/b/n1/cap": { p95_ms: 1.2 } }, skipped: [] }));
-  const run = (...extra) => spawnSync(process.execPath, [new URL("../scripts/nightly-post.mjs", import.meta.url).pathname, "--target", "physics-main", "--from-dir", res, "--baseline-dir", base, ...extra], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  const run = (...extra) => spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/nightly-post.mjs", import.meta.url)), "--target", "physics-main", "--from-dir", res, "--baseline-dir", base, ...extra], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   const a = run();
   assert.equal(a.status, 0, a.stderr);
   assert.match(a.stdout, /dry run/);
@@ -87,7 +88,7 @@ test("nightly-post --post: a gh that exits 0 without reading its stdin (EPIPE on
   for (let i = 0; i < 3000; i++) cells[`set${i}/scenario/n1/cap`] = { p95_ms: 1 };
   writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells, skipped: [] }));
   const fake = (create) => { writeFileSync(join(bin, "gh"), `#!/bin/sh\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*) ${create};; esac\n`); chmodSync(join(bin, "gh"), 0o755); };
-  const run = () => spawnSync(process.execPath, [new URL("../scripts/nightly-post.mjs", import.meta.url).pathname, "--post", "--target", "physics-main", "--from-dir", res, "--baseline-dir", base], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  const run = () => spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/nightly-post.mjs", import.meta.url)), "--post", "--target", "physics-main", "--from-dir", res, "--baseline-dir", base], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   fake("echo https://example.test/1");   // never reads stdin, exits 0
   const ok = run();
   assert.equal(ok.status, 0, ok.stderr);

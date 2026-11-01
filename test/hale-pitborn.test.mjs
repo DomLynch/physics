@@ -1,5 +1,6 @@
 // hale-pitborn: the Armagedom player Hale shares the 65-joint UE-style body (rig map v1-65). The 20-role ragdoll comes straight from the measure row.
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createPhysics, generateRow, loadTable } from "../src/index.mjs";
@@ -62,7 +63,7 @@ test("hale-pitborn fall trace: dies, falls, freezes; hips low, speed bounded, no
 // the committed cut rows for the two Armagedom player bodies (the sources are confidential and stay out of git; the rows are what the VPS batch reads)
 test("cut-bodies.json: vagrant-106 (mixamo-19) and hale-pitborn (v1-65) have rows whose maps and measure rows exist, blocked with the checks the batch expects", async () => {
   const { loadRows } = await import("../tools/cut-batch.mjs");
-  const rows = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname).bodies;
+  const rows = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url))).bodies;
   const want = { "vagrant-106": ["data/rig-maps/mixamo-19.json", ["watertight"]], "hale-pitborn": ["data/rig-maps/v1-65.json", ["watertight", "orientation"]] };
   for (const [name, [map, checks]] of Object.entries(want)) {
     const r = rows.find((x) => x.name === name);
