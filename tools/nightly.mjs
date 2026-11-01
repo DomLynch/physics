@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
 import { availableParallelism } from "node:os";
+import { resolve } from "node:path";
 import * as P from "../src/index.mjs";
 import { runCell } from "./budget-seven.mjs";
 import { cellKey, medianCells, pooledCells, SCHEMA } from "./nightly-gate.mjs";
@@ -73,7 +74,7 @@ export async function runNightly(nr, br, over = {}) {
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf("--" + k); return i < 0 ? d : args[i + 1]; };
   if (opt("cell")) { // child mode: WARM_RUNS unrecorded full runs of the cell (JIT and WASM warm, like budget-seven's repeats in one process), then one recorded run; prints CELL_FRAMES [ms...] (parked: the p95)
     const cell = JSON.parse(opt("cell")), br = JSON.parse(readFileSync(new URL("../data/budget-rows.json", import.meta.url), "utf8"));

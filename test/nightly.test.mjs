@@ -5,9 +5,21 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir, availableParallelism } from "node:os";
-import { join } from "node:path";
+import { join, delimiter } from "node:path";
 import { median, cellKey, medianCells, pooledCells, gate, flagLine, renderTable, renderReport, validateResults, LIMIT_MS, REGRESS_PCT } from "../tools/nightly-gate.mjs";
 import { runNightly } from "../tools/nightly.mjs";
+
+// nightly-post --post edits the LIVE issue DomLynch/physics#104 if it reaches the real gh. Both nightly-post tests therefore refuse to run
+// unless the gh first on PATH is the test stub (it answers --version with FAKE_GH). The stub is a #!/bin/sh script, which cannot shadow
+// gh.exe on Windows, so those two tests are skipped there.
+const FAKE_GH = "FAKE-GH-TEST-STUB";
+const WIN_SKIP = process.platform === "win32" ? "the fake gh is a sh script and cannot shadow gh.exe on Windows; --post here would reach the real gh and edit the live nightly issue" : false;
+function stubEnv(bin) {
+  const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}`, GH_TOKEN: "", GITHUB_TOKEN: "" };
+  const v = spawnSync("gh", ["--version"], { encoding: "utf8", env });
+  if (!String(v.stdout).includes(FAKE_GH)) throw new Error("refusing to run nightly-post: the gh on PATH is not the test stub, so --post could reach the real gh");
+  return env;
+}
 
 test("defaults: 3 ms limit, 20% regression", () => { assert.equal(LIMIT_MS, 3); assert.equal(REGRESS_PCT, 20); });
 
@@ -54,13 +66,13 @@ test("runNightly records the real vCPU count, not the host's", async () => {
   assert.equal(res.cpus, availableParallelism());
 });
 
-test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the only way to write; help says so", () => {
+test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the only way to write; help says so", { skip: WIN_SKIP }, () => {
   const dir = mkdtempSync(join(tmpdir(), "np-")), bin = join(dir, "bin"), res = join(dir, "res"), base = join(dir, "base"), log = join(dir, "gh.log");
   mkdirSync(bin); mkdirSync(res); mkdirSync(base);
-  writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${log}\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*|*"issue edit"*) cat >/dev/null; echo https://example.test/1;; esac\n`);
+  writeFileSync(join(bin, "gh"), `#!/bin/sh\ncase "$*" in *--version*) echo ${FAKE_GH}; exit 0;; esac\necho "$@" >> ${log}\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*|*"issue edit"*) cat >/dev/null; echo https://example.test/1;; esac\n`);
   chmodSync(join(bin, "gh"), 0o755);
   writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells: { "a/b/n1/cap": { p95_ms: 1.2 } }, skipped: [] }));
-  const run = (...extra) => spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/nightly-post.mjs", import.meta.url)), "--target", "physics-main", "--from-dir", res, "--baseline-dir", base, ...extra], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  const run = (...extra) => spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/nightly-post.mjs", import.meta.url)), "--target", "physics-main", "--from-dir", res, "--baseline-dir", base, ...extra], { encoding: "utf8", env: stubEnv(bin) });
   const a = run();
   assert.equal(a.status, 0, a.stderr);
   assert.match(a.stdout, /dry run/);
@@ -80,15 +92,15 @@ test("nightly-post: dry run is the DEFAULT (no gh call at all), --post is the on
   assert.match(readFileSync(log, "utf8"), /issue create/, "--post writes");
 });
 
-test("nightly-post --post: a gh that exits 0 without reading its stdin (EPIPE on the body) still counts as posted; a gh that fails still fails", () => {
+test("nightly-post --post: a gh that exits 0 without reading its stdin (EPIPE on the body) still counts as posted; a gh that fails still fails", { skip: WIN_SKIP }, () => {
   const dir = mkdtempSync(join(tmpdir(), "np-epipe-")), bin = join(dir, "bin"), res = join(dir, "res"), base = join(dir, "base");
   mkdirSync(bin); mkdirSync(res); mkdirSync(base);
   // a body far larger than the 64 KB pipe buffer, so the write cannot finish before the child is gone: EPIPE every time
   const cells = {};
   for (let i = 0; i < 3000; i++) cells[`set${i}/scenario/n1/cap`] = { p95_ms: 1 };
   writeFileSync(join(res, "2026-10-28-physics-main.json"), JSON.stringify({ schema: "nightly/1", target: "physics-main", sha: "a".repeat(40), node: "v22", cpus: 8, runs: 5, date: "2026-10-28", cells, skipped: [] }));
-  const fake = (create) => { writeFileSync(join(bin, "gh"), `#!/bin/sh\ncase "$*" in *"issue list"*) echo '[]';; *"issue create"*) ${create};; esac\n`); chmodSync(join(bin, "gh"), 0o755); };
-  const run = () => spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/nightly-post.mjs", import.meta.url)), "--post", "--target", "physics-main", "--from-dir", res, "--baseline-dir", base], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  const fake = (create) => { writeFileSync(join(bin, "gh"), `#!/bin/sh\ncase "$*" in *--version*) echo ${FAKE_GH};; *"issue list"*) echo '[]';; *"issue create"*) ${create};; esac\n`); chmodSync(join(bin, "gh"), 0o755); };
+  const run = () => spawnSync(process.execPath, [fileURLToPath(new URL("../scripts/nightly-post.mjs", import.meta.url)), "--post", "--target", "physics-main", "--from-dir", res, "--baseline-dir", base], { encoding: "utf8", env: stubEnv(bin) });
   fake("echo https://example.test/1");   // never reads stdin, exits 0
   const ok = run();
   assert.equal(ok.status, 0, ok.stderr);
