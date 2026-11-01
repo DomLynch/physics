@@ -1,6 +1,7 @@
 // tools/cut-batch.mjs on two synthetic bodies (no real body is in the repo): rows, measure + cut + validate, the receipt, blocked rows, determinism, and the
 // general fixes the real 65-rig bodies needed (unskinned props in the source, a second UV set on one primitive only).
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -404,7 +405,7 @@ test("rows: overrides.rigid_accessory_materials is a list of names or {name, pie
 });
 
 test("the shipped rows file is valid and lists every V3 body", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   assert.deepEqual(bodies.map((b) => b.name).sort(), ["anime-boy-black-106", "anime-girl-blonde-106", "arachne-106", "big-vegas-106", "brute-106", "castle-guard-106", "demon-106", "gargantua-106", "hale-pitborn", "hunter-pitborn-106", "kachujin-106", "maw-106", "minotaur-106", "minotaur-65", "parasite-106", "psyche-106", "psyche-65", "pumpkinhulk-106", "sporty-granny-106", "the-boss-106", "vagrant-106", "veteran-65", "warrior-65", "warrok-106"]);
   for (const b of bodies) {
     assert.ok(existsSync(new URL("../" + b.rig_map, import.meta.url)), b.rig_map);
@@ -414,7 +415,7 @@ test("the shipped rows file is valid and lists every V3 body", () => {
 });
 
 test("psyche-106: pinned to V3's own source (Frankendom-v3 3e2a48c0 = main src/assets/psyche-106.glb), not the unknown-origin plain copy", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "psyche-106");
   assert.equal(b.source, "psyche-106.glb", "V3's compressed file; the batch decompresses it");
   assert.equal(b.plain, undefined, "not a plain row: the batch decompresses the V3 file");
@@ -428,7 +429,7 @@ test("psyche-106: pinned to V3's own source (Frankendom-v3 3e2a48c0 = main src/a
 });
 
 test("minotaur-106 row reproduces the shipped cut: head_split and belly_open are on in the row (V3 #111, physics 9056ef7)", async () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "minotaur-106");
   assert.deepEqual(b.overrides, { head_split: true, belly_open: true });
   assert.deepEqual(cutOpts(b), { body: "minotaur-106", rig: "mixamo-106", headSplit: true, bellyOpen: true });
@@ -446,7 +447,7 @@ test("minotaur-106 row reproduces the shipped cut: head_split and belly_open are
 });
 
 test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it names the eye-loop boundary edges and the source caps", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "parasite-106");
   assert.equal(b.source, "parasite-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
@@ -456,7 +457,7 @@ test("parasite-106 (V3 boss The Titan's Envoy): a pinned, unblocked row; it name
 });
 
 test("the-boss-106 (V3 boss The Boss, rebuilt body, Frankendom-v3 PR 242): a pinned, unblocked row with the two rigid layers; no validator bypass", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "the-boss-106");
   assert.equal(b.source, "the-boss-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
@@ -470,7 +471,7 @@ test("the-boss-106 (V3 boss The Boss, rebuilt body, Frankendom-v3 PR 242): a pin
 });
 
 test("big-vegas-106 (V3 boss The King): a pinned, unblocked row; the midline wall cap makes all 8 checks pass (no validator bypass)", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "big-vegas-106");
   assert.equal(b.source, "big-vegas-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
@@ -481,7 +482,7 @@ test("big-vegas-106 (V3 boss The King): a pinned, unblocked row; the midline wal
 });
 
 test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records the 3 position-only source repairs and the native open edges", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "anime-boy-black-106");
   assert.equal(b.source, "anime-boy-black-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");
@@ -491,7 +492,7 @@ test("anime-boy-black-106 (V3 boss body): a pinned, unblocked row; it records th
 });
 
 test("shoulder_mode tilt reaches the plane: the shipped anime-girl row's override turns the shoulder plane away from today's vertical one (fails on a tool without the mode)", async () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const o = cutOpts(bodies.find((x) => x.name === "anime-girl-blonde-106"));
   assert.equal(o.planes.shoulder_mode, "tilt");
   const { buildPlanes } = await import("../tools/cut-units.mjs");
@@ -502,7 +503,7 @@ test("shoulder_mode tilt reaches the plane: the shipped anime-girl row's overrid
 });
 
 test("anime-girl-blonde-106 (V3 body): a pinned, unblocked row whose only override is the general narrow-shoulder mode (planes.shoulder_mode tilt)", () => {
-  const { bodies } = loadRows(new URL("../data/cut-bodies.json", import.meta.url).pathname);
+  const { bodies } = loadRows(fileURLToPath(new URL("../data/cut-bodies.json", import.meta.url)));
   const b = bodies.find((x) => x.name === "anime-girl-blonde-106");
   assert.equal(b.source, "anime-girl-blonde-106.glb");
   assert.equal(b.rig_map, "data/rig-maps/mixamo-106.json");

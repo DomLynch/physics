@@ -1,12 +1,13 @@
 // Shape maps (data/shape-maps): one ragdoll map per body shape on the 106-joint rig + the body -> shape lookup.
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { readFileSync, statSync } from "node:fs";
 import { generateRow, loadTable } from "../src/generate.mjs";
 import { loadMaps, mapJoints } from "../tools/shape-maps-validate.mjs";
 import { bodyShape } from "../src/shape-maps.mjs";
 
-const DIR = new URL("../data/shape-maps", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL("../data/shape-maps", import.meta.url));
 const { maps, lookup, follow } = loadMaps(DIR);
 const table = loadTable();
 
