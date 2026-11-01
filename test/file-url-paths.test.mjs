@@ -20,3 +20,9 @@ test("no tool, script or test turns a file URL into a filesystem path with .path
   }
   assert.deepEqual(offenders, []);
 });
+
+test("tools/nightly.mjs main guard compares resolved paths, not file:// strings (those differ on Windows)", () => {
+  const src = readFileSync(join(ROOT, "tools", "nightly.mjs"), "utf8");
+  assert.doesNotMatch(src, /import\.meta\.url\s*===\s*`file:\/\//);
+  assert.match(src, /resolve\(process\.argv\[1\]\)\s*===\s*fileURLToPath\(import\.meta\.url\)/);
+});
